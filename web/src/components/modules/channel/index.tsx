@@ -1,0 +1,150 @@
+'use client';
+
+import { useMemo } from 'react';
+import { ChannelType, useChannelList } from '@/api/endpoints/channel';
+import { Card } from './Card';
+import { useSearchStore, useToolbarViewOptionsStore } from '@/components/modules/toolbar';
+import { VirtualizedGrid } from '@/components/common/VirtualizedGrid';
+
+function normalizeKeyword(value: string) {
+    return value.trim().toLowerCase();
+}
+
+function getProviderFilterKey(type: ChannelType) {
+    switch (type) {
+        case ChannelType.OpenAIChat:
+        case ChannelType.OpenAIResponse:
+        case ChannelType.OpenAIEmbedding:
+            return 'openai';
+        case ChannelType.Anthropic:
+            return 'anthropic';
+        case ChannelType.Gemini:
+            return 'gemini';
+        case ChannelType.Volcengine:
+            return 'volcengine';
+        case ChannelType.GithubCopilot:
+            return 'github-copilot';
+        case ChannelType.Antigravity:
+            return 'antigravity';
+        case ChannelType.Zen:
+            return 'zen';
+        default:
+            return 'openai';
+    }
+}
+
+function getChannelTypeSearchTokens(type: ChannelType) {
+    switch (type) {
+        case ChannelType.OpenAIChat:
+            return ['openai', 'chat', 'openai chat', '聊天'];
+        case ChannelType.OpenAIResponse:
+            return ['openai', 'responses', 'response', '响应'];
+        case ChannelType.OpenAIEmbedding:
+            return ['openai', 'embedding', 'embeddings', '向量'];
+        case ChannelType.Anthropic:
+            return ['anthropic', 'claude'];
+        case ChannelType.Gemini:
+            return ['gemini', 'google'];
+        case ChannelType.Volcengine:
+            return ['volcengine', '火山', '火山引擎'];
+        case ChannelType.GithubCopilot:
+            return ['github', 'copilot', 'github copilot'];
+        case ChannelType.Antigravity:
+            return ['antigravity'];
+        case ChannelType.Zen:
+            return ['zen'];
+        default:
+            return [];
+    }
+}
+
+export function Channel() {
+    const { data: channelsData } = useChannelList();
+    const pageKey = 'channel' as const;
+    const searchTerm = useSearchStore((s) => s.getSearchTerm(pageKey));
+    const layout = useToolbarViewOptionsStore((s) => s.getLayout(pageKey));
+    const sortOrder = useToolbarViewOptionsStore((s) => s.getSortOrder(pageKey));
+    const filter = useToolbarViewOptionsStore((s) => s.channelFilter);
+    const providerFilter = useToolbarViewOptionsStore((s) => s.channelProviderFilter);
+    const modelKeyword = useToolbarViewOptionsStore((s) => s.channelModelKeyword);
+    const keyKeyword = useToolbarViewOptionsStore((s) => s.channelKeyKeyword);
+
+    const sortedChannels = useMemo(() => {
+        if (!channelsData) return [];
+        return [...channelsData].sort((a, b) => (sortOrder === 'asc' ? a.raw.id - b.raw.id : b.raw.id - a.raw.id));
+    }, [channelsData, sortOrder]);
+
+    const visibleChannels = useMemo(() => {
+        const term = normalizeKeyword(searchTerm);
+        const modelTerm = normalizeKeyword(modelKeyword);
+        const keyTerm = normalizeKeyword(keyKeyword);
+
+        const bySearch = !term
+            ? sortedChannels
+            : sortedChannels.filter((channel) => {
+                const parts = [
+                    channel.raw.name,
+                    channel.raw.model,
+                    channel.raw.custom_model,
+                    ...getChannelTypeSearchTokens(channel.raw.type),
+                    ...channel.raw.keys.flatMap((key) => [
+                        key.channel_key,
+                        key.remark,
+                        key.source_type,
+                        key.allowed_models,
+                    ]),
+                ];
+
+                return parts.some((part) => part?.toLowerCase().includes(term));
+            });
+
+        const byStatus = filter === 'enabled'
+            ? bySearch.filter((c) => c.raw.enabled)
+            : filter === 'disabled'
+                ? bySearch.filter((c) => !c.raw.enabled)
+                : bySearch;
+
+        const byProvider = providerFilter === 'all'
+            ? byStatus
+            : byStatus.filter((channel) => getProviderFilterKey(channel.raw.type) === providerFilter);
+
+        const byModel = !modelTerm
+            ? byProvider
+            : byProvider.filter((channel) => {
+                const models = [
+                    channel.raw.model,
+                    channel.raw.custom_model,
+                    ...channel.raw.keys.map((key) => key.allowed_models ?? ''),
+                ];
+                return models.some((part) => part?.toLowerCase().includes(modelTerm));
+            });
+
+        const byKey = !keyTerm
+            ? byModel
+            : byModel.filter((channel) => {
+                const keyParts = channel.raw.keys.flatMap((key) => [
+                    key.channel_key,
+                    key.remark,
+                    key.source_type,
+                    key.allowed_models,
+                ]);
+                return keyParts.some((part) => part?.toLowerCase().includes(keyTerm));
+            });
+
+        return byKey;
+    }, [sortedChannels, searchTerm, filter, providerFilter, modelKeyword, keyKeyword]);
+
+    return (
+        <div data-testid="channel-page" data-layout={layout} className="h-full min-h-0">
+            <VirtualizedGrid
+                items={visibleChannels}
+                layout={layout}
+                columns={{ default: 1, md: 2, lg: 2 }}
+                estimateItemHeight={layout === 'list' ? 176 : 248}
+                gap={12}
+                getItemKey={(item) => `channel-${item.raw.id}`}
+                renderItem={(item) => <Card channel={item.raw} stats={item.formatted} layout={layout} />}
+            />
+        </div>
+    );
+}

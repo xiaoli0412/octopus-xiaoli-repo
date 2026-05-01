@@ -1,0 +1,82 @@
+name: validation
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-and-web:
+    name: backend-and-web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24.4'
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Frontend typecheck and static sync
+        working-directory: web
+        run: pnpm install --frozen-lockfile && pnpm exec tsc --noEmit && pnpm run build:static
+
+      - name: Frontend unit tests
+        working-directory: web
+        run: pnpm run test
+
+      - name: Frontend no-browser verification
+        working-directory: web
+        run: pnpm run test:screenshot-no-browser
+
+      - name: Go build all packages
+        run: go build ./...
+
+      - name: Go test targeted packages
+        run: go test ./internal/op ./internal/server/handlers ./internal/server/middleware ./internal/relay/... ./internal/task ./internal/update -count=1
+
+      - name: Linux backend smoke
+        run: bash scripts/smoke-linux-backend.sh
+
+  docker-runtime-smoke:
+    name: docker-runtime-smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker compose runtime smoke
+        run: bash scripts/smoke-docker-compose.sh

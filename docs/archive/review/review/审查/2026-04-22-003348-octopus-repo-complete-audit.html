@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Octopus 完整审计报告</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f3ec;
+      --panel: #fffaf0;
+      --panel-2: #f5efe5;
+      --text: #1d1b16;
+      --muted: #6e6457;
+      --border: #d9ccb8;
+      --accent: #7b4d1f;
+      --accent-2: #385f5c;
+      --danger: #9f2f1f;
+      --warn: #9a6413;
+      --ok: #26734d;
+      --shadow: 0 18px 50px rgba(73, 56, 36, 0.11);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(123, 77, 31, 0.14), transparent 32%),
+        radial-gradient(circle at top right, rgba(56, 95, 92, 0.12), transparent 28%),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 20px 60px; }
+    .hero {
+      background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(245,239,229,0.82));
+      border: 1px solid var(--border);
+      border-radius: 26px;
+      box-shadow: var(--shadow);
+      padding: 28px;
+      margin-bottom: 22px;
+    }
+    .hero h1 { margin: 0 0 10px; font-size: clamp(32px, 5vw, 48px); line-height: 1.04; }
+    .hero p { margin: 8px 0 0; color: var(--muted); }
+    .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 18px; }
+    .meta .card, .section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+    }
+    .meta .card { padding: 14px 16px; }
+    .meta .label { display:block; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+    .meta .value { font-size: 15px; font-weight: 700; }
+    .grid { display: grid; gap: 18px; }
+    .section { padding: 20px; }
+    .section h2 { margin: 0 0 12px; font-size: 24px; }
+    .section h3 { margin: 22px 0 10px; font-size: 18px; }
+    .finding { border-left: 4px solid var(--border); padding: 14px 16px; margin-top: 14px; background: linear-gradient(180deg, rgba(255,255,255,0.78), rgba(245,239,229,0.58)); border-radius: 14px; }
+    .finding.high { border-left-color: var(--danger); }
+    .finding.medium { border-left-color: var(--warn); }
+    .finding.low { border-left-color: var(--accent-2); }
+    .finding .sev { font-weight: 800; margin-bottom: 8px; }
+    .pill { display:inline-block; margin-right: 8px; margin-top: 8px; padding: 4px 10px; border-radius: 999px; background: rgba(123,77,31,.1); color: var(--accent); font-size: 12px; }
+    .cols { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+    ul { margin: 10px 0 0 18px; }
+    li { margin: 6px 0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; overflow: hidden; border-radius: 14px; }
+    th, td { border: 1px solid var(--border); padding: 10px 12px; text-align: left; vertical-align: top; }
+    th { background: rgba(123,77,31,.08); }
+    code, pre { font-family: "Cascadia Code", "Consolas", monospace; }
+    code { background: rgba(56,95,92,.08); padding: 2px 6px; border-radius: 6px; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #fff; border: 1px solid var(--border); padding: 14px; border-radius: 14px; }
+    a { color: var(--accent-2); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>Octopus 完整审计报告</h1>
+      <p>仓库路径 <code>D:\GPT-codex\octopus_repo</code>。结论是核心链路基本落地，但 route-target 竞速门控和协议转换边界还有收口空间。</p>
+      <div class="meta">
+        <div class="card"><span class="label">分支</span><span class="value">feat/erguotou</span></div>
+        <div class="card"><span class="label">基线</span><span class="value">origin/dev</span></div>
+        <div class="card"><span class="label">生成时间</span><span class="value">2026-04-22 00:33:48 +08:00</span></div>
+        <div class="card"><span class="label">总体完成度</span><span class="value">约 85%</span></div>
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="section">
+        <h2>Findings</h2>
+        <div class="finding high">
+          <div class="sev">High route-target override 在竞速门控里被绕过</div>
+          <div>`shouldEscalateToRace` 只调用 `allowsRacingByModel(requestModel)`，而后者用的是 `ResolveRouteTargetPolicy(nil dbmodel.ChannelKey{} requestModel)`。这样会丢掉真实的 `(channel, key, model)` 上下文，导致具体 route-target 的保守策略不会影响并发竞速。</div>
+          <div class="pill">[internal/relay/relay.go](file:///D:/GPT-codex/octopus_repo/internal/relay/relay.go#L248)</div>
+          <div class="pill">[internal/relay/relay.go](file:///D:/GPT-codex/octopus_repo/internal/relay/relay.go#L536)</div>
+          <div class="pill">[internal/op/route_target.go](file:///D:/GPT-codex/octopus_repo/internal/op/route_target.go#L222)</div>
+        </div>
+
+        <div class="finding medium">
+          <div class="sev">Medium 协议转换层仍有真实 TODO</div>
+          <div>`internal/transformer/model/model.go`、`internal/transformer/outbound/gemini/messages.go` 和 `internal/transformer/inbound/anthropic/messages.go` 里还留着 audio、prediction、JSON schema、`tool_result` 相关的 TODO 分支。主链路可用，但这些高级格式仍是降级而不是完全翻译。</div>
+          <div class="pill">[internal/transformer/model/model.go](file:///D:/GPT-codex/octopus_repo/internal/transformer/model/model.go#L142)</div>
+          <div class="pill">[internal/transformer/outbound/gemini/messages.go](file:///D:/GPT-codex/octopus_repo/internal/transformer/outbound/gemini/messages.go#L321)</div>
+          <div class="pill">[internal/transformer/inbound/anthropic/messages.go](file:///D:/GPT-codex/octopus_repo/internal/transformer/inbound/anthropic/messages.go#L162)</div>
+        </div>
+
+        <div class="finding low">
+          <div class="sev">Low `devs` 脚本不是可移植配置</div>
+          <div>`web/package.json` 的 HTTPS 开发脚本写死了证书路径，换机器或换目录后就会失效。</div>
+          <div class="pill">[web/package.json](file:///D:/GPT-codex/octopus_repo/web/package.json#L8)</div>
+        </div>
+
+        <div class="finding low">
+          <div class="sev">Low README 仍有占位链接</div>
+          <div>README 中的仓库地址和 release 链接还没替换成正式值。这是文档收口问题，不是运行时缺陷。</div>
+          <div class="pill">[README.md](file:///D:/GPT-codex/octopus_repo/README.md#L51)</div>
+          <div class="pill">[README_zh.md](file:///D:/GPT-codex/octopus_repo/README_zh.md#L51)</div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Completion Assessment</h2>
+        <p>核心链路已经很完整。服务启动、健康检查、渠道与分组管理、route-target 覆盖、统计、日志导出、备份导入回滚、动态摘要扫描都是真接线。`cmd/start.go` 已把任务调度接到启动链上，`internal/task/init.go` 也确实注册了每日动态摘要扫描。</p>
+        <p>半成品主要集中在两处。第一处是协议转换边界。第二处是高级动态路由门控，尤其是 route-target 级覆盖还没回到主竞速判断里。</p>
+        <p>总体上，这不是“还没开始”，而是“核心房梁已立好，但几处关键门窗还没封严”。</p>
+      </section>
+
+      <section class="section">
+        <h2>Verification Summary</h2>
+        <div class="cols">
+          <div>
+            <h3>已验证</h3>
+            <ul>
+              <li><code>D:\gol1\node.exe .\web\node_modules\typescript\bin\tsc --noEmit -p .\web\tsconfig.json</code> 通过</li>
+              <li><code>D:\gol1\node.exe --experimental-strip-types .\scripts\verify-backup-logic.mjs</code> 通过</li>
+              <li><code>D:\gol1\node.exe .\scripts\verify-backup-component.cjs</code> 通过</li>
+              <li><code>D:\gol1\node.exe .\web\node_modules\next\dist\bin\next build</code> 编译到生产阶段后死在 <code>spawn EPERM</code></li>
+            </ul>
+          </div>
+          <div>
+            <h3>未验证</h3>
+            <ul>
+              <li><code>go build ./...</code></li>
+              <li><code>go test ./...</code></li>
+              <li><code>docker compose up -d --build</code></li>
+              <li>更完整的协议转换边界测试</li>
+            </ul>
+          </div>
+        </div>
+        <p>当前机器上 `go`、`pnpm`、`docker` 都不在 PATH 里，所以 Go / Docker 这条验证链没有跑起来。</p>
+      </section>
+
+      <section class="section">
+        <h2>Comparison Notes</h2>
+        <table>
+          <thead>
+            <tr><th>维度</th><th>结论</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>当前工作区 vs HEAD</td><td>工作区本身是脏的，已有大量既存修改和未跟踪文件。我没有回滚这些内容，只新增了审计产物。</td></tr>
+            <tr><td>当前分支 vs origin/dev</td><td>HEAD 相比 `origin/dev` 有明显扩展，`git diff --stat origin/dev..HEAD` 显示 72 个文件变化，约 6001 行新增、1741 行删除。</td></tr>
+            <tr><td>代码 vs README / docs</td><td>备份、route-target、动态摘要扫描、统计页基本一致；协议转换边界和 README 占位符仍有漂移。</td></tr>
+            <tr><td>代码 vs 测试 / 验证</td><td>备份逻辑和组件有直接验证；route-target override 对竞速门控没有覆盖测试；transformer TODO 分支也没有直接测试。</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="section">
+        <h2>Top Next Actions</h2>
+        <ol>
+          <li>把 route-target 的真实上下文接回竞速门控，并补 override 回归测试。</li>
+          <li>收口 transformer 的 TODO 分支，再补直接测试。</li>
+          <li>去掉 `web/package.json` 里硬编码的 `devs` 路径。</li>
+          <li>补一次可复现的 Go / Docker 验证链。</li>
+        </ol>
+      </section>
+
+      <section class="section">
+        <h2>中文摘要</h2>
+        <pre>1. 本次触发时间 2026-04-22 00:33:48 +08:00
+2. 做了仓库结构、git 状态、最近提交、README / docs、关键后端和前端入口、验证脚本、路由 / 备份 / 统计 / 协议转换链路检查；运行了 git status、git log、git diff --stat、tsc --noEmit、verify-backup-logic.mjs、verify-backup-component.cjs、next build 等命令
+3. 本次修改了 [`docs/review/审查/2026-04-22-003348-octopus-repo-complete-audit.md`](/D:/GPT-codex/octopus_repo/docs/review/审查/2026-04-22-003348-octopus-repo-complete-audit.md) 和 [`docs/review/审查/2026-04-22-003348-octopus-repo-complete-audit.html`](/D:/GPT-codex/octopus_repo/docs/review/审查/2026-04-22-003348-octopus-repo-complete-audit.html)，业务代码本次无改动
+4. 发现了 route-target 覆盖未接回竞速门控、协议转换 TODO 分支未收口、`devs` 脚本硬编码路径、README 占位内容未清理
+5. 本次结果成功
+6. 需要你手动介入，优先处理 route-target 竞速门控和 transformer TODO 分支</pre>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

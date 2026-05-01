@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Octopus Audit Report - 2026-04-22 08:13:44</title>
+<style>
+:root{--bg:#f5f7fb;--card:#ffffff;--ink:#172033;--muted:#5d6b85;--line:#d7dfec;--critical:#b42318;--high:#d92d20;--medium:#f79009;--low:#1570ef;--ok:#027a48}
+*{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#eef3fb 0%,#f8fafc 100%);color:var(--ink);font:15px/1.6 "Segoe UI",system-ui,sans-serif} .wrap{max-width:1180px;margin:0 auto;padding:32px 20px 48px} .hero{background:linear-gradient(135deg,#172033,#25324b);color:#fff;border-radius:20px;padding:28px 30px;box-shadow:0 18px 50px rgba(23,32,51,.18)} h1,h2,h3{margin:0 0 12px} h1{font-size:32px;line-height:1.2} h2{font-size:22px;margin-top:28px} h3{font-size:17px;margin-top:18px} p{margin:8px 0} .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:18px} .meta div,.panel,.finding,.grid-card{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 10px 26px rgba(17,24,39,.06)} .meta div{padding:14px 16px;color:#e8eefc;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16)} .meta strong{display:block;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:#c9d4ec;margin-bottom:4px} .panel{padding:22px 24px;margin-top:22px} .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px} .grid-card{padding:18px 18px} .badge{display:inline-block;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700;letter-spacing:.02em} .critical{background:#fee4e2;color:var(--critical)} .high{background:#fef3f2;color:var(--high)} .medium{background:#fffaeb;color:var(--medium)} .low{background:#eff8ff;color:var(--low)} .ok{background:#ecfdf3;color:var(--ok)} ul{margin:10px 0 0 18px;padding:0} li{margin:6px 0} .finding{padding:18px 20px;margin:14px 0} .finding h3{display:flex;align-items:center;gap:10px} code{font-family:Consolas,"SFMono-Regular",monospace;background:#eef2f8;border-radius:6px;padding:1px 6px} .small{color:var(--muted);font-size:13px} .foot{margin-top:26px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <h1>Octopus Repo Complete Audit</h1>
+    <p>本次审计覆盖当前工作区、<code>HEAD</code>、<code>origin/dev</code>、README/docs 一致性，以及构建/测试/烟测可达性。结论是：后端主链路真实可达，但当前工作区存在明确的前端发布阻塞。</p>
+    <div class="meta">
+      <div><strong>Trigger Time</strong>2026-04-22T08:13:44+08:00</div>
+      <div><strong>Repository</strong>D:\GPT-codex\octopus_repo</div>
+      <div><strong>Status</strong><span class="badge critical">Release Blocked</span></div>
+      <div><strong>Result</strong><span class="badge ok">Audit Success</span></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Severity Overview</h2>
+    <div class="grid">
+      <div class="grid-card"><span class="badge critical">Critical</span><p><strong>1</strong> 个</p><p class="small">当前工作区 <code>GroupEditor</code> 解析级回归，直接阻断 <code>tsc</code> 与 <code>next build</code>。</p></div>
+      <div class="grid-card"><span class="badge high">High</span><p><strong>1</strong> 个</p><p class="small">前端验证链无法有效保护重改的 group editor 路径，且本机 Vitest 仍受 <code>spawn EPERM</code> 限制。</p></div>
+      <div class="grid-card"><span class="badge medium">Medium</span><p><strong>2</strong> 个</p><p class="small">协议转换 TODO 仍存在，README 发布/安装说明仍有占位符。</p></div>
+      <div class="grid-card"><span class="badge low">Low</span><p><strong>2</strong> 个</p><p class="small">开发脚本不便携，providers 模板刷新依赖分支 URL。</p></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Findings</h2>
+    <article class="finding">
+      <h3><span class="badge critical">Critical</span> 当前工作区前端已不可发布</h3>
+      <p><code>web/src/components/modules/group/Editor.tsx</code> 中引入了损坏的本地化字符串块，导致 TypeScript 解析从 746 行附近开始失败。<code>tsc --noEmit</code> 与 <code>next build</code> 都在同一位置报错，说明问题不是测试链环境噪音，而是实际源码回归。</p>
+      <p class="small">定位：<code>web/src/components/modules/group/Editor.tsx#L742-L833</code></p>
+    </article>
+    <article class="finding">
+      <h3><span class="badge high">High</span> 前端验证链未覆盖 GroupEditor 主路径</h3>
+      <p>当前 workflow 主要覆盖 typecheck、static build 与 backup 相关脚本；仓库里有 setting 相关测试，但 <code>web/src/components/modules/group/</code> 下没有直接测试文件。当前这次回归就是在没有目标性保护的情况下进入工作区的。</p>
+      <p class="small">相关：<code>.github/workflows/validation.yaml</code>、<code>web/package.json</code></p>
+    </article>
+    <article class="finding">
+      <h3><span class="badge medium">Medium</span> 协议转换仍有显式 TODO 分支</h3>
+      <p>包括 audio/prediction payload、JSON schema 转 Gemini schema、Anthropic <code>tool_result</code> 复杂内容等都仍留有 TODO，说明“多协议无缝互转”对边角场景还未完全闭环。</p>
+      <p class="small">相关：<code>internal/transformer/model/model.go</code>、<code>internal/transformer/inbound/anthropic/messages.go</code>、<code>internal/transformer/outbound/gemini/messages.go</code></p>
+    </article>
+    <article class="finding">
+      <h3><span class="badge medium">Medium</span> README 与可执行发布路径仍不一致</h3>
+      <p>中英文 README 里的镜像、仓库地址、一键安装脚本、Releases 链接仍是占位符，不能作为真实发布文档使用。</p>
+    </article>
+    <article class="finding">
+      <h3><span class="badge low">Low</span> 开发脚本和模板刷新存在运维耦合</h3>
+      <p><code>web/package.json</code> 里的 <code>devs</code> 脚本写死本机证书路径；providers 模板默认刷新依赖 <code>feat/erguotou</code> 分支 raw URL，不过 embedded fallback 存在，所以不是即时故障。</p>
+    </article>
+  </section>
+
+  <section class="panel">
+    <h2>Completion Assessment</h2>
+    <div class="grid">
+      <div class="grid-card"><span class="badge ok">Completed</span><ul><li>后端启动、<code>/healthz</code>、静态资源回退路径真实可达</li><li>settings export/import/rollback 与 route-target override 已接线</li><li>token breakdown、dynamic-routing summary 已接入 API 与 UI</li><li>Windows backend smoke 完整跑通</li></ul></div>
+      <div class="grid-card"><span class="badge medium">Partially Completed</span><ul><li>前端验证链存在，但对 group editor 等大改路径保护不足</li><li>动态路由摘要是观察性 summary，不会自动改写策略</li><li>协议转换核心路径可用，边角能力仍不完整</li></ul></div>
+      <div class="grid-card"><span class="badge low">Placeholders</span><ul><li>README 发布/安装占位符</li><li><code>devs</code> 硬编码路径</li><li>多处 transformer TODO</li></ul></div>
+    </div>
+    <p><strong>完成度估计：</strong>功能范围约 <code>80-85%</code>，当前工作区发布就绪度为 <span class="badge critical">Not Ready</span>。</p>
+  </section>
+
+  <section class="panel">
+    <h2>Verification Summary</h2>
+    <div class="grid">
+      <div class="grid-card"><span class="badge ok">Verified</span><ul><li><code>go build ./...</code></li><li><code>go test ./... -count=1</code></li><li><code>node .\scripts\verify-backup-logic.mjs</code></li><li><code>node .\scripts\verify-backup-component.cjs</code></li><li><code>node .\scripts\sync-web-static.mjs</code></li><li><code>powershell -ExecutionPolicy Bypass -File .\scripts\smoke-win-backend.ps1</code></li></ul></div>
+      <div class="grid-card"><span class="badge critical">Failed / Blocked</span><ul><li><code>tsc --noEmit</code> 失败：<code>GroupEditor</code> 解析错误</li><li><code>next build</code> 失败：同一 parser error</li><li><code>vitest</code> 启动被 <code>spawn EPERM</code> 阻断</li><li><code>pnpm</code>、<code>docker</code> 不在 PATH</li></ul></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Top Next Actions</h2>
+    <ul>
+      <li>先修复或回退 <code>web/src/components/modules/group/Editor.tsx</code> 的损坏本地化块，再立即重跑 <code>tsc</code> 与 <code>next build</code>。</li>
+      <li>为 <code>GroupEditor</code> 增加直接测试覆盖，并纳入常规前端验证链。</li>
+      <li>清理 README 占位符、移除 <code>devs</code> 硬编码路径，并决定 transformer TODO 是补实现还是降级文档承诺。</li>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <h2>中文摘要</h2>
+    <ul>
+      <li>本次触发时间：<code>2026-04-22T08:13:44+08:00</code></li>
+      <li>运行了仓库结构核查、git 差异检查、Go 构建测试、前端脚本验证、Windows backend smoke，以及 <code>tsc</code> / <code>next build</code> / <code>vitest</code> 复核。</li>
+      <li>本次新增文件是本轮审查 Markdown、HTML 报告以及 automation memory 记录；本次无业务代码变更。</li>
+      <li>核心问题是 <code>GroupEditor</code> 当前工作区回归导致前端无法通过类型检查和生产构建。</li>
+      <li>本次结果：<span class="badge ok">成功</span>，但存在明确发布阻塞项。</li>
+      <li>需要手动介入，优先修复 <code>web/src/components/modules/group/Editor.tsx</code>。</li>
+    </ul>
+  </section>
+
+  <p class="foot">Generated from the 2026-04-22 complete audit pass. Backend mainline remains reachable; current release blocker is the frontend workspace regression in GroupEditor.</p>
+</div>
+</body>
+</html>

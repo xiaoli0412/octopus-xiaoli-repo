@@ -1,0 +1,35 @@
+services:
+  octopus:
+    build:
+      context: .
+      dockerfile: scripts/dockerfiles/Dockerfile.debian
+    ports:
+      - '${OCTOPUS_PORT:-8080}:8080'
+    environment:
+      OCTOPUS_SERVER_HOST: 0.0.0.0
+      OCTOPUS_SERVER_PORT: 8080
+      OCTOPUS_DATABASE_TYPE: sqlite
+      OCTOPUS_DATABASE_PATH: /app/data/data.db
+      OCTOPUS_LOG_LEVEL: info
+      DATA_DIR: /app/data
+      PUID: '${OCTOPUS_PUID:-10001}'
+      PGID: '${OCTOPUS_PGID:-10001}'
+    volumes:
+      - '${OCTOPUS_DATA_DIR:-./data}:/app/data'
+    container_name: ${OCTOPUS_CONTAINER_NAME:-octopus}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/app/octopus", "healthcheck", "--url", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s

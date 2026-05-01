@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Octopus 完整审计报告</title>
+<style>
+  :root { color-scheme: light; --bg: #0f172a; --panel: #111827; --card: #1f2937; --text: #e5e7eb; --muted: #94a3b8; --accent: #38bdf8; --warn: #f59e0b; --danger: #ef4444; --ok: #10b981; }
+  body { margin: 0; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: linear-gradient(180deg, #0f172a 0%, #111827 100%); color: var(--text); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 20px 56px; }
+  .hero { background: rgba(17,24,39,.78); border: 1px solid rgba(148,163,184,.2); border-radius: 24px; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+  .title { font-size: 30px; font-weight: 800; margin: 0 0 10px; }
+  .meta { color: var(--muted); line-height: 1.7; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 18px; }
+  .card { background: rgba(31,41,55,.9); border: 1px solid rgba(148,163,184,.18); border-radius: 20px; padding: 18px; }
+  .card h2, .card h3 { margin: 0 0 10px; }
+  .section { margin-top: 22px; }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; margin-right: 8px; }
+  .high { background: rgba(239,68,68,.15); color: #fecaca; }
+  .medium { background: rgba(245,158,11,.15); color: #fde68a; }
+  .low { background: rgba(56,189,248,.15); color: #bae6fd; }
+  ul { margin: 10px 0 0 18px; padding: 0; }
+  li { margin: 6px 0; }
+  code { background: rgba(15,23,42,.7); padding: 2px 5px; border-radius: 6px; color: #dbeafe; }
+  .muted { color: var(--muted); }
+  .ok { color: var(--ok); }
+  .warn { color: var(--warn); }
+  .danger { color: var(--danger); }
+  .footer { margin-top: 22px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1 class="title">Octopus 完整审计报告</h1>
+      <div class="meta">审计时间：2026-04-26 06:25:06 +08:00<br />仓库：<code>D:\GPT-codex\octopus_repo</code></div>
+    </section>
+
+    <section class="grid section">
+      <div class="card">
+        <h2>High</h2>
+        <span class="badge high">High</span>
+        <p class="muted">备份/导入验证当前是红的，核心测试套件被初始化策略和唯一约束冲突打断。</p>
+      </div>
+      <div class="card">
+        <h2>Medium</h2>
+        <span class="badge medium">Medium</span>
+        <p class="muted">粘性会话回归测试失效，不能再证明迭代器的 sticky 顺序。</p>
+      </div>
+      <div class="card">
+        <h2>Low</h2>
+        <span class="badge low">Low</span>
+        <p class="muted">动态路由学习相关文档有轻微口径漂移。</p>
+      </div>
+    </section>
+
+    <section class="grid section">
+      <div class="card">
+        <h3>完成度评估</h3>
+        <p class="muted">主线能力大体已接线，但验证链路不健康。当前应视为“功能实现较完整，验证完整度部分完成”。</p>
+      </div>
+      <div class="card">
+        <h3>已验证项</h3>
+        <ul>
+          <li>读取了 git 状态、提交历史和与 <code>origin/dev</code> 的差异。</li>
+          <li>检查了 README / CHANGELOG 对动态路由、AI 自动化、备份导入导出、providers 的描述。</li>
+          <li>复核了后端主链路、设置页、providers、动态路由、relay、DocModal。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>未验证项</h3>
+        <ul>
+          <li><code>go build ./...</code> 因缓存和网络依赖失败。</li>
+          <li><code>pnpm exec tsc --noEmit</code> 和无浏览器测试因 node 包装器断言失败。</li>
+          <li>备份/导入链路未能通过当前测试门禁。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="card section">
+      <h3>需要优先处理的前三项</h3>
+      <ol>
+        <li>修复 <code>internal/op/backup_test.go</code> 的测试夹具与断言，消除默认初始化与唯一约束冲突。</li>
+        <li>修正 <code>internal/relay/balancer/iterator_test.go</code> 的 sticky 断言方式。</li>
+        <li>补齐一个可独立运行的 Node/pnpm 验证入口，避免当前 Codex 包装器阻断前端检查。</li>
+      </ol>
+    </section>
+
+    <section class="card section">
+      <h3>建议下一步动作</h3>
+      <p class="muted">先收口备份测试和 sticky 测试，再修前端验证环境。验证链路恢复后，才能把这次审计结论提升为“发布可评估”。</p>
+    </section>
+
+    <div class="footer">报告文件已同步到 docs/review/审查/。</div>
+  </div>
+</body>
+</html>

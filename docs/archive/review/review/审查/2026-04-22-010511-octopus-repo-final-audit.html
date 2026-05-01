@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Octopus 最终审交互报告</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4efe6;
+      --panel: rgba(255, 251, 243, 0.92);
+      --panel-strong: #fffdf8;
+      --ink: #1f1a14;
+      --muted: #72675d;
+      --line: #d8cbb8;
+      --accent: #7a4d22;
+      --accent-2: #275d58;
+      --ok: #23784f;
+      --warn: #9b6814;
+      --danger: #a23225;
+      --critical: #7e1f1a;
+      --shadow: 0 24px 80px rgba(70, 53, 34, 0.14);
+      font-family: Inter, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 0% 0%, rgba(122,77,34,.16), transparent 28%),
+        radial-gradient(circle at 100% 0%, rgba(39,93,88,.12), transparent 26%),
+        linear-gradient(180deg, #f7f2ea, #f2ece2 55%, #efe8dd);
+      min-height: 100vh;
+    }
+    .layout { display:grid; grid-template-columns:300px minmax(0,1fr); gap:24px; max-width:1680px; margin:0 auto; padding:24px; }
+    .sidebar { position:sticky; top:20px; align-self:start; background:var(--panel); border:1px solid var(--line); border-radius:28px; box-shadow:var(--shadow); padding:18px; backdrop-filter:blur(18px); max-height:calc(100vh - 40px); overflow:auto; }
+    .brand { padding:8px 8px 18px; border-bottom:1px solid var(--line); margin-bottom:16px; }
+    .brand h1 { font-size:28px; line-height:1.02; margin:0 0 10px; letter-spacing:-.04em; }
+    .brand p { margin:0; font-size:13px; color:var(--muted); }
+    .eyebrow { display:inline-flex; gap:10px; align-items:center; padding:6px 12px; border-radius:999px; background:rgba(122,77,34,.08); color:var(--accent); font-size:12px; margin-bottom:16px; font-weight:700; text-transform:uppercase; letter-spacing:.12em; }
+    .nav-group { margin-bottom:18px; }
+    .nav-title { font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin:0 0 10px; padding:0 8px; }
+    .nav-list { display:grid; gap:8px; }
+    .nav-list a { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-radius:14px; text-decoration:none; color:var(--ink); background:transparent; transition:.18s ease; font-size:14px; }
+    .nav-list a:hover, .nav-list a.active { background:rgba(122,77,34,.11); color:var(--accent); }
+    .tag { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:11px; border:1px solid currentColor; white-space:nowrap; }
+    .tag.ok { color:var(--ok); background:rgba(35,120,79,.08); }
+    .tag.warn { color:var(--warn); background:rgba(155,104,20,.08); }
+    .tag.danger { color:var(--danger); background:rgba(162,50,37,.08); }
+    .main { display:grid; gap:24px; }
+    .hero { background:linear-gradient(145deg, rgba(255,255,255,.96), rgba(248,241,231,.92)); border:1px solid var(--line); border-radius:34px; box-shadow:var(--shadow); padding:28px; overflow:hidden; position:relative; }
+    .hero::after { content:""; position:absolute; inset:auto -140px -140px auto; width:320px; height:320px; background:radial-gradient(circle, rgba(39,93,88,.16), transparent 68%); pointer-events:none; }
+    .hero h2 { font-size:clamp(38px,5vw,68px); line-height:.94; margin:0 0 16px; letter-spacing:-.06em; max-width:900px; }
+    .hero p { font-size:15px; color:var(--muted); max-width:980px; margin:0 0 18px; }
+    .meta-grid,.kpi-grid,.matrix-grid,.verification-grid { display:grid; gap:14px; }
+    .meta-grid { grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+    .kpi-grid { grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+    .verification-grid { grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); }
+    .matrix-grid { grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); }
+    .card,.section { background:var(--panel); border:1px solid var(--line); border-radius:26px; box-shadow:var(--shadow); backdrop-filter:blur(14px); }
+    .card { padding:18px; }
+    .meta-label { font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin-bottom:8px; display:block; }
+    .meta-value { font-size:18px; font-weight:800; line-height:1.25; }
+    .section { padding:22px; scroll-margin-top:24px; }
+    .section-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:18px; }
+    .section-header h3 { margin:0; font-size:26px; letter-spacing:-.04em; }
+    .section-header p { margin:6px 0 0; color:var(--muted); max-width:900px; font-size:14px; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; }
+    .toolbar input,.toolbar select,.toolbar button { border-radius:14px; border:1px solid var(--line); background:var(--panel-strong); color:var(--ink); padding:10px 12px; font:inherit; }
+    .toolbar input { min-width:220px; }
+    .toolbar button { cursor:pointer; transition:.18s ease; }
+    .toolbar button:hover { background:rgba(122,77,34,.08); color:var(--accent); }
+    .kpi-value { font-size:34px; line-height:1; font-weight:900; letter-spacing:-.05em; margin:10px 0 6px; }
+    .kpi-note { color:var(--muted); font-size:13px; line-height:1.45; }
+    .finding-list { display:grid; gap:14px; }
+    .finding { border-radius:22px; border:1px solid var(--line); background:linear-gradient(180deg, rgba(255,255,255,.78), rgba(247,240,230,.58)); overflow:hidden; }
+    .finding-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 18px; cursor:pointer; user-select:none; }
+    .finding-header h4 { margin:0; font-size:18px; line-height:1.25; }
+    .finding-sub { margin-top:6px; font-size:12px; color:var(--muted); }
+    .finding-body { padding:0 18px 18px; display:grid; gap:14px; }
+    .finding-body[hidden] { display:none; }
+    .evidence-list,.flat-list { display:grid; gap:8px; }
+    .flat-list .item,.evidence-list a { border:1px solid var(--line); border-radius:14px; padding:10px 12px; background:rgba(255,255,255,.72); font-size:13px; color:var(--ink); text-decoration:none; }
+    .evidence-list a:hover { background:rgba(122,77,34,.08); color:var(--accent); }
+    .matrix-card { border-radius:22px; padding:18px; border:1px solid var(--line); background:linear-gradient(180deg, rgba(255,255,255,.76), rgba(245,239,229,.64)); }
+    .matrix-card h4 { margin:0 0 10px; font-size:18px; }
+    .matrix-card p { margin:0; color:var(--muted); font-size:13px; }
+    .matrix-card .score { font-size:40px; font-weight:900; letter-spacing:-.06em; margin:8px 0 10px; }
+    .progress { width:100%; height:10px; background:rgba(114,103,93,.12); border-radius:999px; overflow:hidden; margin-bottom:10px; }
+    .progress>span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg, var(--accent), var(--accent-2)); }
+    .check-list { list-style:none; padding:0; margin:0; display:grid; gap:10px; }
+    .check-item { display:flex; gap:10px; align-items:flex-start; border:1px solid var(--line); border-radius:16px; padding:12px; background:rgba(255,255,255,.72); }
+    .dot { width:12px; height:12px; border-radius:999px; flex:none; margin-top:4px; }
+    .dot.pass { background:var(--ok); } .dot.fail { background:var(--danger); } .dot.skip { background:var(--warn); } .dot.note { background:var(--accent-2); }
+    .mono { font-family:"Cascadia Code", Consolas, monospace; }
+    code,pre { font-family:"Cascadia Code", Consolas, monospace; }
+    code { background:rgba(39,93,88,.08); padding:2px 6px; border-radius:7px; }
+    pre { margin:0; white-space:pre-wrap; word-break:break-word; border-radius:18px; border:1px solid var(--line); background:rgba(255,255,255,.74); padding:14px; font-size:13px; line-height:1.55; }
+    table { width:100%; border-collapse:collapse; border-radius:18px; overflow:hidden; border:1px solid var(--line); background:rgba(255,255,255,.74); }
+    th,td { border-bottom:1px solid var(--line); padding:12px 14px; text-align:left; vertical-align:top; font-size:13px; }
+    th { background:rgba(122,77,34,.08); font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+    tbody tr:last-child td { border-bottom:0; }
+    .footer-note { font-size:12px; color:var(--muted); margin-top:12px; }
+    .hidden { display:none!important; }
+    .pill-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .pill-link { display:inline-flex; align-items:center; gap:6px; padding:7px 10px; border-radius:999px; border:1px solid var(--line); background:rgba(255,255,255,.72); color:var(--accent-2); text-decoration:none; font-size:12px; }
+    .pill-link:hover { background:rgba(39,93,88,.08); }
+    .mini-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; }
+    .mini { border:1px solid var(--line); border-radius:16px; padding:12px; background:rgba(255,255,255,.7); }
+    .mini .label { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; display:block; margin-bottom:8px; }
+    .mini .value { font-size:26px; line-height:1; font-weight:900; letter-spacing:-.05em; }
+    @media (max-width:1180px){ .layout{grid-template-columns:1fr} .sidebar{position:relative; top:0; max-height:none} }
+    @media print { body{background:#fff} .layout{display:block; max-width:none; padding:0} .sidebar,.toolbar{display:none!important} .section,.hero,.card{box-shadow:none; border-color:#bbb} }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="eyebrow">Final Audit</div>
+        <h1>Octopus 最终审</h1>
+        <p>当前情况下的最终交互式可视化审计报告。单文件、自带数据、自带筛选和折叠。</p>
+      </div>
+      <div class="nav-group">
+        <div class="nav-title">目录</div>
+        <nav class="nav-list">
+          <a href="#hero">总览 <span class="tag ok">已更新</span></a>
+          <a href="#scoreboard">完成度 <span class="tag warn">90%</span></a>
+          <a href="#findings">问题清单 <span class="tag danger">2 高优</span></a>
+          <a href="#verification">验证矩阵 <span class="tag ok">构建已过</span></a>
+          <a href="#diffs">差异对比 <span class="tag warn">工作区脏</span></a>
+          <a href="#coverage">覆盖评估 <span class="tag warn">前端测试漂移</span></a>
+          <a href="#actions">优先动作 <span class="tag danger">4 项</span></a>
+          <a href="#summary-cn">中文摘要 <span class="tag ok">Automation</span></a>
+        </nav>
+      </div>
+      <div class="nav-group">
+        <div class="nav-title">快速筛选</div>
+        <div class="toolbar" style="margin-bottom:0; display:grid; gap:10px;">
+          <input id="filterInput" type="search" placeholder="筛关键词、文件名、模块" />
+          <select id="severityFilter">
+            <option value="all">全部严重度</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+          </select>
+          <button id="expandAll" type="button">展开全部问题</button>
+          <button id="collapseAll" type="button">折叠全部问题</button>
+        </div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-title">报告文件</div>
+        <div class="nav-list">
+          <a href="/D:/GPT-codex/octopus_repo/docs/review/审查/2026-04-22-010511-octopus-repo-final-audit.md">本次 MD <span class="tag ok">new</span></a>
+          <a href="/D:/GPT-codex/octopus_repo/docs/review/审查/2026-04-22-003348-octopus-repo-complete-audit.html">上次完整审 <span class="tag warn">baseline</span></a>
+        </div>
+      </div>
+    </aside>
+    <main class="main">
+      <section class="hero" id="hero">
+        <div class="eyebrow">2026-04-22 01:05:11 +08:00</div>
+        <h2>当前仓库已经接近发布级，<br>但还没到“可放心发版”的最后一公里。</h2>
+        <p>这次重新实测后，结论比上一轮更积极：<code>go build ./...</code>、<code>go test ./...</code>、<code>next build</code>、TypeScript 检查、备份逻辑验证、备份组件验证都已经通过。当前最值得优先盯住的，不再是“主链路构建不过”，而是两个更真实的收口点：<strong>route-target override 没有接回 race escalation</strong>，以及 <strong>Backup.test.tsx 仍有 5 个失败用例</strong>。</p>
+        <div class="meta-grid">
+          <div class="card"><span class="meta-label">仓库路径</span><div class="meta-value mono">D:\GPT-codex\octopus_repo</div></div>
+          <div class="card"><span class="meta-label">当前分支</span><div class="meta-value">feat/erguotou</div></div>
+          <div class="card"><span class="meta-label">基线</span><div class="meta-value">origin/dev</div></div>
+          <div class="card"><span class="meta-label">HEAD</span><div class="meta-value mono">bfa27ae</div></div>
+          <div class="card"><span class="meta-label">工作区差异</span><div class="meta-value">190</div></div>
+          <div class="card"><span class="meta-label">最终判断</span><div class="meta-value">可运行，可构建，未完全收口</div></div>
+        </div>
+        <div class="pill-row">
+          <a class="pill-link" href="/D:/GPT-codex/octopus_repo/docs/review/审查/2026-04-22-010511-octopus-repo-final-audit.md">打开 Markdown 摘要</a>
+          <a class="pill-link" href="/D:/GPT-codex/octopus_repo/docs/review/审查/2026-04-22-003348-octopus-repo-complete-audit.html">打开上一版 HTML</a>
+        </div>
+      </section>
+
+      <section class="section" id="scoreboard">
+        <div class="section-header">
+          <div>
+            <h3>完成度与发布态势</h3>
+            <p>这里不只看代码量，而是看“主流程是否真实可达、构建是否可过、测试是否能说明问题、发布阻塞是否还存在”。</p>
+          </div>
+          <span class="tag warn">最终评估 90%</span>
+        </div>
+        <div class="matrix-grid">
+          <div class="matrix-card"><h4>整体完成度</h4><div class="score">90%</div><div class="progress"><span style="width:90%"></span></div><p>比上一轮上调。原因是构建链和 Go 主测试链现在都已跑通。</p></div>
+          <div class="matrix-card"><h4>后端可信度</h4><div class="score">高</div><div class="progress"><span style="width:92%"></span></div><p><code>go build ./...</code> 与 <code>go test ./...</code> 当前都通过。</p></div>
+          <div class="matrix-card"><h4>前端构建状态</h4><div class="score">通过</div><div class="progress"><span style="width:88%"></span></div><p><code>next build</code> 本轮已通过，历史上的 <code>spawn EPERM</code> 环境阻塞已解除。</p></div>
+          <div class="matrix-card"><h4>前端测试状态</h4><div class="score">偏弱</div><div class="progress"><span style="width:58%"></span></div><p>Vitest 里 `Backup.test.tsx` 仍有 5 个失败，需要判断并收口测试漂移。</p></div>
+        </div>
+        <div class="mini-grid" style="margin-top:16px;">
+          <div class="mini"><span class="label">已修改</span><div class="value">86</div></div>
+          <div class="mini"><span class="label">未跟踪</span><div class="value">104</div></div>
+          <div class="mini"><span class="label">分支对基线改动文件</span><div class="value">72</div></div>
+          <div class="mini"><span class="label">当前工作区总差异</span><div class="value">190</div></div>
+        </div>
+      </section>
+
+      <section class="section" id="findings">
+        <div class="section-header">
+          <div>
+            <h3>问题清单</h3>
+            <p>问题按严重度排序。这里的重点不是列“看起来不完美”的地方，而是列会影响行为、验证可信度或发布判断的点。</p>
+          </div>
+          <span class="tag danger">2 个高优先项</span>
+        </div>
+        <div class="finding-list" id="findingList">
+          <article class="finding" data-severity="High" data-search="route-target race escalation override relay policy ResolveRouteTargetPolicy shouldEscalateToRace allowsRacingByModel">
+            <div class="finding-header">
+              <div>
+                <div class="tag danger">High</div>
+                <h4>route-target override 没有真正接回竞速门控</h4>
+                <div class="finding-sub">动态路由的关键策略已经有 route-target 存储和解析链，但 race escalation 仍在读 model 级默认值。</div>
+              </div>
+              <button type="button" class="tag warn toggle-btn">展开详情</button>
+            </div>
+            <div class="finding-body" hidden>
+              <div class="flat-list">
+                <div class="item">`shouldEscalateToRace` 只看 `allowsRacingByModel(requestModel)`。</div>
+                <div class="item">`allowsRacingByModel` 调的是 `ResolveRouteTargetPolicy(nil, dbmodel.ChannelKey{}, modelName)`。</div>
+                <div class="item">这会丢掉真实 `(channel, key, model)` 上下文，导致 explicit route-target override 无法影响是否进入 race。</div>
+                <div class="item">风险不是“字段没存起来”，而是“主流程没用上完整上下文”。</div>
+              </div>
+              <div class="evidence-list">
+                <a href="/D:/GPT-codex/octopus_repo/internal/relay/relay.go#L248">relay.go#L248 `shouldEscalateToRace`</a>
+                <a href="/D:/GPT-codex/octopus_repo/internal/relay/relay.go#L257">relay.go#L257 `phase-1` 限制注释</a>
+                <a href="/D:/GPT-codex/octopus_repo/internal/relay/relay.go#L536">relay.go#L536 `allowsRacingByModel`</a>
+                <a href="/D:/GPT-codex/octopus_repo/internal/relay/relay.go#L540">relay.go#L540 `ResolveRouteTargetPolicy(nil, dbmodel.ChannelKey{}, modelName)`</a>
+                <a href="/D:/GPT-codex/octopus_repo/internal/op/route_target.go#L222">route_target.go#L222 `ResolveRouteTargetPolicy`</a>
+              </div>
+              <pre>判断：这是“看起来实现了 route-target，但主路径没有完全用起来”的典型问题。
+影响：具体 channel/key/model 级别的保守策略可能被模型默认值覆盖，故障转移并发行为不一定符合用户显式配置。</pre>
+            </div>
+          </article>
+
+          <article class="finding" data-severity="High" data-search="Backup.test.tsx vitest backup component tests drift failing UI assertions rollback preview selective import">
+            <div class="finding-header">
+              <div>
+                <div class="tag danger">High</div>
+                <h4>`Backup.test.tsx` 仍有 5 个失败，前端验证资产未收口</h4>
+                <div class="finding-sub">主功能看起来能跑，但同模块的 Vitest 还没有和当前 UI 状态对齐。</div>
+              </div>
+              <button type="button" class="tag warn toggle-btn">展开详情</button>
+            </div>
+            <div class="finding-body" hidden>
+              <div class="flat-list">
+                <div class="item"><code>pnpm --dir web run test</code> 失败。</div>
+                <div class="item">`backup-logic.test.ts` 通过，`DynamicRouting.test.tsx` 通过。</div>
+                <div class="item">只有 `Backup.test.tsx` 集中失败，且失败多为文本匹配和禁用状态断言。</div>
+                <div class="item">结合 `verify-backup-component.cjs` 通过、Go 侧备份测试通过，更像测试漂移而不是核心功能崩坏。</div>
+              </div>
+              <div class="evidence-list">
+                <a href="/D:/GPT-codex/octopus_repo/web/src/components/modules/setting/Backup.test.tsx#L331">Backup.test.tsx#L331 captured model mappings 断言</a>
+                <a href="/D:/GPT-codex/octopus_repo/web/src/components/modules/setting/Backup.test.tsx#L388">Backup.test.tsx#L388 selective import 禁用状态</a>
+                <a href="/D:/GPT-codex/octopus_repo/web/src/components/modules/setting/Backup.test.tsx#L403">Backup.test.tsx#L403 rollback preview in flight</a>
+                <a href="/D:/GPT-codex/octopus_repo/web/src/components/modules/setting/Backup.test.tsx#L517">Backup.test.tsx#L517 full rollback fallback</a>
+                <a href="/D:/GPT-codex/octopus_repo/web/src/components/modules/setting/Backup.tsx#L1697">Backup.tsx#L1697 captured import file</a>
+                <a href="/D:/GPT-codex/octopus_repo/web/src/components/modules/setting/Backup.tsx#L1699">Backup.tsx#L1699 captured model mappings</a>
+                <a href="/D:/GPT-codex/octopus_repo/web/src/components/modules/setting/Backup.tsx#L1940">Backup.tsx#L1940 selective import disabled warning</a>
+                <a href="/D:/GPT-codex/octopus_repo/web/src/components/modules/setting/Backup.tsx#L2051">Backup.tsx#L2051 import button disabled condition</a>
+              </div>
+              <pre>判断：这是“验证资产失真”的高优问题，而不是目前最像生产行为回归的问题。
+原因：断言文本过于脆弱、同页面中“Rollback preview”字样重复、disabled 断言与当前状态条件不一致。</pre>
+            </div>
+          </article>

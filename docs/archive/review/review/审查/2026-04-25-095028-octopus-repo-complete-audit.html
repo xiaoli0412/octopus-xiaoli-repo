@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Octopus 仓库完整审计 - 2026-04-25 09:50:28</title>
+  <style>
+    :root { --bg:#0b1020; --panel:#121a2f; --text:#e6edf7; --muted:#93a4c3; --line:#2a3a5f; --crit:#ff6b6b; --high:#ff9f43; --med:#ffd166; --low:#7bdff2; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: radial-gradient(circle at top left, #182547 0, var(--bg) 46%); color: var(--text); line-height:1.6; }
+    .wrap { max-width:1200px; margin:0 auto; padding:32px 20px 48px; }
+    .hero, .section { background: rgba(18,26,47,.92); border:1px solid rgba(148,163,184,.16); border-radius:22px; padding:22px; box-shadow: 0 20px 60px rgba(0,0,0,.18); }
+    .hero { background: linear-gradient(135deg, rgba(88,135,255,.18), rgba(94,234,212,.10)); padding:28px; }
+    .hero h1 { margin:0 0 8px; font-size:34px; }
+    .hero p, .muted, .footer { color:var(--muted); }
+    .cards, .grid-2 { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:14px; }
+    .cards { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top:18px; }
+    .card { background: rgba(23,33,58,.9); border:1px solid rgba(148,163,184,.18); border-radius:18px; padding:16px; }
+    .card .label { color:var(--muted); font-size:13px; }
+    .card .value { font-size:22px; font-weight:700; margin-top:8px; }
+    .section { margin-top:22px; }
+    .section h2 { margin:0 0 14px; font-size:22px; }
+    .section h3 { margin:18px 0 8px; font-size:18px; }
+    .issue { border:1px solid rgba(148,163,184,.16); border-radius:18px; padding:16px; background: rgba(23,33,58,.9); margin-top:12px; }
+    .badge { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; margin-right:10px; }
+    .critical { background: rgba(255,107,107,.15); color:var(--crit); }
+    .high { background: rgba(255,159,67,.15); color:var(--high); }
+    .medium { background: rgba(255,209,102,.15); color:var(--med); }
+    .low { background: rgba(123,223,242,.14); color:var(--low); }
+    table { width:100%; border-collapse:collapse; margin-top:10px; overflow:hidden; border-radius:16px; }
+    th, td { text-align:left; padding:10px 12px; border-bottom:1px solid rgba(148,163,184,.14); vertical-align:top; }
+    th { color:#c9d5ea; background: rgba(23,33,58,.9); }
+    code { background: rgba(11,16,32,.95); border:1px solid rgba(148,163,184,.18); border-radius:10px; padding:2px 6px; }
+    ul, ol { margin:8px 0 0 18px; }
+    li { margin:4px 0; }
+    .footer { margin-top:18px; font-size:13px; }
+    @media (max-width:1000px) { .cards, .grid-2 { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>Octopus 仓库完整审计</h1>
+      <p>触发时间：2026-04-25T09:50:28+08:00</p>
+      <div class="cards">
+        <div class="card"><div class="label">总体判断</div><div class="value">未达 Release-Clean</div></div>
+        <div class="card"><div class="label">关键验证</div><div class="value">Go 测试失败</div></div>
+        <div class="card"><div class="label">前端构建</div><div class="value">通过</div></div>
+        <div class="card"><div class="label">主流程烟测</div><div class="value">通过</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>1. Findings</h2>
+      <div class="issue"><span class="badge critical">Critical</span><strong>`internal/op` 的启动契约与测试前提仍然冲突，`go test ./...` 真实失败</strong><ul><li>证据：`InitCache()` 先调用 `UserInit()` 再调用 `settingRefreshCache()`。</li><li>证据：本次 `verify-go-env.ps1 -GoTest -GoBuild` 中，`go test ./...` 在 `internal/op` 稳定失败，报出 bootstrap admin 和 `settings.key` 唯一约束冲突。</li><li>影响：当前工作区不是 release-clean，核心 Go 验证链没有通过。</li></ul></div>
+      <div class="issue"><span class="badge high">High</span><strong>`scripts/verify-go-env.ps1` 仍会给出假绿结果，验证结论不可信</strong><ul><li>证据：本次脚本整体退出码为 `0`，但内部 `go test ./...` 已明确失败。</li><li>证据：脚本直接执行 `go test` / `go build`，没有在命令后显式检查外部进程退出码。</li><li>影响：任何依赖该脚本的本地审计或自动化记录，都可能把真实失败误记为成功。</li></ul></div>
+      <div class="issue"><span class="badge high">High</span><strong>`config_source_mode / active_ai_profile_id` 仍更像管理面元数据，而不是运行时选择器</strong><ul><li>证据：设置页只写这些值。</li><li>证据：后端只在管理接口里读写它们，执行器也只是把它们塞进 AI 上下文 payload。</li><li>证据：仓库级检索没有看到 relay、channel/group/model 的真实 runtime consumer。</li><li>影响：UI 看起来能切换，但主流程未证明真的换了运行时配置来源。</li></ul></div>
+      <div class="issue"><span class="badge medium">Medium</span><strong>`ConfigSnapshot` 仍是进程内快照，任务重启后无法恢复原始运行配置</strong><ul><li>证据：任务创建时只会把快照放进内存缓存。</li><li>证据：执行器从 `sync.Map` 读取并应用快照。</li><li>证据：`AITask` 模型本身没有持久化的配置快照字段。</li><li>影响：重启、复盘、重试都拿不到当时的 endpoint / key / model 组合。</li></ul></div>
+      <div class="issue"><span class="badge medium">Medium</span><strong>README、Dockerfile 和工作流的构建口径仍未完全统一</strong><ul><li>证据：README 仍写 `pnpm run build`。</li><li>证据：`scripts/dockerfiles/Dockerfile.debian` 仍运行 `pnpm run build`。</li><li>证据：当前 release / validation workflow 以及仓库构建脚本已经改成 `pnpm run build:static`。</li><li>影响：开发者容易走到过时的构建路径，文档与现实不一致。</li></ul></div>
+      <div class="issue"><span class="badge medium">Medium</span><strong>状态文档明显过期</strong><ul><li>证据：`docs/CURRENT_STATUS_AND_PLAN.zh-CN.md` 仍写“代码实现未开始”。</li><li>影响：会误导后续接手、审计和自动化判断。</li></ul></div>
+      <div class="issue"><span class="badge low">Low</span><strong>`git diff --check` 仍有三个 EOF 空行问题</strong><ul><li>证据：`web/src/components/modules/channel/Form.tsx`、`web/src/components/modules/group/Editor.tsx`、`web/src/components/modules/setting/Backup.tsx` 都报告 `new blank line at EOF`。</li><li>影响：只影响 diff hygiene，但会持续增加 review 噪音。</li></ul></div>
+    </div>
+
+    <div class="section">
+      <h2>2. Completion Assessment</h2>
+      <div class="grid-2">
+        <div class="card"><div class="label">已完成</div><div class="value" style="font-size:16px">主链路可达、静态构建通过、动态摘要口径收口、备份/导入/回滚主线真实存在</div></div>
+        <div class="card"><div class="label">部分完成</div><div class="value" style="font-size:16px">AI 自动化、任务快照、构建口径收口</div></div>
+        <div class="card"><div class="label">未完成</div><div class="value" style="font-size:16px">`internal/op` 测试契约、runtime source 切换、快照持久化</div></div>
+        <div class="card"><div class="label">疑似表层实现</div><div class="value" style="font-size:16px">`config_source_mode / active_ai_profile_id`</div></div>
+      </div>
+      <p class="muted">总体判断：仓库已经不是骨架工程，但还没有进入 release-clean。</p>
+    </div>
+
+    <div class="section">
+      <h2>3. Verification Summary</h2>
+      <div class="grid-2">
+        <div><h3>已执行并通过</h3><ul><li><code>git status --short --branch</code></li><li><code>git branch -vv --all</code></li><li><code>git show -s --format=fuller HEAD</code></li><li><code>git diff --stat HEAD</code></li><li><code>git diff --stat origin/dev...HEAD</code></li><li><code>D:\gol1\node.exe .\web\node_modules\typescript\bin\tsc --noEmit -p .\web\tsconfig.json</code></li><li><code>D:\gol1\node.exe .\scripts\build-web-static.mjs</code></li><li><code>powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\smoke-win-backend.ps1</code></li></ul></div>
+        <div><h3>已执行并失败</h3><ul><li><code>powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-go-env.ps1 -GoTest -GoBuild</code></li><li><code>git diff --check</code></li></ul><h3>未复跑</h3><ul><li>本轮没有重新跑 `next build`、Vitest 和 Docker 相关命令。</li></ul></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>4. Comparison Notes</h2>
+      <table>
+        <tr><th>维度</th><th>结论</th></tr>
+        <tr><td>当前工作区 vs HEAD</td><td>当前分支是 <code>feat/erguotou</code>，`HEAD` 为 <code>bfa27ae</code>；工作区相对 `HEAD` 有大规模 tracked 修改和大量未跟踪文件。</td></tr>
+        <tr><td>当前分支 vs 最近稳定基线</td><td>相对 <code>origin/dev</code>，当前分支已经明显偏离上游基线。</td></tr>
+        <tr><td>代码 vs README / docs</td><td><code>DYNAMIC_ROUTING_REQUIREMENTS</code> 与动态摘要口径基本一致，但 <code>CURRENT_STATUS_AND_PLAN.zh-CN.md</code> 过期，README / Dockerfile / workflow 的构建口径也未统一。</td></tr>
+        <tr><td>代码 vs 测试 / 验证</td><td>静态构建与 Windows smoke 有正向证据，但 `go test ./...` 仍被 `internal/op` 拖失败，`verify-go-env.ps1` 可信度不足。</td></tr>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>5. Top Next Actions</h2>
+      <ol><li>先定 `manual / ai_profile` 的真实产品语义。如果它要成为 runtime selector，就把它接到真正的运行时 consumer；如果只是管理元数据，就把 UI 和文档承诺降级。</li><li>收口 `internal/op` 的 bootstrap / default-setting 契约，统一 `UserInit()`、`settingRefreshCache()` 和测试前提，让 `go test ./...` 回到稳定绿色。</li><li>修复 `scripts/verify-go-env.ps1` 的退出码传播，必要时顺手收紧 `-GoFmt` 扫描范围，避免假绿。</li><li>继续补 `ConfigSnapshot` 持久化，这是审计与重试能力的关键缺口。</li><li>同步 README、README_zh、Dockerfile 和工作流，把构建口径统一到 `build:static` 真实路径。</li></ol>
+    </div>
+
+    <div class="section">
+      <h2>中文摘要</h2>
+      <ol><li>本次触发时间：<code>2026-04-25T09:50:28+08:00</code></li><li>检查内容：仓库结构、`git status`、分支与 `HEAD`、最近提交、审查目录、worklog、README/docs、关键实现文件。</li><li>运行命令：`git status --short --branch`、`git branch -vv --all`、`git show -s --format=fuller HEAD`、`git diff --stat HEAD`、`git diff --stat origin/dev...HEAD`、`git diff --check`、`verify-go-env.ps1 -GoTest -GoBuild`、`tsc --noEmit`、`build-web-static.mjs`、`smoke-win-backend.ps1`、多组 `rg` 搜索。</li><li>修改文件：新增 [2026-04-25-095028-octopus-repo-complete-audit.md](/D:/GPT-codex/octopus_repo/docs/review/审查/2026-04-25-095028-octopus-repo-complete-audit.md) 和 [2026-04-25-095028-octopus-repo-complete-audit.html](/D:/GPT-codex/octopus_repo/docs/review/审查/2026-04-25-095028-octopus-repo-complete-audit.html)。</li><li>发现问题：`internal/op` 测试契约失败、`verify-go-env.ps1` 假绿、`config_source_mode / active_ai_profile_id` 没有 runtime consumer、`ConfigSnapshot` 未持久化、README / Dockerfile / workflow 口径漂移、状态文档过期、三个 EOF 空行。</li><li>结果：审计成功完成并落盘，但仓库本体仍未达到 release-clean；需要手动介入。</li></ol>
+      <p class="footer">报告生成于本地审查会话，未修改业务代码。</p>
+    </div>
+  </div>
+</body>
+</html>

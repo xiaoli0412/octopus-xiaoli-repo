@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Octopus 完整审计报告 - 2026-04-28 03:40:56 +08:00</title>
+  <style>
+    :root {
+      --bg: #f3ede3;
+      --panel: #fffdfa;
+      --ink: #201a16;
+      --muted: #6b6258;
+      --line: #e1d4c3;
+      --accent: #8d4b20;
+      --high: #b42318;
+      --medium: #d97706;
+      --low: #2563eb;
+      --ok: #166534;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(141, 75, 32, 0.12), transparent 34%),
+        linear-gradient(180deg, #efe5d6 0%, #f7f2ea 48%, #eee4d6 100%);
+      line-height: 1.72;
+    }
+    .wrap {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 28px 18px 44px;
+    }
+    .hero, .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: 0 18px 42px rgba(48, 33, 19, 0.08);
+    }
+    .hero {
+      padding: 26px;
+      background:
+        radial-gradient(circle at top left, rgba(141, 75, 32, 0.16), transparent 40%),
+        var(--panel);
+    }
+    .card {
+      margin-top: 18px;
+      padding: 22px;
+    }
+    h1, h2, h3 { margin: 0 0 12px; }
+    h1 { font-size: 32px; }
+    h2 { font-size: 22px; }
+    p, li { margin: 0 0 10px; }
+    ul { margin: 0; padding-left: 20px; }
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .meta-card {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.84);
+      border: 1px solid #eadfce;
+    }
+    .meta-label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .meta-value {
+      margin-top: 6px;
+      font-size: 20px;
+      font-weight: 700;
+    }
+    .sev {
+      display: inline-block;
+      min-width: 82px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      text-align: center;
+      margin-right: 10px;
+      vertical-align: middle;
+    }
+    .high { background: var(--high); }
+    .medium { background: var(--medium); }
+    .low { background: var(--low); }
+    .ok { background: var(--ok); }
+    code {
+      font-family: Consolas, "Courier New", monospace;
+      background: #f5eadc;
+      border-radius: 6px;
+      padding: 2px 6px;
+    }
+    a { color: var(--accent); }
+    .grid2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .note {
+      border-left: 4px solid #d4b08a;
+      padding-left: 12px;
+      color: var(--muted);
+    }
+    .kpi {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .kpi-box {
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid #eadfce;
+      background: #fffaf3;
+    }
+    .kpi-title {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .kpi-value {
+      margin-top: 6px;
+      font-size: 24px;
+      font-weight: 800;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>Octopus 完整审计报告</h1>
+      <p>本轮先恢复 repo-local Go / Node 验证环境，再对当前工作区、<code>HEAD</code>、<code>origin/dev</code>、README/docs 与测试覆盖做完整交叉审计。和上一轮相比，<code>tsc</code> gate 与 AI task cancel 主问题已不再是当前工作区的主 finding。</p>
+      <div class="meta">
+        <div class="meta-card"><div class="meta-label">审计时间</div><div class="meta-value">2026-04-28 03:40:56 +08:00</div></div>
+        <div class="meta-card"><div class="meta-label">仓库</div><div class="meta-value">octopus_repo</div></div>
+        <div class="meta-card"><div class="meta-label">分支</div><div class="meta-value">feat/erguotou</div></div>
+        <div class="meta-card"><div class="meta-label">基线</div><div class="meta-value">origin/dev</div></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-box"><div class="kpi-title">HEAD 相对基线</div><div class="kpi-value">22 ahead</div></div>
+        <div class="kpi-box"><div class="kpi-title">工作区相对 HEAD</div><div class="kpi-value">137 files</div></div>
+        <div class="kpi-box"><div class="kpi-title">整体完成度</div><div class="kpi-value">84% - 88%</div></div>
+        <div class="kpi-box"><div class="kpi-title">AI 自动化主线</div><div class="kpi-value">70% - 75%</div></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>1. Findings</h2>
+      <p class="note">本轮没有确认到新的 <code>Critical</code> 级代码回归；当前最重要的问题集中在 <code>High</code> / <code>Medium</code>。</p>
+      <p><span class="sev high">High</span>AI Profile 还没有形成需求承诺的“结构化建议”闭环。当前保存内容主要是 <code>raw_output</code>、<code>summary</code>、执行元数据与少量配置字段；真正可被后端消费的仍只有执行配置，而不是分组/价格/模型归类等结构化建议。</p>
+      <p><span class="sev medium">Medium</span>文档要求的“历史任务区 / 历史任务列表”没有实现。当前只支持创建任务、轮询单个任务、取消当前任务，前端也只维护当前会话里的 <code>latestTask</code>。</p>
+      <p><span class="sev medium">Medium</span>AI task 的 config snapshot 和运行态只在进程内 <code>sync.Map</code> 中保存。数据库里虽然有 <code>AITask</code> 行，但 crash / 非优雅重启后会留下没有恢复上下文的 <code>pending/running</code> 任务。</p>
+      <p><span class="sev medium">Medium</span><code>AIProfileActivate()</code> 只把新 Profile 标成 <code>active</code>，不会把旧 <code>active</code> 行收口，数据库状态会逐步漂移，而前端实际依赖的是 <code>active_ai_profile_id</code>。</p>
+      <p><span class="sev medium">Medium</span>测试/构建覆盖与代码实现仍不完全一致。仓库已有 Vitest 组件测试和 <code>internal/update</code> 测试，但 validation / release workflow 没有把它们纳入 gate。</p>
+      <p><span class="sev low">Low</span><code>config_health</code> 与 <code>config_health_check</code> 的命名在 docs、后端和前端之间仍不完全统一。</p>
+    </section>
+
+    <section class="card">
+      <h2>2. Completion Assessment</h2>
+      <div class="grid2">
+        <div>
+          <h3>已完成</h3>
+          <ul>
+            <li>多渠道聚合、核心 relay/balancer 主流程、Copilot/Antigravity/provider 扩展主链。</li>
+            <li>AI 自动化页面骨架、AI 配置接口、模型发现、任务创建/轮询/取消、Profile 激活、动态路由学习展示与开关。</li>
+            <li>repo-local 的 Go / Node 环境脚本、TypeScript 检查、静态导出与大量 no-browser 验证。</li>
+          </ul>
+        </div>
+        <div>
+          <h3>部分完成 / 未完成</h3>
+          <ul>
+            <li>AI Profile 双轨切换只真正完成了“执行配置来源切换”。</li>
+            <li>历史任务区未实现。</li>
+            <li>AI task 缺少跨进程持续/恢复语义。</li>
+            <li>结构化 AI 建议 schema、validator 与 consumer 仍未收口。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>3. Verification Summary</h2>
+      <ul>
+        <li>已通过：<code>go build ./...</code>、<code>go test ./internal/op</code>、<code>./internal/server/middleware</code>、<code>./internal/task</code>、<code>./internal/update</code>。</li>
+        <li>已通过：<code>go test ./internal/server/handlers -run TestCancelAITaskHandlerMarksTaskCanceled -count=20</code>，说明此前那条取消竞态 finding 已不再是当前主结论。</li>
+        <li>已通过：<code>tsc --noEmit</code>、<code>build-web-static.mjs</code>，以及 locale / layout / channel / group / llm-price / help-hint / dynamic-routing / ai-config / ai-learning / backup / ccswitch / route-target 等多条 no-browser 脚本。</li>
+        <li>未完全验证：<code>go test ./internal/server/handlers -count=1</code> 与 <code>go test ./internal/relay/... -count=1</code> 仍受当前 Windows 宿主 <code>net.Listen(tcp4)</code> / WinSock provider 限制。</li>
+        <li>未完全验证：Vitest 仍在 <code>esbuild</code> 加载配置阶段报 <code>spawn EPERM</code>。</li>
+        <li>未执行：Linux backend smoke 与 Docker compose smoke；当前宿主无可直接调用的 <code>docker</code>。</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>4. Comparison Notes</h2>
+      <ul>
+        <li>当前工作区 vs <code>HEAD</code>：<code>137 files changed, 19364 insertions(+), 4000 deletions(-)</code>，并夹杂大量缓存/构建/临时产物。</li>
+        <li>当前分支 vs <code>origin/dev</code>：<code>22 ahead / 0 behind</code>；<code>HEAD</code> 本身已是较大扩展分支而非小修补。</li>
+        <li>代码 vs 文档：README、validation/release workflow、动态路由学习主线现在整体一致性较好；AI 自动化需求对“结构化建议 / 历史任务”的承诺仍强于代码现实。</li>
+        <li>代码 vs 验证：构建链已经大幅恢复，但现有 Vitest 与 <code>internal/update</code> 仍未进入正式 CI gate。</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>5. Top Next Actions</h2>
+      <ul>
+        <li>为 AI Profile 定义真正可消费的结构化 schema，并补至少一条真实 consumer / validator；如果短期不做，就收缩 docs 与 UI 承诺。</li>
+        <li>补齐 task history API/UI，并明确 stale <code>pending/running</code> 任务的启动清理策略或恢复策略。</li>
+        <li>把 Vitest 与 <code>internal/update</code> 纳入 CI gate，并在 Linux/CI 宿主补跑 <code>relay</code> / 全量 <code>handlers</code> 网络型测试。</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>中文摘要</h2>
+      <ul>
+        <li>本次触发时间：2026-04-28 03:40:56 +08:00。</li>
+        <li>做了哪些检查、运行了哪些命令：完成了 git/doc 对比、repo-local Go/Node 构建验证、关键 Go 测试、静态构建和一整组 no-browser 脚本验证，并尝试了全量 handlers/relay 测试与 Vitest。</li>
+        <li>修改了哪些文件：新增本次审计的 md/html 报告，并更新 automation memory；无业务代码变更。</li>
+        <li>发现了什么问题：AI Profile 结构化消费不足、历史任务缺失、AI task snapshot 只在内存里、Profile active 状态会漂移、Vitest / internal/update 未进入 CI gate，以及一个低优先级命名不一致问题。</li>
+        <li>本次结果：成功。</li>
+        <li>是否需要我手动介入：需要，尤其是拍板 AI 自动化到底按“结构化方案中心”推进，还是按“配置/建议助手”收缩范围。</li>
+      </ul>
+    </section>
+  </div>
+</body>
+</html>

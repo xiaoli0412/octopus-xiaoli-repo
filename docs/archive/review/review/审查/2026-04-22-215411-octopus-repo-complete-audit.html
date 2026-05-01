@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Octopus Repo Audit - 2026-04-22 21:54:11</title>
+  <style>
+    body { font: 14px/1.6 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; margin: 0; background: #f6f7fb; color: #1f2937; }
+    .wrap { width: min(1100px, calc(100vw - 32px)); margin: 24px auto 40px; }
+    .hero, .panel { background: #fff; border: 1px solid #dde3ec; border-radius: 18px; padding: 20px 22px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06); }
+    .hero { background: linear-gradient(135deg, #0f172a 0%, #123c64 55%, #0f766e 100%); color: #f8fafc; border: none; }
+    .hero h1 { margin: 0 0 10px; font-size: 28px; }
+    .hero p { margin: 0; color: rgba(248,250,252,.9); }
+    .meta { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .meta span { padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); font-size: 12px; }
+    .grid { display: grid; gap: 14px; margin-top: 18px; }
+    .grid.cols4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .grid.cols2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .card { background: #fff; border: 1px solid #dde3ec; border-left-width: 6px; border-radius: 16px; padding: 16px; }
+    .critical { border-left-color: #b42318; }
+    .high { border-left-color: #d97706; }
+    .medium { border-left-color: #2563eb; }
+    .low { border-left-color: #475467; }
+    .num { font-size: 28px; font-weight: 700; }
+    h2 { margin: 0 0 10px; font-size: 20px; }
+    .panel { margin-top: 18px; }
+    code { background: #f2f4f7; border-radius: 8px; padding: 1px 6px; font-family: Consolas, monospace; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; vertical-align: top; padding: 10px 8px; border-top: 1px solid #dde3ec; }
+    th { width: 22%; color: #5f6b7a; }
+    ol { margin: 0; padding-left: 20px; }
+    li + li { margin-top: 8px; }
+    @media (max-width: 900px) { .grid.cols4, .grid.cols2 { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>Octopus 完整审计报告</h1>
+      <p>当前工作区已经恢复可构建，但 <code>internal/relay</code> 出现真实行为回归。当前最重要的发布阻塞不再是编译失败，而是 live path 没有兑现新暴露出的 key fallback / retry / failover / race 语义。</p>
+      <div class="meta">
+        <span>触发时间: 2026-04-22T21:54:11.1740612+08:00</span>
+        <span>分支: feat/erguotou</span>
+        <span>HEAD: bfa27ae (v0.1.3)</span>
+        <span>基线: origin/dev</span>
+      </div>
+    </section>
+
+    <section class="grid cols4">
+      <div class="card critical"><div>Critical</div><div class="num">2</div><div>主流程语义缺失 / 功能不可达</div></div>
+      <div class="card high"><div>High</div><div class="num">3</div><div>验证链与发布收口阻塞</div></div>
+      <div class="card medium"><div>Medium</div><div class="num">2</div><div>文档与真实实现不一致</div></div>
+      <div class="card low"><div>Low</div><div class="num">1</div><div>脚本可移植性尾项</div></div>
+    </section>
+
+    <section class="panel">
+      <h2>Findings</h2>
+      <ol>
+        <li><strong>Critical:</strong> <code>internal/relay/relay.go</code> live path 没有真正消费同渠道多 key fallback、多轮重试和 failover window。`go test ./... -count=1` 在 <code>internal/relay/relay_more_test.go:516</code>、<code>:671</code>、<code>:739</code>、<code>:824</code>、<code>:876</code> 出现真实回归。</li>
+        <li><strong>Critical:</strong> `dynamic_runtime.go` 里的 <code>shouldEscalateToRace</code>、<code>runRaceFallback</code>、<code>waitForRetryDelay</code> 只被测试引用，没有接进 <code>relay.go</code> 主链路，是典型“看起来实现了但主流程不可达”。</li>
+        <li><strong>High:</strong> 分组高级 failover/race 配置链路已经打通到 model、op、frontend，但 runtime 没兑现，配置与行为不一致。</li>
+        <li><strong>High:</strong> `smoke-win-backend.ps1` 已经拒绝复用旧二进制，但默认环境仍会因宿主 Go cache 目录不可写而失败；只有注入 repo-local <code>GOCACHE/GOTMPDIR/TEMP/TMP</code> 后才稳定通过。</li>
+        <li><strong>High:</strong> `next build` 在本机仍被 <code>spawn EPERM</code> 卡住，生产构建无法完成最终证明。</li>
+        <li><strong>Medium:</strong> README / README_zh 仍有 `<CURRENT_...>` 与 TODO 占位文本，不能直接作为发布文档。</li>
+        <li><strong>Medium:</strong> 动态路由文档仍宣称 <code>shadow-ai</code>、<code>hybrid</code>、<code>metrics-only</code>、<code>incident-safe</code> 等模式，但当前真实后端仅落地 daily summary scan。</li>
+        <li><strong>Low:</strong> <code>web/package.json</code> 的 <code>devs</code> 脚本仍写死仓库外 HTTPS 证书路径。</li>
+      </ol>
+    </section>
+
+    <section class="panel">
+      <h2>Completion Assessment</h2>
+      <table>
+        <tr><th>总体判断</th><td>仓库不是空壳，业务主链大体在 <code>80%~85%</code>；但当前工作区发布完成度只有 <code>65%~70%</code>，主要阻塞是 <code>internal/relay</code> 行为回归与验证环境未收口。</td></tr>
+        <tr><th>已完成</th><td>启动链、<code>/healthz</code>、静态资源回退、设置导出/导入/回滚、route-target override API、备份验证脚本、动态路由设置页 summary surface、validation workflow。</td></tr>
+        <tr><th>部分完成</th><td>高级 failover/race 配置、动态路由 tuning/race helper、前端生产构建收口。</td></tr>
+        <tr><th>未完成</th><td>README 发布收口、动态路由多模式文档收口、Windows smoke 默认自适应 repo-local cache、Docker 本机验证。</td></tr>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>Verification Summary</h2>
+      <table>
+        <tr><th>命令 / 检查</th><th>结果</th><th>说明</th></tr>
+        <tr><td><code>go build ./...</code></td><td>Passed</td><td>repo-local cache + 本机 module cache + 离线模式下通过。</td></tr>
+        <tr><td><code>go test ./... -count=1</code></td><td>Failed</td><td>失败集中在 <code>internal/relay</code>，其余关键包大多通过。</td></tr>
+        <tr><td><code>tsc --noEmit</code></td><td>Passed</td><td>前端类型检查通过。</td></tr>
+        <tr><td><code>verify-backup-logic.mjs</code></td><td>Passed</td><td>通过。</td></tr>
+        <tr><td><code>verify-backup-component.cjs</code></td><td>Passed</td><td>通过。</td></tr>
+        <tr><td><code>sync-web-static.mjs</code></td><td>Passed</td><td>通过。</td></tr>
+        <tr><td><code>smoke-win-backend.ps1</code></td><td>Conditional</td><td>默认环境失败，注入 repo-local cache/temp 后通过。</td></tr>
+        <tr><td><code>next build</code></td><td>Blocked</td><td>编译和 TypeScript 结束后卡在 <code>spawn EPERM</code>。</td></tr>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>Comparison Notes</h2>
+      <table>
+        <tr><th>工作区 vs HEAD</th><td><code>91</code> 个已跟踪文件改动，<code>12551</code> 行新增、<code>2319</code> 行删除，另有约 <code>18251</code> 个未跟踪项。主要风险集中在 <code>internal/relay</code>、<code>internal/model</code>、<code>internal/op</code>、<code>web/src</code>、<code>scripts</code>、<code>docs</code>。</td></tr>
+        <tr><th>分支 vs 基线</th><td>以 <code>origin/dev</code> 为稳定基线，当前分支是 <code>0 behind / 22 ahead</code>。</td></tr>
+        <tr><th>代码 vs README/docs</th><td>导出语义、route-target override、summary scan 已对齐；README 发布说明与动态路由多模式文档仍超前或占位。</td></tr>
+        <tr><th>代码 vs 测试/构建</th><td>最真实的失配点是：<code>go build</code> 已通过，但 <code>internal/relay</code> 行为测试失败；<code>tsc</code> 通过，但 <code>next build</code> 仍被环境权限阻塞。</td></tr>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>Top Next Actions</h2>
+      <ol>
+        <li>修复 <code>internal/relay/relay.go</code> live path，让它真正消费 key fallback / retry / failover 语义，或回退当前超前暴露面。</li>
+        <li>明确 race fallback 是否本轮发版；发版就接主流程，不发就收回 UI/docs/tests 的超前表述。</li>
+        <li>把 repo-local Go cache/temp 方案收进 Windows smoke/build，并在可用环境上完成成功的 <code>next build</code> 和 Docker smoke。</li>
+      </ol>
+    </section>
+
+    <section class="panel">
+      <h2>中文摘要</h2>
+      <table>
+        <tr><th>本次触发时间</th><td><code>2026-04-22T21:54:11.1740612+08:00</code></td></tr>
+        <tr><th>做了哪些检查</th><td>读取 memory、git 状态、最近审查、README/docs、validation workflow、关键代码；执行 <code>go build</code>、<code>go test</code>、<code>tsc</code>、两条备份验证脚本、静态同步、Windows smoke 和 <code>next build</code>。</td></tr>
+        <tr><th>修改了哪些文件</th><td>新增本轮 Markdown/HTML 审查报告，并更新 automation memory。</td></tr>
+        <tr><th>发现了什么问题</th><td><code>internal/relay</code> live path 未兑现 key fallback / retry / failover / race 语义；<code>next build</code> 仍被 <code>spawn EPERM</code> 卡住；Windows smoke 默认 cache 路径仍不稳。</td></tr>
+        <tr><th>本次结果</th><td>成功，审计已完成，但当前工作区仍不适合直接发布。</td></tr>
+        <tr><th>是否需要人工介入</th><td>需要。需要决定高级 failover/race 是否本轮发版，并在可运行 Docker / 成功生产 build 的环境里完成最终收口。</td></tr>
+      </table>
+    </section>
+  </div>
+</body>
+</html>

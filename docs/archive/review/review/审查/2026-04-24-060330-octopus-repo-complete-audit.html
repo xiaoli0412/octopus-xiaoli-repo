@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Octopus Repo Audit 2026-04-24</title>
+  <style>
+    body { margin: 0; font-family: Segoe UI, Microsoft YaHei, sans-serif; background: #f5f7fb; color: #172033; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 18px 42px; }
+    .hero, .panel { background: #fff; border: 1px solid #d9deea; border-radius: 20px; box-shadow: 0 8px 24px rgba(23,32,51,.05); }
+    .hero { padding: 24px; }
+    .panel { padding: 20px; margin-top: 16px; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 28px; }
+    .sub { margin-top: 8px; color: #5f6b84; }
+    .grid { display: grid; grid-template-columns: 1.3fr .9fr; gap: 16px; margin-top: 16px; }
+    .sev { display: inline-block; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; margin-bottom: 8px; }
+    .critical { background: #fde8e8; color: #a61b1b; }
+    .high { background: #fff2df; color: #b45309; }
+    .medium { background: #e9f4ff; color: #0f4c81; }
+    .low { background: #ebfbf1; color: #23613f; }
+    .finding { border: 1px solid #d9deea; border-radius: 16px; padding: 14px; margin-top: 12px; }
+    ul, ol { margin: 10px 0 0; padding-left: 20px; }
+    li { margin: 6px 0; }
+    .kpi { border: 1px solid #d9deea; border-radius: 16px; padding: 14px; margin-top: 12px; background: #fafbff; }
+    .muted { color: #5f6b84; }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>Octopus Repo Audit</h1>
+      <p class="sub">Backend main flow is genuinely wired and runnable. The highest risks in the current workspace are validation-contract drift, stale status docs, and missing host evidence for full frontend build/runtime closure.</p>
+      <p class="sub">Triggered at: 2026-04-24T06:03:30.1039788+08:00</p>
+    </section>
+
+    <div class="grid">
+      <div>
+        <section class="panel">
+          <h2>Findings</h2>
+
+          <div class="finding">
+            <div class="sev critical">Critical</div>
+            <h3>Release validation is currently red</h3>
+            <p class="muted">The release workflow validates `test:backup-component` and `verify-circuit-breaker-help`, and both failed in this audit.</p>
+          </div>
+
+          <div class="finding">
+            <div class="sev high">High</div>
+            <h3>Backup preview-token contract has drifted</h3>
+            <p class="muted">The UI still reuses `previewToken`, but no longer renders it, while tests and docs still require visible token output.</p>
+          </div>
+
+          <div class="finding">
+            <div class="sev high">High</div>
+            <h3>Circuit Breaker help validation is stale</h3>
+            <p class="muted">The component uses compact recovery copy, but the validation script still asserts the old recovery-step contract.</p>
+          </div>
+
+          <div class="finding">
+            <div class="sev medium">Medium</div>
+            <h3>Status docs are stale</h3>
+            <p class="muted">`CURRENT_STATUS_AND_PLAN` still says AI automation has not started even though handlers, migration, and top-level UI are already present.</p>
+          </div>
+
+          <div class="finding">
+            <div class="sev medium">Medium</div>
+            <h3>Host-side verification remains incomplete</h3>
+            <p class="muted">`next build` and Vitest both hit `spawn EPERM`, and Docker is unavailable on this host.</p>
+          </div>
+
+          <div class="finding">
+            <div class="sev low">Low</div>
+            <h3>Minor hygiene and TODO debt remain</h3>
+            <p class="muted">`git diff --check` still reports EOF blank-line issues, and protocol/tokenizer TODOs remain in lower-level code.</p>
+          </div>
+        </section>
+      </div>
+
+      <div>
+        <section class="panel">
+          <h2>Completion Assessment</h2>
+          <div class="kpi"><strong>Completed</strong><div class="muted">Startup, routing, auth, relay main path, Windows backend smoke, backup/import backend path, AI automation API + migration + top-level page, dynamic-routing summary/learning API.</div></div>
+          <div class="kpi"><strong>Partially Completed</strong><div class="muted">AI automation UX closure, Backup apply UX, Circuit Breaker and Dynamic Routing validation alignment, docs sync, cross-host build/runtime verification.</div></div>
+          <div class="kpi"><strong>Not Completed</strong><div class="muted">Host-proven `next build`/Vitest/Docker closure, validation drift cleanup, and minor hygiene cleanup.</div></div>
+        </section>
+
+        <section class="panel">
+          <h2>Verified</h2>
+          <ul>
+            <li>`go test ./...`</li>
+            <li>`go build ./...`</li>
+            <li>`smoke-win-backend.ps1`</li>
+            <li>`tsc --noEmit`</li>
+            <li>Locale, dynamic-routing, channel/group flow, backup-logic, CCSwitch, help-hint, route-target, and model-probe no-browser checks</li>
+          </ul>
+        </section>
+
+        <section class="panel">
+          <h2>Top Next Actions</h2>
+          <ol>
+            <li>Reconcile the Backup preview-token contract across UI, tests, and docs.</li>
+            <li>Reconcile Circuit Breaker help validation with the compact UI structure.</li>
+            <li>Exclude `.tools` from `verify-go-env.ps1`, clean EOF blank lines, and rely on CI or another host for `next build`, Vitest, and Docker evidence.</li>
+          </ol>
+        </section>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

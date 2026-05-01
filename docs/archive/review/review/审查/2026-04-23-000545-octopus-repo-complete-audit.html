@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Octopus Repo Complete Audit - 2026-04-23 00:05:45 +08:00</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; margin: 0; background: #f4f7fb; color: #172033; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    .hero, .panel { background: #fff; border: 1px solid #d9e0ee; border-radius: 20px; padding: 24px; box-shadow: 0 12px 32px rgba(23,32,51,.08); }
+    .panel { margin-top: 20px; }
+    .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 16px; color: #5b6780; font-size: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-top: 20px; }
+    .card { background: #fff; border: 1px solid #d9e0ee; border-radius: 18px; padding: 16px; box-shadow: 0 10px 24px rgba(23,32,51,.06); }
+    .finding { border: 1px solid #d9e0ee; border-radius: 16px; padding: 16px; margin-bottom: 14px; background: #fbfcff; }
+    .sev { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+    .high { background: rgba(194,65,12,.12); color: #c2410c; }
+    .medium { background: rgba(154,103,0,.12); color: #9a6700; }
+    .low { background: rgba(29,78,216,.10); color: #1d4ed8; }
+    table { width: 100%; border-collapse: collapse; border: 1px solid #d9e0ee; }
+    th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid #d9e0ee; vertical-align: top; }
+    th { width: 220px; background: #f7f9fe; }
+    tr:last-child th, tr:last-child td { border-bottom: 0; }
+    code { background: #edf2fb; border-radius: 6px; padding: 1px 6px; }
+    ul, ol { margin: 0; padding-left: 20px; }
+    li { margin: 8px 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>Octopus Repo Complete Audit</h1>
+      <p>This review re-checked current workspace changes, recent audit memory, core docs, and live runtime wiring, then reran the most relevant local verification commands.</p>
+      <div class="meta">
+        <div><strong>Triggered at</strong><br>2026-04-23 00:05:45 +08:00</div>
+        <div><strong>Workspace</strong><br><code>D:\GPT-codex\octopus_repo</code></div>
+        <div><strong>Branch</strong><br><code>feat/erguotou</code></div>
+        <div><strong>HEAD</strong><br><code>bfa27ae</code></div>
+        <div><strong>Baseline</strong><br><code>origin/dev</code> (0 behind / 22 ahead)</div>
+        <div><strong>Automation ID</strong><br><code>octopus-repo</code></div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><strong>0</strong><br>Critical findings</div>
+      <div class="card"><strong>2</strong><br>High findings</div>
+      <div class="card"><strong>4</strong><br>Medium findings</div>
+      <div class="card"><strong>1</strong><br>Low findings</div>
+      <div class="card"><strong>88%~92%</strong><br>Mainline completion</div>
+      <div class="card"><strong>72%~78%</strong><br>Release readiness</div>
+    </div>
+
+    <div class="panel">
+      <h2>1. Findings</h2>
+      <div class="finding">
+        <span class="sev high">High</span>
+        <h3>Race-based recovery helpers are still not wired into the live relay path</h3>
+        <p>The live handler in <code>internal/relay/relay.go</code> now genuinely consumes sequential retries, retry delay, failover window, and same-channel multi-key fallback. However, <code>effectiveDynamicRoutingTuning</code>, <code>shouldEscalateToRace</code>, and <code>runRaceFallback</code> still exist only in helper and test paths, not in the live request flow.</p>
+      </div>
+      <div class="finding">
+        <span class="sev high">High</span>
+        <h3>Frontend host verification is still blocked by <code>spawn EPERM</code></h3>
+        <p><code>next build</code> now compiles and completes TypeScript, but still fails at the final step. Vitest also fails while bundling config because esbuild/Vite cannot spawn child processes on this host.</p>
+      </div>
+      <div class="finding">
+        <span class="sev medium">Medium</span>
+        <h3>Dynamic-routing planning docs still overstate shipped behavior</h3>
+        <p>The requirement and implementation-plan docs still describe <code>shadow-ai</code>, <code>hybrid</code>, <code>metrics-only</code>, and <code>incident-safe</code> modes, while the real shipped path is the daily summary scan surfaced through the stats API and settings UI.</p>
+      </div>
+      <div class="finding">
+        <span class="sev medium">Medium</span>
+        <h3>Protocol conversion edge cases still contain live TODO branches</h3>
+        <p>Anthropic richer <code>tool_result</code>, JSON schema handling, audio/prediction-style requests, image-generation request persistence, and Gemini JSON schema conversion are still only partially closed.</p>
+      </div>
+      <div class="finding">
+        <span class="sev medium">Medium</span>
+        <h3>Backup/import/rollback is real, but advanced migration tooling is still partial</h3>
+        <p>The main path is real and tested, but the UI still explicitly says <code>Advanced migration tooling still pending</code>, so this should stay in the partially-complete bucket.</p>
+      </div>
+      <div class="finding">
+        <span class="sev medium">Medium</span>
+        <h3>Release-facing README files still contain placeholders</h3>
+        <p>Top-level install/download instructions still include placeholder image, repository, install-script, and release-link values.</p>
+      </div>
+      <div class="finding">
+        <span class="sev low">Low</span>
+        <h3><code>web/package.json</code> still has a non-portable local HTTPS dev path</h3>
+        <p>The <code>devs</code> script still hardcodes certificate paths tied to one workstation layout.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>2. Completion Assessment</h2>
+      <table>
+        <tr><th>Overall</th><td>The repo is not a shell project. Backend startup, management APIs, relay mainline, backup import/export/rollback mainline, stats surfaces, and Windows smoke are all real.</td></tr>
+        <tr><th>Completed</th><td>Startup chain, <code>/healthz</code>, sequential failover, multi-key fallback, backup mainline, dynamic summary scan API/UI, route-target override, and Windows smoke.</td></tr>
+        <tr><th>Partially completed</th><td>Race-based recovery, protocol-conversion edge cases, backup advanced migration tooling, release docs, and local frontend verification portability.</td></tr>
+        <tr><th>Not completed</th><td>Doc-promised advanced dynamic-routing modes, successful local <code>next build</code> / Vitest on this host, and final README release/install closure.</td></tr>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>3. Verification Summary</h2>
+      <ul>
+        <li><strong>Passed:</strong> <code>go build ./...</code></li>
+        <li><strong>Passed:</strong> <code>go test ./... -count=1</code></li>
+        <li><strong>Passed:</strong> <code>node .\web\node_modules\typescript\bin\tsc --noEmit -p .\web\tsconfig.json</code></li>
+        <li><strong>Passed:</strong> <code>node .\scripts\verify-backup-logic.mjs</code></li>
+        <li><strong>Passed:</strong> <code>node .\scripts\verify-backup-component.cjs</code></li>
+        <li><strong>Passed:</strong> <code>node .\scripts\sync-web-static.mjs</code></li>
+        <li><strong>Passed:</strong> <code>powershell -ExecutionPolicy Bypass -File .\scripts\smoke-win-backend.ps1</code></li>
+        <li><strong>Blocked:</strong> <code>next build</code> ends with <code>spawn EPERM</code></li>
+        <li><strong>Blocked:</strong> Vitest config bundling ends with <code>spawn EPERM</code></li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h2>4. Comparison Notes</h2>
+      <table>
+        <tr><th>Workspace vs HEAD</th><td><code>93</code> tracked files changed, <code>12772</code> insertions, <code>2388</code> deletions, plus a very large untracked generated/local footprint.</td></tr>
+        <tr><th>Branch vs baseline</th><td><code>origin/dev</code> is the practical stable baseline here; current branch is <code>22</code> commits ahead and not behind.</td></tr>
+        <tr><th>Code vs docs</th><td><code>include_secrets</code>, healthcheck, and dynamic summary-scan wording are aligned; dynamic-routing planning docs and top-level README release/install instructions are still ahead of reality.</td></tr>
+        <tr><th>Code vs verification</th><td>Backend build/test and Windows smoke prove the main path. Remaining gaps are the inactive race-helper live path and the local frontend <code>spawn EPERM</code> blocker.</td></tr>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>5. Top Next Actions</h2>
+      <ol>
+        <li>Decide whether race-based recovery is in scope now. If yes, wire it into <code>internal/relay/relay.go</code>; if no, reduce the exposed surface.</li>
+        <li>Close the frontend verification blocker in an environment that allows child-process spawn, or replace the current non-working no-spawn workaround.</li>
+        <li>Trim scope drift: downgrade dynamic-routing planning docs, replace README placeholders, and decide whether transformer TODO branches must be implemented now or documented as unsupported.</li>
+      </ol>
+    </div>
+  </div>
+</body>
+</html>

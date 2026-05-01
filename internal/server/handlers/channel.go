@@ -1,0 +1,322 @@
+package handlers
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/helper"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/resp"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/task"
+	transformerOutbound "github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound"
+	"github.com/dlclark/regexp2"
+	"github.com/gin-gonic/gin"
+)
+
+func respondChannelOpError(c *gin.Context, err error) {
+	if err == nil {
+		return
+	}
+	message := err.Error()
+	switch {
+	case errors.Is(err, context.Canceled):
+		resp.Error(c, http.StatusRequestTimeout, message)
+	case strings.Contains(message, "not found"):
+		resp.Error(c, http.StatusNotFound, message)
+	case strings.Contains(message, "invalid"), strings.Contains(message, "must be"):
+		resp.Error(c, http.StatusBadRequest, message)
+	default:
+		resp.Error(c, http.StatusInternalServerError, message)
+	}
+}
+
+func validateChannelMatchRegex(matchRegex *string) error {
+	if matchRegex == nil || strings.TrimSpace(*matchRegex) == "" {
+		return nil
+	}
+	_, err := regexp2.Compile(*matchRegex, regexp2.ECMAScript)
+	return err
+}
+
+func init() {
+	router.NewGroupRouter("/api/v1/channel").
+		Use(middleware.Auth()).
+		Use(middleware.RequireJSON()).
+		AddRoute(
+			router.NewRoute("/list", http.MethodGet).
+				Handle(listChannel),
+		).
+		AddRoute(
+			router.NewRoute("/create", http.MethodPost).
+				Handle(createChannel),
+		).
+		AddRoute(
+			router.NewRoute("/update", http.MethodPost).
+				Handle(updateChannel),
+		).
+		AddRoute(
+			router.NewRoute("/enable", http.MethodPost).
+				Handle(enableChannel),
+		).
+		AddRoute(
+			router.NewRoute("/delete/:id", http.MethodDelete).
+				Handle(deleteChannel),
+		).
+		AddRoute(
+			router.NewRoute("/fetch-model", http.MethodPost).
+				Handle(fetchModel),
+		)
+	router.NewGroupRouter("/api/v1/channel").
+		Use(middleware.Auth()).
+		AddRoute(
+			router.NewRoute("/sync", http.MethodPost).
+				Use(middleware.RequireJSON()).
+				Handle(syncChannel),
+		).
+		AddRoute(
+			router.NewRoute("/last-sync-time", http.MethodGet).
+				Handle(getLastSyncTime),
+		).
+		AddRoute(
+			router.NewRoute("/test-models", http.MethodPost).
+				Use(middleware.RequireJSON()).
+				Handle(testChannelModels),
+		).
+		AddRoute(
+			router.NewRoute("/test-models-by-config", http.MethodPost).
+				Use(middleware.RequireJSON()).
+				Handle(testChannelModelsByConfig),
+		)
+}
+
+func listChannel(c *gin.Context) {
+	channels, err := op.ChannelList(c.Request.Context())
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for i, channel := range channels {
+		stats := op.StatsChannelGet(channel.ID)
+		channels[i].Stats = &stats
+	}
+	resp.Success(c, channels)
+}
+
+func createChannel(c *gin.Context) {
+	var channel model.Channel
+	if err := c.ShouldBindJSON(&channel); err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
+		return
+	}
+	if err := validateChannelMatchRegex(channel.MatchRegex); err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := op.ChannelCreate(&channel, c.Request.Context()); err != nil {
+		respondChannelOpError(c, err)
+		return
+	}
+	stats := op.StatsChannelGet(channel.ID)
+	channel.Stats = &stats
+	go func(channel *model.Channel) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		modelStr := channel.Model + "," + channel.CustomModel
+		modelArray := strings.Split(modelStr, ",")
+		helper.LLMPriceAddToDB(modelArray, ctx)
+		helper.ChannelBaseUrlDelayUpdate(channel, ctx)
+		helper.ChannelAutoGroup(channel, ctx)
+	}(&channel)
+	resp.Success(c, channel)
+}
+
+func updateChannel(c *gin.Context) {
+	var req model.ChannelUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
+		return
+	}
+	if err := validateChannelMatchRegex(req.MatchRegex); err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	channel, err := op.ChannelUpdate(&req, c.Request.Context())
+	if err != nil {
+		respondChannelOpError(c, err)
+		return
+	}
+	stats := op.StatsChannelGet(channel.ID)
+	channel.Stats = &stats
+	go func(channel *model.Channel) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		modelStr := channel.Model + "," + channel.CustomModel
+		modelArray := strings.Split(modelStr, ",")
+		helper.LLMPriceAddToDB(modelArray, ctx)
+		helper.ChannelBaseUrlDelayUpdate(channel, ctx)
+		helper.ChannelAutoGroup(channel, ctx)
+	}(channel)
+	resp.Success(c, channel)
+}
+
+func enableChannel(c *gin.Context) {
+	var request struct {
+		ID      int  `json:"id"`
+		Enabled bool `json:"enabled"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
+		return
+	}
+	if request.ID <= 0 {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidParam)
+		return
+	}
+	if err := op.ChannelEnabled(request.ID, request.Enabled, c.Request.Context()); err != nil {
+		respondChannelOpError(c, err)
+		return
+	}
+	resp.Success(c, nil)
+}
+
+func deleteChannel(c *gin.Context) {
+	id := c.Param("id")
+	idNum, err := strconv.Atoi(id)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidParam)
+		return
+	}
+	if err := op.ChannelDel(idNum, c.Request.Context()); err != nil {
+		respondChannelOpError(c, err)
+		return
+	}
+	resp.Success(c, nil)
+}
+
+func fetchModel(c *gin.Context) {
+	var request model.ChannelFetchModelRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
+		return
+	}
+	channel := model.Channel{
+		Type:         request.Type,
+		BaseUrls:     []model.BaseUrl{{URL: strings.TrimSpace(request.BaseURL), Delay: 0}},
+		Proxy:        request.Proxy,
+		ChannelProxy: request.ChannelProxy,
+		CustomHeader: request.CustomHeader,
+		MatchRegex:   request.MatchRegex,
+		Keys: []model.ChannelKey{{
+			Enabled:    true,
+			ChannelKey: strings.TrimSpace(request.Key),
+		}},
+	}
+	models, err := helper.FetchModels(c.Request.Context(), channel)
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	resp.Success(c, models)
+}
+
+func syncChannel(c *gin.Context) {
+	task.SyncModelsTask()
+	resp.Success(c, nil)
+}
+
+func getLastSyncTime(c *gin.Context) {
+	time := task.GetLastSyncModelsTime()
+	resp.Success(c, time)
+}
+
+func testChannelModels(c *gin.Context) {
+	type TestModelRequest struct {
+		ChannelID int      `json:"channel_id"`
+		Models    []string `json:"models"`
+	}
+	var req TestModelRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
+		return
+	}
+
+	if len(req.Models) == 0 {
+		resp.Error(c, http.StatusBadRequest, "models is required")
+		return
+	}
+
+	channel, err := op.ChannelGet(req.ChannelID, c.Request.Context())
+	if err != nil {
+		respondChannelOpError(c, err)
+		return
+	}
+	results := make([]model.DBImportHealthCheckItem, 0, len(req.Models))
+	for _, modelName := range req.Models {
+		results = append(results, op.CheckChannelModelHealth(c.Request.Context(), channel, modelName))
+	}
+	c.JSON(http.StatusOK, results)
+}
+
+func testChannelModelsByConfig(c *gin.Context) {
+	type TestModelByConfigRequest struct {
+		Type     transformerOutbound.OutboundType `json:"type"`
+		Enabled  *bool                            `json:"enabled"`
+		BaseUrls []model.BaseUrl                  `json:"base_urls"`
+		Keys     []struct {
+			Enabled       bool   `json:"enabled"`
+			ChannelKey    string `json:"channel_key"`
+			SourceType    string `json:"source_type"`
+			AllowedModels string `json:"allowed_models"`
+		} `json:"keys"`
+		Proxy             bool                    `json:"proxy"`
+		ChannelProxy      *string                 `json:"channel_proxy"`
+		CustomHeader      []model.CustomHeader    `json:"custom_header"`
+		KeyManagementMode model.KeyManagementMode `json:"key_management_mode"`
+		KeyRoutingPolicy  model.KeyRoutingPolicy  `json:"key_routing_policy"`
+		Models            []string                `json:"models"`
+	}
+
+	var req TestModelByConfigRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
+		return
+	}
+
+	if len(req.Models) == 0 {
+		resp.Error(c, http.StatusBadRequest, "models is required")
+		return
+	}
+
+	channel := &model.Channel{
+		Type:              req.Type,
+		Enabled:           req.Enabled == nil || *req.Enabled,
+		BaseUrls:          req.BaseUrls,
+		Proxy:             req.Proxy,
+		ChannelProxy:      req.ChannelProxy,
+		CustomHeader:      req.CustomHeader,
+		KeyManagementMode: req.KeyManagementMode,
+		KeyRoutingPolicy:  req.KeyRoutingPolicy,
+	}
+	for _, k := range req.Keys {
+		channel.Keys = append(channel.Keys, model.ChannelKey{
+			Enabled:       k.Enabled,
+			ChannelKey:    k.ChannelKey,
+			SourceType:    k.SourceType,
+			AllowedModels: k.AllowedModels,
+		})
+	}
+
+	results := make([]model.DBImportHealthCheckItem, 0, len(req.Models))
+	for _, modelName := range req.Models {
+		results = append(results, op.CheckChannelModelHealthForConfig(c.Request.Context(), channel, modelName))
+	}
+
+	c.JSON(http.StatusOK, results)
+}

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Octopus Repo Audit - 2026-04-23 04:48</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --panel: #fffdf8;
+      --ink: #1f2933;
+      --muted: #58677a;
+      --line: #d8d0c3;
+      --critical: #8b1e1e;
+      --high: #b54708;
+      --medium: #2563eb;
+      --low: #6b7280;
+      --good: #166534;
+      --warn: #92400e;
+      --shadow: 0 14px 32px rgba(31, 41, 51, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(180deg, #efe7d8 0%, var(--bg) 28%, #f7f4ee 100%);
+      color: var(--ink);
+      line-height: 1.6;
+    }
+    .wrap {
+      width: min(1180px, calc(100% - 32px));
+      margin: 28px auto 48px;
+    }
+    .hero, .section, .summary {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+    }
+    .hero {
+      padding: 28px;
+      background:
+        radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 30%),
+        radial-gradient(circle at left bottom, rgba(181, 71, 8, 0.08), transparent 30%),
+        var(--panel);
+    }
+    h1, h2, h3 { margin: 0; }
+    h1 { font-size: 32px; line-height: 1.15; }
+    h2 { font-size: 22px; margin-bottom: 14px; }
+    h3 { font-size: 16px; margin-bottom: 10px; }
+    p { margin: 0; }
+    .meta {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .hero-grid, .card-grid, .summary-grid {
+      display: grid;
+      gap: 16px;
+    }
+    .hero-grid {
+      grid-template-columns: 1.5fr 1fr;
+      margin-top: 20px;
+    }
+    .card-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 18px;
+    }
+    .summary-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .stat, .note, .summary-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      background: rgba(255,255,255,0.78);
+    }
+    .stat strong { font-size: 28px; display: block; margin-top: 8px; }
+    .muted { color: var(--muted); }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+    .critical { background: rgba(139,30,30,0.12); color: var(--critical); }
+    .high { background: rgba(181,71,8,0.12); color: var(--high); }
+    .medium { background: rgba(37,99,235,0.12); color: var(--medium); }
+    .low { background: rgba(107,114,128,0.12); color: var(--low); }
+    .good { background: rgba(22,101,52,0.12); color: var(--good); }
+    .warn { background: rgba(146,64,14,0.12); color: var(--warn); }
+    .section, .summary { padding: 24px; margin-top: 18px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+    th, td {
+      text-align: left;
+      vertical-align: top;
+      padding: 12px 10px;
+      border-top: 1px solid var(--line);
+    }
+    th {
+      color: var(--muted);
+      font-weight: 700;
+      background: rgba(88,103,122,0.04);
+    }
+    ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+    }
+    li { margin: 6px 0; }
+    .finding {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      margin-top: 12px;
+      background: rgba(255,255,255,0.72);
+    }
+    .finding p + p { margin-top: 8px; }
+    code {
+      font-family: Consolas, "SFMono-Regular", monospace;
+      font-size: 0.93em;
+      background: rgba(31,41,51,0.06);
+      padding: 1px 6px;
+      border-radius: 6px;
+    }
+    .footer {
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    @media (max-width: 920px) {
+      .hero-grid, .card-grid, .summary-grid { grid-template-columns: 1fr; }
+      h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <span class="badge good">Audit Completed</span>
+      <h1>Octopus 仓库完整审计</h1>
+      <p class="meta">触发时间：2026-04-23T04:48:23+08:00</p>
+      <div class="hero-grid">
+        <div class="note">
+          <h3>总体判断</h3>
+          <p>后端主流程当前是真实可达的，启动、鉴权、relay、backup 后端和 Windows 最小烟测都已跑通。本轮最高优先级问题不在主链断路，而在于前端 backup 验证脚本漂移、动态路由文档超前，以及发布收口仍未闭环。</p>
+        </div>
+        <div class="note">
+          <h3>最重要的结论</h3>
+          <ul>
+            <li>没有复现 `Critical` 级后端主流程失效。</li>
+            <li>CI 中已接入的 backup 验证命令按当前工作区会失败。</li>
+            <li>动态路由真实 shipped 范围明显小于子域文档声明。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card-grid">
+        <div class="stat"><span class="badge critical">Critical</span><strong>0</strong><span class="muted">未在当前主链复现</span></div>
+        <div class="stat"><span class="badge high">High</span><strong>1</strong><span class="muted">CI 级验证漂移</span></div>
+        <div class="stat"><span class="badge medium">Medium</span><strong>4</strong><span class="muted">文档/发布/覆盖/边界能力</span></div>
+        <div class="stat"><span class="badge low">Low</span><strong>3</strong><span class="muted">发布文档与状态收口</span></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Findings</h2>
+
+      <div class="finding">
+        <span class="badge high">High</span>
+        <h3>CI 已接入的 backup 验证脚本与当前 locale/UI 口径失配</h3>
+        <p><strong>证据：</strong><code>.github/workflows/validation.yaml:50-52</code> 真正执行 <code>test:backup-logic</code> 和 <code>test:backup-component</code>。本地运行这两条命令分别失败，前者仍断言英文标题 <code>Rollback has blocking risks</code>，后者仍按英文可见标签 <code>Include plaintext credentials in the snapshot</code> 查找元素。</p>
+        <p><strong>依据：</strong><code>web/src/stores/setting.ts:14</code> 默认 locale 为 <code>zh-Hans</code>；<code>web/src/components/modules/setting/backup-logic.ts:391,786,807-810,830-833</code> 默认按中文生成文本；<code>web/src/components/modules/setting/Backup.tsx:407,710</code> 也按当前 locale 渲染 export toggle。</p>
+        <p><strong>影响：</strong>这会造成验证假阴性，并且因为 workflow 已真实调用它们，所以它是当前最直接的合并/发布阻塞项。</p>
+      </div>
+
+      <div class="finding">
+        <span class="badge medium">Medium</span>
+        <h3>动态路由子域文档明显超前于 shipped 实现</h3>
+        <p><strong>证据：</strong><code>docs/DYNAMIC_ROUTING_REQUIREMENTS.zh-CN.md:233-237</code> 仍列出 <code>shadow-ai</code>、<code>hybrid</code>、<code>metrics-only</code>、<code>strict-mechanism</code>、<code>incident-safe</code>；<code>docs/DYNAMIC_ROUTING_IMPLEMENTATION_PLAN.zh-CN.md:227-240</code> 仍按 hybrid/metrics-only 发布门槛写实施。</p>
+        <p><strong>实现现实：</strong><code>internal/model/setting.go:24-29</code> 只有动态健康开关和五个 race budget；<code>internal/task/dynamic.go:47-62</code> 只是 daily summary scan；<code>README.md:178-180</code> / <code>README_zh.md:167-169</code> 反而已降级到真实语义。</p>
+      </div>
+
+      <div class="finding">
+        <span class="badge medium">Medium</span>
+        <h3>release workflow 使用浮动工具版本，和验证基线不一致</h3>
+        <p><strong>证据：</strong><code>.github/workflows/release.yaml:26,36,41</code> 使用 <code>stable</code> / <code>latest</code>；而 <code>.github/workflows/validation.yaml:19-33</code> 和 README 都固定了 Go 1.24.4、Node 22、pnpm 10 一组更可复现的版本。</p>
+        <p><strong>影响：</strong>即使代码不变，release job 也可能因上游工具链漂移而失效。</p>
+      </div>
+
+      <div class="finding">
+        <span class="badge medium">Medium</span>
+        <h3>协议转换边界能力仍有真实 TODO</h3>
+        <p><strong>证据：</strong><code>internal/transformer/inbound/anthropic/messages.go:162</code>、<code>internal/transformer/outbound/gemini/messages.go:319-321</code>、<code>internal/transformer/model/model.go:619,861</code>。</p>
+        <p><strong>判断：</strong>当前是“核心路径可用、边界场景未闭环”，不是彻底空实现。</p>
+      </div>
+
+      <div class="finding">
+        <span class="badge medium">Medium</span>
+        <h3>CI Go 测试覆盖窄于仓库现有测试面</h3>
+        <p><strong>证据：</strong><code>.github/workflows/validation.yaml:58</code> 只跑定向包；但仓库还存在 <code>internal/client/http_test.go</code>、<code>internal/conf/config_test.go</code>、<code>internal/helper/fetch_test.go</code>、<code>internal/model/*.go</code>、<code>internal/server/auth/auth_test.go</code>、<code>internal/transformer/model/embedding_test.go</code> 等测试文件。</p>
+      </div>
+
+      <div class="finding">
+        <span class="badge low">Low</span>
+        <h3>README 发布/安装信息仍有占位符</h3>
+        <p><strong>证据：</strong><code>README.md:45,51-54,71-73,88</code> 与 <code>README_zh.md:45,51-54,70-72,87</code> 仍保留 <code>&lt;CURRENT_...&gt;</code> 和 TODO 文本。</p>
+      </div>
+
+      <div class="finding">
+        <span class="badge low">Low</span>
+        <h3><code>web/package.json</code> 的 <code>devs</code> 路径不可移植</h3>
+        <p><strong>证据：</strong><code>web/package.json:8</code> 硬编码 <code>/workplace/code/octopus/build/localhost-key.pem</code> 和 <code>/workplace/code/octopus/build/localhost.pem</code>。</p>
+      </div>
+
+      <div class="finding">
+        <span class="badge low">Low</span>
+        <h3><code>CURRENT_STATUS_AND_PLAN</code> 仍保留过期结论</h3>
+        <p><strong>证据：</strong><code>docs/CURRENT_STATUS_AND_PLAN.zh-CN.md:253,394</code> 仍写 manifest secrets 不一致；但 <code>internal/op/backup.go:149</code> 已按真实导出内容写回 <code>contains_secrets</code>，相关导入测试也已通过。</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Completion Assessment</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>主题</th>
+            <th>状态</th>
+            <th>判断</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>后端启动 / 鉴权 / relay 主链</td><td><span class="badge good">已完成</span></td><td>Go build、全量 Go test、Windows smoke 都已证明主流程真实可达。</td></tr>
+          <tr><td>backup/import/rollback 后端</td><td><span class="badge good">已完成</span></td><td>handlers + op + tests 都已接线。</td></tr>
+          <tr><td>备份前端验证闭环</td><td><span class="badge warn">部分完成</span></td><td>功能已在页面上，但脚本/CI 资产与当前 locale 契约失配。</td></tr>
+          <tr><td>动态路由 shipped 能力</td><td><span class="badge warn">部分完成</span></td><td>真实交付是 summary scan + health toggle + race budgets。</td></tr>
+          <tr><td>动态路由 AI / 多模式体系</td><td><span class="badge low">未完成</span></td><td>当前更像规划/文档项，而不是 shipped feature。</td></tr>
+          <tr><td>协议转换边界能力</td><td><span class="badge warn">部分完成</span></td><td>核心路径可用，但 JSON schema / tool_result 等边界仍未闭环。</td></tr>
+          <tr><td>发布文档 / release 收口</td><td><span class="badge warn">部分完成</span></td><td>README 占位符和 release workflow 浮动版本仍需处理。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>Verification Summary</h2>
+      <div class="summary-grid">
+        <div class="summary-card">
+          <span class="badge good">已验证项</span>
+          <ul>
+            <li><code>go build ./...</code> 通过</li>
+            <li><code>go test ./... -count=1</code> 通过</li>
+            <li><code>tsc --noEmit</code> 通过</li>
+            <li><code>verify-locale-consistency.mjs</code> 通过</li>
+            <li><code>sync-web-static.mjs</code> 通过</li>
+            <li><code>smoke-win-backend.ps1</code> 通过</li>
+          </ul>
+        </div>
+        <div class="summary-card">
+          <span class="badge warn">未完全验证 / 受环境限制</span>
+          <ul>
+            <li><code>verify-backup-logic.mjs</code>、<code>verify-backup-component.cjs</code> 当前失败</li>
+            <li><code>next build</code> 在当前 Windows 主机止于 <code>spawn EPERM</code></li>
+            <li>Vitest 同样受 <code>spawn EPERM</code> 阻断</li>
+            <li>Docker 不在 PATH，未运行 compose smoke</li>
+            <li>远端 origin/upstream 现场信息受凭据/权限限制</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Comparison Notes</h2>
+      <ul>
+        <li><strong>当前工作区 vs HEAD：</strong> 当前工作区是大脏树，<code>git diff --stat HEAD</code> 显示 110 个已跟踪文件有改动，另有大量未跟踪文件；本轮结论针对的是当前工作区而非纯 HEAD。</li>
+        <li><strong>当前分支 vs 稳定基线：</strong> 使用本地 <code>origin/dev</code> 作为比较基线；分支已经明显领先于 <code>origin/dev</code>，再叠加了大量未提交改动。</li>
+        <li><strong>实现 vs 文档：</strong> README 对动态路由的真实口径比子域文档更准确；<code>CURRENT_STATUS_AND_PLAN</code> 则比当前代码落后。</li>
+        <li><strong>实现 vs 测试/构建：</strong> Go 主链验证强于 CI 当前配置；前端 backup 脚本则弱于当前实现，已经发生验证资产漂移。</li>
+      </ul>
+    </section>
+
+    <section class="summary">
+      <h2>Top Next Actions</h2>
+      <div class="summary-grid">
+        <div class="summary-card">
+          <span class="badge high">1</span>
+          <h3>修 backup 验证脚本与 locale 契约</h3>
+          <p>让 <code>verify-backup-logic.mjs</code> / <code>verify-backup-component.cjs</code> 和当前 <code>zh-Hans</code> 默认策略对齐，或显式用英文 locale 运行。</p>
+        </div>
+        <div class="summary-card">
+          <span class="badge medium">2</span>
+          <h3>收口动态路由文档承诺</h3>
+          <p>按真实 shipped 行为下调文档，或继续补 AI / mode surface 实现，避免“文档完成度”高于“代码完成度”。</p>
+        </div>
+        <div class="summary-card">
+          <span class="badge low">3</span>
+          <h3>完成发布收口</h3>
+          <p>固定 release workflow 版本、清理 README 占位符、移除 <code>devs</code> 硬编码路径，并在 Linux/Docker 能力主机上补 smoke。</p>
+        </div>
+        <div class="summary-card">
+          <span class="badge medium">Requirements</span>
+          <h3>需要改的东西与要求</h3>
+          <p>优先修验证假阴性，再统一动态路由对外交付口径；随后补发布可复现性和 transformer 边界测试/文档说明。</p>
+        </div>
+      </div>
+      <div class="footer">本报告依据当前工作区、`origin/dev` 本地基线、核心文档、workflow、脚本与实际命令运行结果生成。</div>
+    </section>
+  </div>
+</body>
+</html>

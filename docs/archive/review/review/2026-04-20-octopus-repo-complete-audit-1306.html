@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Octopus Repo 完整审计 2026-04-20 13:06</title>
+  <style>
+    :root {
+      --bg: #f4f0e8;
+      --panel: #fffdf8;
+      --ink: #1f2937;
+      --muted: #5b6573;
+      --line: #d8cfc0;
+      --critical: #8b1e1e;
+      --high: #b45309;
+      --medium: #1d4ed8;
+      --low: #475569;
+      --ok: #166534;
+      --warn: #b45309;
+      --bad: #991b1b;
+      --accent: #0f766e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(180deg, #ede6d8 0%, var(--bg) 100%);
+      color: var(--ink);
+    }
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+    .hero {
+      background: radial-gradient(circle at top right, rgba(15,118,110,.14), transparent 35%), var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: 0 18px 50px rgba(40, 31, 17, .08);
+    }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 32px; margin-bottom: 10px; }
+    .sub { color: var(--muted); font-size: 14px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+      margin-top: 18px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 12px 30px rgba(40, 31, 17, .05);
+    }
+    .span-8 { grid-column: span 8; }
+    .span-4 { grid-column: span 4; }
+    .span-6 { grid-column: span 6; }
+    .span-12 { grid-column: span 12; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .stat {
+      border-radius: 16px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      background: #fffcf5;
+    }
+    .stat .k { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .stat .v { font-size: 26px; font-weight: 700; margin-top: 8px; }
+    .sev {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      border-radius: 999px;
+      padding: 6px 10px;
+      margin-bottom: 10px;
+    }
+    .critical { color: #fff; background: var(--critical); }
+    .high { color: #fff; background: var(--high); }
+    .medium { color: #fff; background: var(--medium); }
+    .low { color: #fff; background: var(--low); }
+    ul { margin: 10px 0 0 18px; padding: 0; }
+    li { margin: 8px 0; line-height: 1.55; }
+    .mini {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .bar {
+      display: flex;
+      height: 16px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #efe7d8;
+      border: 1px solid var(--line);
+      margin-top: 14px;
+    }
+    .done { background: linear-gradient(90deg, #0f766e, #14b8a6); }
+    .partial { background: linear-gradient(90deg, #d97706, #f59e0b); }
+    .todo { background: linear-gradient(90deg, #94a3b8, #cbd5e1); }
+    .legend {
+      display: flex;
+      gap: 18px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .dot {
+      width: 10px; height: 10px; border-radius: 999px; display: inline-block; margin-right: 6px;
+    }
+    .timeline {
+      display: grid;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .step {
+      border-left: 4px solid var(--accent);
+      padding-left: 12px;
+      line-height: 1.55;
+    }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    code {
+      background: #f3ede3;
+      border: 1px solid #e3d9c8;
+      padding: 1px 6px;
+      border-radius: 8px;
+      font-family: Consolas, monospace;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      padding: 10px 8px;
+      vertical-align: top;
+    }
+    th { color: var(--muted); font-weight: 600; }
+    @media (max-width: 900px) {
+      .span-8, .span-4, .span-6, .span-12 { grid-column: span 12; }
+      .stats { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>Octopus Repo 完整审计</h1>
+      <p class="sub">触发时间：2026-04-20T13:06:01+08:00 ｜ 仓库：D:\GPT-codex\octopus_repo ｜ 结论：成功完成审计，但仍存在发布阻塞项</p>
+      <div class="stats">
+        <div class="stat"><div class="k">分支对比</div><div class="v">22</div><div class="mini">ahead of origin/dev</div></div>
+        <div class="stat"><div class="k">工作区改动</div><div class="v">71+</div><div class="mini">tracked files changed</div></div>
+        <div class="stat"><div class="k">最高风险</div><div class="v">1</div><div class="mini">Critical</div></div>
+        <div class="stat"><div class="k">高风险</div><div class="v">2</div><div class="mini">High</div></div>
+        <div class="stat"><div class="k">完成度</div><div class="v">60-65%</div><div class="mini">按可发布可证明口径</div></div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card span-8">
+        <h2>Findings</h2>
+        <div style="margin-top:16px;">
+          <div class="sev critical">Critical</div>
+          <ul>
+            <li>前端默认导出会主动发送 <code>include_secrets=false</code>，导致 UI 默认导出变成脱敏快照，而后端和 README 约定的是省略该参数时默认导出可恢复快照。这让备份主路径语义实际分叉。</li>
+          </ul>
+        </div>
+        <div style="margin-top:16px;">
+          <div class="sev high">High</div>
+          <ul>
+            <li><code>scripts/smoke-win-backend.ps1</code> 存在拼接错误，Windows 本地 smoke 脚本当前自损坏。</li>
+            <li>CI 只覆盖 <code>go build ./...</code> 和 <code>go test ./internal/op</code>，没有兜住新增最密集的 handler / relay / task 风险面。</li>
+          </ul>
+        </div>
+        <div style="margin-top:16px;">
+          <div class="sev medium">Medium</div>
+          <ul>
+            <li>仓库自带 Go 验证脚本在预热阶段就会调用 <code>go.exe version</code>，在当前机器的 Go 权限故障下放大了阻塞。</li>
+            <li>前端 <code>next build</code> 已完成编译和 TS 阶段，但最终被 <code>spawn EPERM</code> 卡住，发布产物仍未闭环证明。</li>
+            <li>备份页面仍有明确标注未接线的高级交互功能，说明该区域是半成品而非最终收口状态。</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="card span-4">
+        <h2>完成度</h2>
+        <p class="mini" style="margin-top:10px;">功能实现大多已接入主流程，但验证和交付链条没有完全收口。</p>
+        <div class="bar">
+          <div class="done" style="width:48%"></div>
+          <div class="partial" style="width:28%"></div>
+          <div class="todo" style="width:24%"></div>
+        </div>
+        <div class="legend">
+          <div><span class="dot" style="background:#0f766e"></span>已完成</div>
+          <div><span class="dot" style="background:#d97706"></span>部分完成</div>
+          <div><span class="dot" style="background:#94a3b8"></span>未完成/未验证</div>
+        </div>
+        <table>
+          <tr><th>类别</th><th>判断</th></tr>
+          <tr><td>功能完成度</td><td>约 75% - 80%</td></tr>
+          <tr><td>发布完成度</td><td>约 60% - 65%</td></tr>
+          <tr><td>主流程可达</td><td class="ok">已确认</td></tr>
+          <tr><td>动态路由接线</td><td class="ok">已确认</td></tr>
+          <tr><td>前端生产构建</td><td class="warn">未闭环</td></tr>
+          <tr><td>完整 Go 验证链</td><td class="bad">未证明</td></tr>
+        </table>
+      </article>
+
+      <article class="card span-6">
+        <h2>Verification Summary</h2>
+        <div class="timeline">
+          <div class="step"><strong>已验证</strong><br />git 状态、分支基线、最近提交、README/docs、一组核心入口和接线文件、前端类型检查。</div>
+          <div class="step"><strong>实际运行</strong><br /><code>D:\gol1\node.exe .\node_modules\typescript\bin\tsc --noEmit</code> 通过。<br /><code>D:\gol1\node.exe .\node_modules\next\dist\bin\next build</code> 编译后以 <code>spawn EPERM</code> 结束。</div>
+          <div class="step"><strong>阻塞</strong><br /><code>powershell.exe -ExecutionPolicy Bypass -File .\scripts\verify-go-env.ps1 -GoBuild</code> 被 <code>go.exe Access is denied</code> 阻断。当前环境也没有可用 <code>docker</code>。</div>
+        </div>
+      </article>
+
+      <article class="card span-6">
+        <h2>Comparison Notes</h2>
+        <ul>
+          <li>当前分支 <code>feat/erguotou</code> 相对 <code>origin/dev</code> 是 <code>22 ahead / 0 behind</code>。</li>
+          <li>当前工作区相对 <code>HEAD</code> 是大体量脏状态，不是单点改动。</li>
+          <li>README 与代码一致的部分包括动态路由 summary scan 和健康检查 CLI。</li>
+          <li>README 与代码不一致的部分包括默认导出语义，以及文档引用的 Windows smoke 路径当前不可执行。</li>
+        </ul>
+      </article>
+
+      <article class="card span-12">
+        <h2>Top Next Actions</h2>
+        <table>
+          <tr><th>优先级</th><th>动作</th><th>原因</th></tr>
+          <tr><td>1</td><td>修复前端默认导出语义</td><td>当前最接近真实业务后果，默认备份并不符合文档理解。</td></tr>
+          <tr><td>2</td><td>修复 <code>scripts/smoke-win-backend.ps1</code></td><td>仓库公开的 Windows 验证链当前自损坏。</td></tr>
+          <tr><td>3</td><td>扩大 CI 的 Go 覆盖范围</td><td>handler / relay / task 风险面现在不会被 CI 兜底。</td></tr>
+        </table>
+      </article>
+
+      <article class="card span-12">
+        <h2>中文摘要</h2>
+        <ul>
+          <li>本次触发时间：<code>2026-04-20T13:06:01+08:00</code></li>
+          <li>执行了仓库结构、git、README/docs、关键接线、CI、脚本和前端构建相关检查。</li>
+          <li>本次新增了 Markdown 审查报告、HTML 可视化报告，并更新了 automation memory。</li>
+          <li>核心问题是默认导出语义偏差、Windows smoke 脚本损坏、CI 覆盖不足。</li>
+          <li>本次结果：<span class="ok">成功</span>。</li>
+          <li>需要手动介入：<span class="warn">需要</span>，尤其是修备份语义和补完整验证环境。</li>
+        </ul>
+      </article>
+    </section>
+  </div>
+</body>
+</html>

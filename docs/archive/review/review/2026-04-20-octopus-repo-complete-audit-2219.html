@@ -1,0 +1,88 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Octopus 完整审计 2026-04-20 22:19</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --panel: #fffdf8;
+      --ink: #1f2328;
+      --muted: #59636e;
+      --line: #d8d1c2;
+      --high: #b42318;
+      --medium: #b54708;
+      --low: #475467;
+      --ok: #027a48;
+      --accent: #7a3e00;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(180deg, #efe7d8 0%, var(--bg) 220px);
+      color: var(--ink);
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 20px 48px; }
+    .hero, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 10px 28px rgba(31,35,40,.08); }
+    .hero { padding: 28px; margin-bottom: 20px; }
+    .eyebrow { color: var(--accent); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; }
+    h1 { margin: 10px 0 12px; font-size: 34px; line-height: 1.15; }
+    .sub { color: var(--muted); margin: 0; font-size: 15px; line-height: 1.6; }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px; }
+    .stat { padding: 18px; }
+    .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+    .value { margin-top: 10px; font-size: 30px; font-weight: 800; }
+    .note { margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .section { margin-bottom: 20px; padding: 22px; }
+    h2 { margin: 0 0 14px; font-size: 22px; }
+    h3 { margin: 0 0 8px; font-size: 16px; }
+    .finding { border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-top: 14px; background: #fff; }
+    .sev { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 10px; }
+    .sev.high { background: rgba(180,35,24,.12); color: var(--high); }
+    .sev.medium { background: rgba(181,71,8,.12); color: var(--medium); }
+    .sev.low { background: rgba(71,84,103,.12); color: var(--low); }
+    ul { margin: 10px 0 0 18px; padding: 0; line-height: 1.7; }
+    li { margin: 4px 0; }
+    table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 14px; border: 1px solid var(--line); background: #fff; }
+    th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 14px; line-height: 1.6; }
+    th { width: 220px; background: #f8f4ec; }
+    tr:last-child td, tr:last-child th { border-bottom: 0; }
+    .two { display: grid; grid-template-columns: 1.2fr .8fr; gap: 20px; }
+    .success { color: var(--ok); font-weight: 700; }
+    .warn { color: var(--medium); font-weight: 700; }
+    .danger { color: var(--high); font-weight: 700; }
+    .footer { color: var(--muted); font-size: 13px; margin-top: 18px; }
+    @media (max-width: 960px) { .grid, .two { grid-template-columns: 1fr; } h1 { font-size: 28px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="eyebrow">Octopus Repo Audit</div>
+      <h1>完整审计报告</h1>
+      <p class="sub">时间：2026-04-20 22:19:57 +08:00。范围：D:\GPT-codex\octopus_repo。基线：当前工作区对比 HEAD，当前分支对比 origin/dev。</p>
+    </section>
+    <section class="grid">
+      <div class="panel stat"><div class="label">完成度</div><div class="value">82%</div><div class="note">后端主链路已成型，前端关键恢复流验证不足。</div></div>
+      <div class="panel stat"><div class="label">最高风险</div><div class="value danger">High</div><div class="note">前端发布验证可能被陈旧静态产物掩盖。</div></div>
+      <div class="panel stat"><div class="label">工作区差异</div><div class="value">81</div><div class="note">已跟踪文件改动，另有多项新增未提交文件。</div></div>
+      <div class="panel stat"><div class="label">本机验证</div><div class="value warn">受限</div><div class="note">Go 工具链拒绝访问，Docker 不可用，Next build 以 spawn EPERM 结束。</div></div>
+    </section>
+    <section class="panel section">
+      <h2>Findings</h2>
+      <div class="finding"><div class="sev high">High</div><h3>backend smoke 可能在陈旧静态产物上通过</h3><ul><li>`scripts/smoke-linux-backend.sh` 把 `static/out` 直接写入运行配置，再只校验首页和 `manifest.json`。</li><li>`static/static.go` embed 的也是 `static/out`。</li><li>当前工作区里 `web/out` 比 `static/out` 更新，说明 smoke 可能没有覆盖到最新 `web/src`。</li><li>这会让最近设置页和备份页的大改动被旧产物掩盖。</li></ul></div>
+      <div class="finding"><div class="sev high">High</div><h3>Phase F 备份/导入/回滚前端没有行为级验证</h3><ul><li>`web/package.json` 没有 `test` 脚本，仓库也没有前端测试文件。</li><li>`Backup.tsx` 单文件体量超过 110 KB，承担 export、dry-run、rollback preview、post-import validation 等关键交互。</li><li>本轮只验证了 `tsc --noEmit` 通过，`next build` 在当前环境里以 `spawn EPERM` 结束。</li><li>现在无法证明关键按钮流和状态切换在真实 UI 中可靠。</li></ul></div>
+      <div class="finding"><div class="sev medium">Medium</div><h3>动态路由 summary scan 已注册但没有真实消费方</h3><ul><li>`internal/task/init.go` 把它描述为 settings/dashboard surface 使用。</li><li>`internal/task/dynamic.go` 只在内存里保存 summary。</li><li>检索结果显示当前没有 handler、API 或前端查询读取该 summary。</li><li>这属于已实现但未接入主流程，不应按完整闭环计数。</li></ul></div>
+      <div class="finding"><div class="sev low">Low</div><h3>AGENTS 环境变量示例落后于当前运行时配置</h3><ul><li>`AGENTS.md` 仍写 `OCTOPUS_DB_TYPE` 和 `OCTOPUS_DB_CONNSTRING`。</li><li>`README` 已更新为 `OCTOPUS_DATABASE_TYPE` 和 `OCTOPUS_DATABASE_PATH`。</li><li>这会误导新环境搭建和脚本编写。</li></ul></div>
+    </section>
+    <div class="two">
+      <section class="panel section"><h2>Completion Assessment</h2><table><tr><th>已完成</th><td>启动链路、数据库迁移、缓存初始化、日志导出、token breakdown、route-target override、备份导出默认语义、healthcheck CLI。</td></tr><tr><th>部分完成</th><td>动态路由主链路真实接线，但 summary surface 未闭环。备份/导入/回滚前端协议对齐较高，但缺少行为级验证。</td></tr><tr><th>未完成</th><td>前端关键恢复流程自动化验证。当前工作区前端源码到最终服务产物的一条强验证路径。</td></tr><tr><th>疑似空实现</th><td>`dynamic_routing_summary_scan` 的 summary surface。</td></tr></table></section>
+      <section class="panel section"><h2>Verification Summary</h2><ul><li><span class="success">通过</span> `D:\gol1\node.exe .\node_modules\typescript\bin\tsc --noEmit`</li><li><span class="warn">受限</span> `next build` 编译后以 `spawn EPERM` 结束</li><li><span class="warn">受限</span> `go.exe version` 返回 `Access is denied`</li><li><span class="warn">受限</span> `scripts/smoke-win-backend.ps1` 因同一 Go 环境问题提前失败</li><li><span class="warn">受限</span> `docker version` 不存在，无法本地跑 compose smoke</li><li><span class="success">已核查</span> git 状态、最近提交、README/docs、handlers、relay、task、scripts、web 接线</li></ul></section>
+    </div>
+    <section class="panel section"><h2>Comparison Notes</h2><table><tr><th>工作区 vs HEAD</th><td>81 个已跟踪文件改动，约 9518 行新增、1191 行删除，另有大量新增未提交文件。主要集中在 backup/import/rollback、dynamic routing、route target、frontend setting UI、scripts、validation workflow。</td></tr><tr><th>分支 vs origin/dev</th><td>`feat/erguotou` 已长期偏离 `origin/dev`。本轮 `git log HEAD..origin/dev` 为空，说明远端 dev 没有额外待并入提交。</td></tr><tr><th>代码 vs README/docs</th><td>备份导出默认语义现已对齐 README。动态路由 summary surface 说法超前于真实接线。AGENTS 环境变量示例落后于 README 与运行时配置。</td></tr><tr><th>代码 vs 测试/构建</th><td>后端 targeted tests 和 CI 覆盖比旧报告更完整，但前端仍只有类型检查，没有行为级测试。backend smoke 仍不能单独证明当前 `web/src` 已同步到最终服务产物。</td></tr></table></section>
+    <section class="panel section"><h2>Top Next Actions</h2><ol><li>让 CI 或本地 smoke 强制从当前 `web/src` 重建并校验 `static/out`，不要只消费现有目录。</li><li>给备份/导入/回滚前端补最小行为级验证，至少覆盖 export、dry-run、Apply Same Import、rollback preview、post-import validation。</li><li>把动态路由 summary 真正接到 API 和页面，或把现有文案降级为后台统计。</li></ol><div class="footer">本轮审计结果：成功。需要手动介入：需要，主要是可执行 Go 工具链和 Docker/浏览器验证环境。</div></section>
+  </div>
+</body>
+</html>

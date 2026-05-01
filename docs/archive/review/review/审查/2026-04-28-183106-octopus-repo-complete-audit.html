@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Octopus Repo Audit - 2026-04-28 18:31:06</title>
+  <style>
+    :root {
+      --bg: #f5f7f3;
+      --card: #ffffff;
+      --ink: #162018;
+      --muted: #5f6f62;
+      --line: #d8dfd6;
+      --high: #b42318;
+      --medium: #b54708;
+      --low: #1d4ed8;
+      --ok: #127a43;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(180deg, #eef4ec 0%, var(--bg) 100%);
+      color: var(--ink);
+      line-height: 1.6;
+    }
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+    .hero {
+      background: radial-gradient(circle at top right, rgba(18,122,67,0.10), transparent 36%), var(--card);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: 0 12px 40px rgba(17, 24, 39, 0.06);
+    }
+    h1, h2, h3 { margin: 0 0 12px; }
+    h1 { font-size: 30px; }
+    h2 { font-size: 22px; margin-top: 26px; }
+    h3 { font-size: 17px; }
+    p { margin: 0 0 12px; }
+    ul, ol { margin: 0; padding-left: 20px; }
+    li { margin: 6px 0; }
+    .muted { color: var(--muted); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .metric, .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 18px;
+      box-shadow: 0 10px 28px rgba(17, 24, 39, 0.05);
+    }
+    .metric .label {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .metric .value {
+      font-size: 26px;
+      font-weight: 700;
+    }
+    .section {
+      margin-top: 22px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 22px;
+      box-shadow: 0 10px 28px rgba(17, 24, 39, 0.05);
+    }
+    .finding {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      margin-top: 12px;
+      background: #fbfcfb;
+    }
+    .sev {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 999px;
+      margin-right: 8px;
+      color: #fff;
+    }
+    .sev.high { background: var(--high); }
+    .sev.medium { background: var(--medium); }
+    .sev.low { background: var(--low); }
+    .pill {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #f8faf8;
+      margin-right: 6px;
+      margin-top: 6px;
+      font-size: 12px;
+    }
+    code {
+      font-family: "Consolas", "SFMono-Regular", monospace;
+      font-size: 0.95em;
+      background: #f2f5f2;
+      padding: 0.1em 0.35em;
+      border-radius: 6px;
+    }
+    .summary-list li strong { color: var(--ink); }
+    .ok { color: var(--ok); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>Octopus Repo 完整审计</h1>
+      <p class="muted">触发时间：2026-04-28 18:31:06 +08:00</p>
+      <p>结论基调：没有确认到 <code>Critical</code> 级发布阻塞，但当前工作区仍存在 AI Profile 语义闭环、多 lane 能力表述、备份高级迁移范围与仓库卫生上的重要缺口。</p>
+      <div class="grid">
+        <div class="metric"><div class="label">Branch</div><div class="value">feat/erguotou</div><div class="muted">相对 <code>origin/dev</code> 为 0 behind / 22 ahead</div></div>
+        <div class="metric"><div class="label">Workspace Delta</div><div class="value">137 Files</div><div class="muted">相对 <code>HEAD</code> 的未提交改动</div></div>
+        <div class="metric"><div class="label">Build Chain</div><div class="value ok">Pass</div><div class="muted"><code>go build</code> / <code>tsc</code> / <code>build:static</code></div></div>
+        <div class="metric"><div class="label">Local Blockers</div><div class="value">4</div><div class="muted">WinSock / Vitest EPERM / WSL / Docker</div></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>1. Findings</h2>
+      <div class="finding">
+        <h3><span class="sev high">High</span>AI Profile 的结构化方案主合同仍未真正闭环</h3>
+        <p>需求要求 AI 生成的分组、渠道识别、价格识别、模型归类和配置健康检查都应成为可预览、可校验、可后续消费的结构化 Profile；但执行器当前主要写入 <code>summary</code>、<code>raw_output</code>、<code>config</code>、<code>runtime</code> 和 <code>tool_execution*</code> 等通用包装字段。typed payload 只是从这些通用字段回填，而运行时真正消费的依然主要是 <code>base_url / api_key / channel_type / model / use_local_default</code>。</p>
+        <p class="muted">证据：<code>docs/AI_AUTOMATION_CENTER_REQUIREMENTS.zh-CN.md:20-23,61-69,77-97</code>、<code>internal/op/ai_automation_executor.go:408-450</code>、<code>internal/op/ai_automation_profile_typed.go:201-255,323-379</code>、<code>internal/op/ai_automation.go:748-889</code>、<code>web/src/components/modules/ai-automation/index.tsx:2447-2457</code></p>
+      </div>
+      <div class="finding">
+        <h3><span class="sev medium">Medium</span>多 lane AI 控制台本质上仍是前端 fan-out 多个普通任务</h3>
+        <p>UI 已暴露 <code>planner_executor</code>、<code>planner_executor_reviewer</code>、<code>router_mesh</code> 等 split mode，但真正执行时只是按 lane 顺序或并行调用多个 <code>POST /api/v1/ai/tasks</code>。后端没有 lane graph、聚合器、review gate 或共享执行状态机。</p>
+        <p class="muted">证据：<code>web/src/components/modules/ai-automation/index.tsx:1423-1495</code>、<code>internal/server/handlers/ai_automation.go:18-30</code>、<code>internal/op/ai_automation.go:289-341</code></p>
+      </div>
+      <div class="finding">
+        <h3><span class="sev medium">Medium</span>备份高级迁移能力仍显式处于部分完成状态</h3>
+        <p>备份主链可用，但需求文档仍明确写着高级迁移未完全关闭，UI 也继续直接展示 <code>Advanced migration tooling still pending</code> 与剩余手动迁移能力分区，因此不能将这部分算作 fully done。</p>
+        <p class="muted">证据：<code>docs/AI_AUTOMATION_CENTER_REQUIREMENTS.zh-CN.md:183-184</code>、<code>web/src/components/modules/setting/Backup.tsx:271-272,301,915-932</code></p>
+      </div>
+      <div class="finding">
+        <h3><span class="sev low">Low</span><code>config_health</code> 与 <code>config_health_check</code> 命名仍有漂移</h3>
+        <p>需求文档的 Profile 类型列表仍写 <code>config_health</code>，而后端常量和前端任务类型统一使用 <code>config_health_check</code>。影响不大，但会长期制造检索和维护噪音。</p>
+        <p class="muted">证据：<code>docs/AI_AUTOMATION_CENTER_REQUIREMENTS.zh-CN.md:77-83,179</code>、<code>internal/model/ai_automation.go:14,56</code>、<code>web/src/components/modules/ai-automation/index.tsx:257,385,687</code></p>
+      </div>
+      <div class="finding">
+        <h3><span class="sev low">Low</span><code>.gitignore</code> 过窄，宿主产物大量混入工作区</h3>
+        <p>当前 <code>.gitignore</code> 只覆盖极少量目录，未覆盖 <code>.next</code>、<code>node_modules</code>、<code>.gocache</code>、<code>.gomodcache</code>、<code>.tmp*</code> 等本地构建/验证产物，导致真实业务改动与宿主噪音混杂。</p>
+        <p class="muted">证据：<code>.gitignore:1-5</code> 与当前 <code>git status --short --branch</code> 输出</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>2. Completion Assessment</h2>
+      <div class="grid">
+        <div class="panel">
+          <h3>已完成</h3>
+          <ul>
+            <li>服务启动主链、缓存初始化与任务注册真实可达</li>
+            <li>AI 自动化基础配置/API、task 基本执行链、Profile 保存/激活/回退</li>
+            <li>动态路由学习查询/重置入口与设置页消费</li>
+            <li>备份导出/导入/回滚主链</li>
+            <li><code>healthcheck</code> CLI 与 CI build/typecheck/no-browser gate</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>部分完成</h3>
+          <ul>
+            <li>AI Profile 结构化消费闭环</li>
+            <li>多 lane AI 编排语义</li>
+            <li>备份高级迁移工具</li>
+            <li>全宿主可复现的 Vitest / Linux / Docker / browser 证明链</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>疑似空实现</h3>
+          <ul>
+            <li>没有发现完全不可达的核心主流程空壳</li>
+            <li>但 multi-lane UI 的语义明显强于后端真实能力</li>
+            <li>typed payload 更像回填式结构化，而不是稳定 domain contract</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>3. Verification Summary</h2>
+      <p><span class="pill">已验证</span><code>go build ./...</code>、<code>go test ./cmd</code>、<code>go test ./internal/op</code>、<code>go test ./internal/task</code>、<code>go test ./internal/update</code>、定向 <code>handlers</code>/<code>middleware</code>、<code>tsc --noEmit</code>、<code>build-web-static.mjs</code>、以及整组 repo-local no-browser / logic 校验脚本。</p>
+      <p><span class="pill">未验证</span>full <code>go test ./internal/server/handlers -count=1</code> 与 <code>go test ./internal/relay/... -count=1</code> 受当前宿主 WinSock provider 阻塞；<code>vitest</code> 受 <code>esbuild spawn EPERM</code> 阻塞；Linux smoke 受 <code>WSL E_ACCESSDENIED</code> 阻塞；Docker smoke 受本机无 <code>docker</code> 阻塞。</p>
+    </section>
+
+    <section class="section">
+      <h2>4. Comparison Notes</h2>
+      <ul>
+        <li>当前工作区相对 <code>HEAD</code> 仍有大体量未提交改动：<code>137 files changed, 19537 insertions(+), 4008 deletions(-)</code>。</li>
+        <li>当前分支 <code>feat/erguotou</code> 相对 <code>origin/dev</code> 为 <code>0 behind / 22 ahead</code>。</li>
+        <li>README、CI workflow、<code>build-web-static.mjs</code> 与当前可通过的 <code>tsc/build:static/no-browser</code> 链路总体一致。</li>
+        <li>最大的文档偏差仍集中在 AI Profile 语义；备份文案反而更诚实，因为 UI 直接声明高级迁移仍 pending。</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>5. Top Next Actions</h2>
+      <ol>
+        <li>决定 AI Profile 是继续做真正结构化方案，还是收缩为配置切换器 + 审计快照，并同步调整 docs / UI / tests。</li>
+        <li>决定多 lane AI 控制台是实现后端 orchestrator，还是明确收缩为 batch launcher 语义。</li>
+        <li>保持备份高级迁移为“部分完成”口径，并在可用 Docker / WSL / Vitest 宿主上补齐 full matrix 证明链；同时扩充 <code>.gitignore</code>。</li>
+      </ol>
+    </section>
+
+    <section class="section">
+      <h2>本次中文摘要</h2>
+      <ol class="summary-list">
+        <li><strong>本次触发时间：</strong>2026-04-28 18:31:06 +08:00</li>
+        <li><strong>做了哪些检查、运行了哪些命令：</strong>完成 git 差异、README/文档、核心源码、Go build/test、TypeScript、静态导出、repo-local no-browser/logic 校验，以及 Docker/WSL/ Vitest 阻塞确认。</li>
+        <li><strong>修改了哪些文件：</strong><code>docs/review/审查/2026-04-28-183106-octopus-repo-complete-audit.md</code>、<code>docs/review/审查/2026-04-28-183106-octopus-repo-complete-audit.html</code>、<code>C:\Users\李昊桐\.codex\automations\octopus-repo\memory.md</code></li>
+        <li><strong>发现了什么问题：</strong>AI Profile 结构化消费闭环仍缺失；多 lane AI 仍是前端 fan-out；备份高级迁移仍 pending；<code>config_health</code> 命名漂移；<code>.gitignore</code> 过窄。</li>
+        <li><strong>本次结果：</strong>成功；但 full <code>handlers/relay</code>、Vitest、Linux smoke、Docker smoke 因宿主限制记为未验证。</li>
+        <li><strong>是否需要我手动介入：</strong>需要，重点是 AI Profile / multi-lane 语义决策，以及提供可跑 Docker / WSL / Vitest 的验证宿主或直接以 CI 结果为准。</li>
+      </ol>
+    </section>
+  </div>
+</body>
+</html>

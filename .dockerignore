@@ -1,0 +1,12 @@
+.git
+.github
+.claude
+.local-tools
+build
+data
+web/node_modules
+web/.next
+web/out
+web/tsconfig.tsbuildinfo
+**/*.log
+**/.DS_Store

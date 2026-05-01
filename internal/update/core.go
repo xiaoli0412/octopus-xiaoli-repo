@@ -1,0 +1,142 @@
+package update
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"runtime"
+	"sync/atomic"
+	"syscall"
+
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/log"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/shutdown"
+)
+
+var ErrUpdateInProgress = errors.New("update already in progress")
+
+var updateInProgress atomic.Bool
+var exitProcess = os.Exit
+var startReplacementProcess = func(execPath string, args []string) error {
+	cmd := exec.Command(execPath, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Start()
+}
+
+func UpdateCore() error {
+	if !updateInProgress.CompareAndSwap(false, true) {
+		return ErrUpdateInProgress
+	}
+	releaseUpdateGuard := true
+	defer func() {
+		if releaseUpdateGuard {
+			updateInProgress.Store(false)
+		}
+	}()
+
+	log.Infof("start update core")
+
+	filename, err := getDownloadFilename()
+	if err != nil {
+		log.Warnf("update core failed: %v", err)
+		return err
+	}
+
+	downloadUrl := updateUrl + "/" + filename
+	log.Infof("download url: %s", downloadUrl)
+	data, err := doRequestWithFallback(downloadUrl, maxUpdateArchiveBytes, "update archive")
+	if err != nil {
+		log.Warnf("download failed: %v", err)
+		return err
+	}
+	if err := verifyArchiveChecksum(filename, data); err != nil {
+		log.Warnf("checksum verify failed: %v", err)
+		return err
+	}
+
+	execPath, err := os.Executable()
+	if err != nil {
+		log.Warnf("get executable path failed: %v", err)
+		return err
+	}
+
+	if err := unzipExecutable(data, execPath); err != nil {
+		log.Warnf("unzip failed: %v", err)
+		return err
+	}
+
+	log.Infof("update core success")
+	releaseUpdateGuard = false
+	go restartExecutable(execPath)
+	return nil
+}
+
+func getDownloadFilename() (string, error) {
+	arch := runtime.GOARCH
+	goos := runtime.GOOS
+
+	switch goos {
+	case "windows":
+		switch arch {
+		case "386":
+			return "octopus-windows-x86.zip", nil
+		case "amd64":
+			return "octopus-windows-x86_64.zip", nil
+		}
+	case "darwin":
+		switch arch {
+		case "amd64":
+			return "octopus-darwin-x86_64.zip", nil
+		case "arm64":
+			return "octopus-darwin-arm64.zip", nil
+		}
+	case "linux":
+		switch arch {
+		case "386":
+			return "octopus-linux-x86.zip", nil
+		case "amd64":
+			return "octopus-linux-x86_64.zip", nil
+		case "arm":
+			return "octopus-linux-armv7.zip", nil
+		case "arm64":
+			return "octopus-linux-arm64.zip", nil
+		}
+	}
+	return "", fmt.Errorf("unsupported platform: %s/%s", goos, arch)
+}
+
+func restartExecutable(execPath string) {
+	restartExecutableForPlatform(runtime.GOOS, execPath, os.Args)
+}
+
+func restartExecutableForPlatform(goos, execPath string, args []string) {
+	argv := append([]string(nil), args...)
+	if len(argv) == 0 {
+		argv = []string{execPath}
+	}
+	childArgs := []string{}
+	if len(argv) > 1 {
+		childArgs = argv[1:]
+	}
+
+	log.Infof("restarting: %q %q", execPath, childArgs)
+
+	if goos == "windows" {
+		if err := startReplacementProcess(execPath, childArgs); err != nil {
+			updateInProgress.Store(false)
+			log.Errorf("restarting failed: %v", err)
+			return
+		}
+		shutdown.Shutdown()
+		exitProcess(0)
+		return
+	}
+
+	shutdown.Shutdown()
+	if err := syscall.Exec(execPath, argv, os.Environ()); err != nil {
+		updateInProgress.Store(false)
+		log.Errorf("restarting failed: %v", err)
+	}
+}

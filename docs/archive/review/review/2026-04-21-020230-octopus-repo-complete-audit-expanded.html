@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Octopus Repo 完整审计扩展版</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #162033;
+      --muted: #5a6780;
+      --border: #d9e1ee;
+      --high: #dd6b20;
+      --medium: #d69e2e;
+      --low: #2f855a;
+      --accent: #1456c3;
+      --shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: linear-gradient(180deg, #eef4ff 0%, var(--bg) 100%); color: var(--text); }
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 28px 20px 60px; }
+    .hero { background: linear-gradient(135deg, #1456c3 0%, #2676eb 55%, #89b7ff 100%); color: #fff; border-radius: 26px; padding: 30px; box-shadow: var(--shadow); }
+    .hero h1 { margin: 0 0 8px; font-size: 32px; }
+    .hero p { margin: 0; line-height: 1.65; opacity: 0.96; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin: 22px 0 28px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 18px 20px; box-shadow: var(--shadow); }
+    .metric { font-size: 13px; color: var(--muted); }
+    .value { font-size: 30px; font-weight: 800; margin-top: 6px; }
+    .section { margin-top: 28px; }
+    .section h2 { margin: 0 0 14px; font-size: 24px; }
+    .finding { background: var(--card); border: 1px solid var(--border); border-left: 8px solid var(--accent); border-radius: 18px; padding: 18px 20px; box-shadow: var(--shadow); margin-bottom: 14px; }
+    .finding.high { border-left-color: var(--high); }
+    .finding.medium { border-left-color: var(--medium); }
+    .finding.low { border-left-color: var(--low); }
+    .sev { display: inline-block; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 800; color: #fff; margin-bottom: 10px; }
+    .sev.high { background: var(--high); }
+    .sev.medium { background: var(--medium); color: #3a2a00; }
+    .sev.low { background: var(--low); }
+    h3 { margin: 0 0 10px; font-size: 18px; }
+    p, li { line-height: 1.7; }
+    ul { margin: 8px 0 0 20px; padding: 0; }
+    table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); }
+    th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { background: #eef3fb; }
+    tr:last-child td { border-bottom: none; }
+    .two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .pill { padding: 8px 12px; background: #edf3ff; color: #1456c3; border-radius: 999px; font-size: 13px; font-weight: 700; }
+    .ok { color: var(--low); font-weight: 700; }
+    .warn { color: var(--high); font-weight: 700; }
+    code { background: #eef2f7; padding: 2px 6px; border-radius: 6px; font-family: Consolas, monospace; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>Octopus Repo 完整审计扩展版</h1>
+      <p>这份版本现在反映的是修复后的真实状态。核心构建、目标测试集、前端静态导出同步和 Windows smoke 都已经跑通，剩下的重点在复杂前端自动化与手工验收。</p>
+    </div>
+
+    <div class="grid">
+      <div class="card"><div class="metric">仓库完成度</div><div class="value">84%</div></div>
+      <div class="card"><div class="metric">当前工作区改动完成度</div><div class="value">79%</div></div>
+      <div class="card"><div class="metric">发布就绪度</div><div class="value">中高</div></div>
+      <div class="card"><div class="metric">静态产物差异</div><div class="value">1</div></div>
+      <div class="card"><div class="metric">相对 origin/dev 超前提交</div><div class="value">22</div></div>
+    </div>
+
+    <div class="section">
+      <h2>Findings</h2>
+      <div class="finding high"><div class="sev high">High</div><h3>复杂前端仍缺浏览器级自动化</h3><p><code>Backup.tsx</code> 这类高复杂页面还没有 Playwright 或等价行为测试，目前仍依赖手工 checklist 和运行态 smoke 配合兜底。</p></div>
+      <div class="finding high"><div class="sev high">High</div><h3>旧审计与 worklog 口径需要同步</h3><p>先前文档里保留了已经关闭的脚本损坏、静态产物漂移和 Go/Next 构建阻塞结论，后续如果继续引用旧报告，会误导真实状态。</p></div>
+      <div class="finding medium"><div class="sev medium">Medium</div><h3>动态路由后台任务仍是 summary-only</h3><p>请求路径调优是真实存在的，但后台任务仍然只生成摘要，不做持久化阈值回写。</p></div>
+      <div class="finding medium"><div class="sev medium">Medium</div><h3>备份导入回滚主线已接线但未全闭环</h3><p>导出、导入、dry-run、rollback preview、rollback 主线都可用，但 richer diff、interactive history browser 和 finer-grained partial restore 仍未完成。</p></div>
+      <div class="finding low"><div class="sev low">Low</div><h3>工作区噪音仍偏多</h3><p>临时文件、历史审计产物和实验痕迹较多，后续建议整理一次，降低维护成本。</p></div>
+    </div>
+
+    <div class="section two-col">
+      <div class="card">
+        <h2>模块完成度</h2>
+        <ul>
+          <li>后端入口与健康检查 <span class="ok">已完成</span></li>
+          <li>relay 主流程与 failover <span class="warn">部分完成</span></li>
+          <li>route-target override <span class="ok">已完成</span></li>
+          <li>动态路由 runtime tuning <span class="warn">部分完成</span></li>
+          <li>统计与首页 <span class="ok">主线已接线</span></li>
+          <li>日志导出与流式日志 <span class="ok">主线已接线</span></li>
+          <li>备份/导入/回滚 <span class="warn">部分完成</span></li>
+          <li>Windows build/dev <span class="ok">主线已通过</span></li>
+          <li>Windows smoke <span class="ok">已通过</span></li>
+          <li>前端自动化验证 <span class="warn">未完成</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h2>验证结论</h2>
+        <ul>
+          <li><span class="ok">通过</span> <code>build-win.ps1 -CheckOnly</code></li>
+          <li><span class="ok">通过</span> <code>dev-win.ps1 -CheckOnly</code></li>
+          <li><span class="ok">通过</span> <code>pnpm --dir web exec tsc --noEmit</code></li>
+          <li><span class="ok">通过</span> <code>pnpm --dir web run build:static</code></li>
+          <li><span class="ok">通过</span> <code>go build ./...</code></li>
+          <li><span class="ok">通过</span> <code>go test ./... -count=1</code></li>
+          <li><span class="ok">通过</span> <code>scripts/smoke-win-backend.ps1</code></li>
+          <li><span class="warn">未跑</span> Linux smoke 与 Docker compose smoke 仍缺当前环境支持</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Comparison Notes</h2>
+      <table>
+        <thead><tr><th>对比项</th><th>结论</th></tr></thead>
+        <tbody>
+          <tr><td>当前工作区 vs HEAD</td><td>仍是大范围功能收口中的工作区，但关键构建与验证主链已经可跑。</td></tr>
+          <tr><td>当前分支 vs origin/dev</td><td>当前分支超前 22 个提交，仍不是稳定发布基线。</td></tr>
+          <tr><td>代码 vs README/docs</td><td>Windows build/dev 和静态导出同步链目前已经与实现对齐；旧审计文档需要继续回收过时结论。</td></tr>
+          <tr><td>代码 vs 测试/构建</td><td>Go build、Go test、前端 typecheck、前端静态导出和 Windows smoke 都已通过，但前端行为自动化仍缺位。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>下一步</h2>
+      <div class="pill-row">
+        <div class="pill">补 Backup 页面行为测试</div>
+        <div class="pill">补 375px 手工验收记录</div>
+        <div class="pill">在 Linux/WSL 跑 smoke-linux</div>
+        <div class="pill">在 Docker 环境跑 compose smoke</div>
+        <div class="pill">清理过时审计与临时文件</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

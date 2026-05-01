@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Octopus 完整审计报告 - 2026-04-27 22:41:27 +08:00</title>
+  <style>
+    :root {
+      --bg: #f4efe8;
+      --panel: #fffdf9;
+      --ink: #1f1a16;
+      --muted: #6a625b;
+      --line: #ddd0c1;
+      --critical: #b42318;
+      --high: #d97706;
+      --medium: #2563eb;
+      --low: #4d7c0f;
+      --accent: #8a3b12;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background: linear-gradient(180deg, #f1e8dc 0%, #f8f5ef 45%, #efe6d8 100%);
+      line-height: 1.65;
+    }
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 30px 20px 56px;
+    }
+    .hero, .card, .finding {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: 0 16px 40px rgba(50, 36, 21, .08);
+    }
+    .hero {
+      padding: 28px;
+      background: radial-gradient(circle at top left, rgba(138,59,18,.18), transparent 42%), var(--panel);
+    }
+    h1, h2, h3 { margin: 0 0 12px; }
+    h1 { font-size: 34px; }
+    h2 { font-size: 24px; margin-top: 28px; }
+    h3 { font-size: 18px; }
+    p { margin: 0 0 12px; }
+    code {
+      font-family: Consolas, "Courier New", monospace;
+      background: #f2e7d9;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .meta-card {
+      background: rgba(255,255,255,.82);
+      border: 1px solid #eadccc;
+      border-radius: 18px;
+      padding: 14px 16px;
+    }
+    .meta-label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .meta-value {
+      font-size: 20px;
+      font-weight: 700;
+      margin-top: 6px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.25fr .95fr;
+      gap: 18px;
+      margin-top: 18px;
+    }
+    .card { padding: 22px; }
+    .finding-list {
+      display: grid;
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .finding {
+      padding: 18px;
+      border-left: 6px solid var(--line);
+    }
+    .finding.critical { border-left-color: var(--critical); }
+    .finding.high { border-left-color: var(--high); }
+    .finding.medium { border-left-color: var(--medium); }
+    .finding.low { border-left-color: var(--low); }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      color: #fff;
+      margin-bottom: 10px;
+    }
+    .badge.critical { background: var(--critical); }
+    .badge.high { background: var(--high); }
+    .badge.medium { background: var(--medium); }
+    .badge.low { background: var(--low); }
+    .kpis {
+      display: grid;
+      gap: 14px;
+    }
+    .kpi {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid #eee2d3;
+    }
+    .kpi:last-child { border-bottom: 0; }
+    .kpi strong { font-size: 18px; }
+    .bar {
+      height: 12px;
+      border-radius: 999px;
+      background: #eadfce;
+      overflow: hidden;
+    }
+    .bar > span {
+      display: block;
+      height: 100%;
+      width: 80%;
+      background: linear-gradient(90deg, #8a3b12, #c96b2b);
+    }
+    .two-col {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+      margin-top: 18px;
+    }
+    ul { margin: 10px 0 0 18px; padding: 0; }
+    li { margin: 6px 0; }
+    .callout {
+      margin-top: 16px;
+      padding: 16px 18px;
+      border-radius: 18px;
+      background: #fff8ef;
+      border: 1px dashed #d8b79a;
+    }
+    .summary {
+      margin-top: 18px;
+      background: #fffaf3;
+      border: 1px solid #ecd9c4;
+      border-radius: 20px;
+      padding: 20px;
+    }
+    @media (max-width: 920px) {
+      .grid { grid-template-columns: 1fr; }
+      h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>Octopus 完整审计报告</h1>
+      <p>本轮审计同时核对了当前工作区、Git 基线、核心需求文档、关键主流程与可执行验证。重点关注“是否真的接线”“是否真实可达”“验证是否足以支撑发布”。</p>
+      <div class="meta">
+        <div class="meta-card">
+          <div class="meta-label">审计时间</div>
+          <div class="meta-value">2026-04-27 22:41:27 +08:00</div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-label">分支 / HEAD</div>
+          <div class="meta-value">feat/erguotou / bfa27ae</div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-label">相对 origin/dev</div>
+          <div class="meta-value">0 behind / 22 ahead</div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-label">工作区体量</div>
+          <div class="meta-value">137 files, +18525 / -3984</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Findings</h2>
+        <div class="finding-list">
+          <article class="finding critical">
+            <span class="badge critical">Critical</span>
+            <h3>前端验证 / 发布总闸当前确定性为红</h3>
+            <p><code>tsc --noEmit</code> 现在会被 AI 自动化测试 mock 的 contract 漂移稳定打红，validation / release workflow 还没走到构建和 no-browser 阶段就会先失败。</p>
+          </article>
+          <article class="finding high">
+            <span class="badge high">High</span>
+            <h3>AI task 取消路径仍有竞争窗口</h3>
+            <p>虽然仓库已经接入 cancel hook 和 step 收口逻辑，但取消后步骤仍可能残留为 <code>running</code>，后台 goroutine 也会继续撞上已关闭的 DB。</p>
+          </article>
+          <article class="finding high">
+            <span class="badge high">High</span>
+            <h3>AI Profile 主线只接到了执行配置层</h3>
+            <p>当前真正被 runtime 消费的是 AI 自动化 endpoint/model 配置，不是文档承诺的“AI 生成方案”闭环。</p>
+          </article>
+          <article class="finding medium">
+            <span class="badge medium">Medium</span>
+            <h3>动态路由文档已落后于代码</h3>
+            <p><code>dynamic_routing_learning_enabled</code> 已经参与评分，但多份动态路由文档仍把它描述成“下一阶段”。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>完成度评估</h2>
+        <div class="kpis">
+          <div>
+            <div class="kpi"><span>综合完成度</span><strong>78% - 82%</strong></div>
+            <div class="bar"><span></span></div>
+          </div>
+          <div class="kpi"><span>已完成</span><strong>主服务 / Relay / AI 入口 / 动态学习接线</strong></div>
+          <div class="kpi"><span>部分完成</span><strong>AI Profile 主线 / 取消收口 / 统一验证链</strong></div>
+          <div class="kpi"><span>未完成</span><strong>真实方案消费、完整取消语义、当前宿主完整构建闭环</strong></div>
+        </div>
+        <div class="callout">
+          <strong>总体判断：</strong>
+          <p>仓库已经明显超过骨架阶段，但“可以做”和“可以发布”之间还隔着几条高风险路径，尤其是前端 gate、AI task 生命周期和 AI Profile 主线边界。</p>
+        </div>
+      </section>
+    </div>
+
+    <section class="two-col">
+      <article class="card">
+        <h2>已验证项</h2>
+        <ul>
+          <li><code>go build ./...</code> 通过</li>
+          <li><code>go test ./internal/op -count=1</code> 通过</li>
+          <li><code>go test ./internal/server/middleware -count=1</code> 通过</li>
+          <li><code>go test ./internal/task -count=1</code> 通过</li>
+          <li><code>go test ./internal/update -count=1</code> 通过</li>
+          <li><code>go test ./internal/server/handlers -run TestCancelAITaskHandlerMarksTaskCanceled -count=20</code> 稳定失败</li>
+          <li><code>node .\web\node_modules\typescript\bin\tsc --noEmit -p .\web\tsconfig.json</code> 稳定失败</li>
+          <li>多条 repo-local no-browser 验证脚本通过：locale、home、channel、group、model、CC Switch、route target</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>未验证项</h2>
+        <ul>
+          <li><code>go test ./internal/relay/... -count=1</code> 受当前宿主 WinSock provider 限制</li>
+          <li><code>scripts/build-web-static.mjs</code> 受当前宿主 Next/Turbopack 进程创建与端口绑定限制</li>
+          <li>统一的 <code>pnpm run test:screenshot-no-browser</code> 入口未在本机直接跑通</li>
+          <li>Linux smoke、Docker smoke、browser-grade smoke、vitest 全量回归未在本机闭环</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="two-col">
+      <article class="card">
+        <h2>对比核查</h2>
+        <ul>
+          <li>当前工作区相对 <code>HEAD</code> 是大体量进行中脏树，不是干净发布快照。</li>
+          <li>当前分支相对 <code>origin/dev</code> 已有长期偏离，说明承载了大量私有扩展。</li>
+          <li>README 与 workflow 主方向大体一致，但 AI 自动化需求文档明显超前于当前 consumer。</li>
+          <li>动态路由文档则反过来落后于代码，容易误导后续审计和接手判断。</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>Top Next Actions</h2>
+        <ul>
+          <li>先修 AI 自动化测试 mock 的 TypeScript contract 漂移，恢复 validation / release 总闸。</li>
+          <li>再修 AI task cancel 的竞争窗口，确保 cancel 返回后步骤和后台执行同步收口。</li>
+          <li>最后对齐 AI Profile 主线边界：要么补真实方案 consumer，要么收缩文档 / UI 语义。</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="summary">
+      <h2>中文摘要</h2>
+      <ul>
+        <li>本次触发时间：2026-04-27 22:41:27 +08:00。</li>
+        <li>本轮完成了 Git 基线核查、核心文档对比、关键源码审计，以及 Go / Node 的可执行验证。</li>
+        <li>本次无业务代码变更，只新增审查产物并更新 automation memory。</li>
+        <li>最高优先级问题是前端 <code>tsc</code> gate 已经确定性失败，直接卡住 validation / release workflow。</li>
+        <li>本次结果为成功，完整审计已经落盘。</li>
+        <li>需要人工介入，尤其是 AI Profile 主线边界决策，以及在更完整宿主或 CI 上补跑前端 / 网络相关验证。</li>
+      </ul>
+    </section>
+  </div>
+</body>
+</html>

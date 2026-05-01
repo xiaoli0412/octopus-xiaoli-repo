@@ -1,0 +1,88 @@
+package handlers
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
+	"github.com/gin-gonic/gin"
+)
+
+func TestCreateGroupReturnsBadRequestForInvalidRuntimeConfig(t *testing.T) {
+	setupHandlerTest(t)
+
+	recorder := performJSONHandlerRequest(t, http.MethodPost, "/api/v1/group/create", map[string]any{
+		"name":                "group-invalid-runtime",
+		"mode":                int(model.GroupModeFailover),
+		"race_concurrency":    2,
+		"race_after_fails":    0,
+		"failover_window_sec": 360,
+	}, createGroup)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+}
+
+func TestUpdateGroupReturnsNotFoundForMissingGroup(t *testing.T) {
+	setupHandlerTest(t)
+
+	recorder := performJSONHandlerRequest(t, http.MethodPost, "/api/v1/group/update", map[string]any{
+		"id":   999999,
+		"name": "missing-group",
+	}, updateGroup)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusNotFound, recorder.Body.String())
+	}
+}
+
+func TestDeleteGroupReturnsNotFoundForMissingGroup(t *testing.T) {
+	setupHandlerTest(t)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/v1/group/delete/999999", nil)
+	ctx.Params = gin.Params{{Key: "id", Value: "999999"}}
+	deleteGroup(ctx)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusNotFound, recorder.Body.String())
+	}
+}
+
+func TestCreateGroupRejectsBlankName(t *testing.T) {
+	setupHandlerTest(t)
+
+	recorder := performJSONHandlerRequest(t, http.MethodPost, "/api/v1/group/create", map[string]any{
+		"name": "   ",
+		"mode": int(model.GroupModeRoundRobin),
+	}, createGroup)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+}
+
+func TestCreateGroupTrimsNameBeforePersisting(t *testing.T) {
+	setupHandlerTest(t)
+
+	recorder := performJSONHandlerRequest(t, http.MethodPost, "/api/v1/group/create", map[string]any{
+		"name": "  trimmed-group  ",
+		"mode": int(model.GroupModeRoundRobin),
+	}, createGroup)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	group, err := model.Group{}, error(nil)
+	_ = err
+	if err := json.Unmarshal(decodeHandlerResponse(t, recorder).Data, &group); err != nil {
+		t.Fatalf("json.Unmarshal(group) error = %v", err)
+	}
+	if group.Name != "trimmed-group" {
+		t.Fatalf("group.Name = %q, want %q", group.Name, "trimmed-group")
+	}
+}

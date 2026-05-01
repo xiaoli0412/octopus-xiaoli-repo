@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Octopus 仓库完整审计</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #171a21;
+      --panel-2: #1e232d;
+      --text: #e8ecf1;
+      --muted: #9aa6b2;
+      --line: #2a3240;
+      --good: #2dd4bf;
+      --warn: #f59e0b;
+      --accent: #60a5fa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #182033 0, var(--bg) 45%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 20px 48px; }
+    .hero {
+      background: linear-gradient(135deg, rgba(96,165,250,.18), rgba(45,212,191,.12));
+      border: 1px solid rgba(96,165,250,.22);
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: 0 18px 60px rgba(0,0,0,.22);
+    }
+    h1 { margin: 0 0 10px; font-size: 34px; }
+    h2 { margin: 0 0 14px; font-size: 22px; }
+    h3 { margin: 0 0 10px; font-size: 17px; }
+    .muted { color: var(--muted); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+    .card, .section {
+      background: rgba(23,26,33,.92);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+    }
+    .section { margin-top: 18px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(96,165,250,.12);
+      color: #cfe3ff;
+      border: 1px solid rgba(96,165,250,.22);
+      font-size: 12px;
+      margin-right: 8px;
+      margin-bottom: 8px;
+    }
+    .badge.warn { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.24); color: #ffe2ad; }
+    .badge.good { background: rgba(45,212,191,.12); border-color: rgba(45,212,191,.24); color: #bbfff2; }
+    ul { margin: 10px 0 0 18px; padding: 0; }
+    li { margin: 8px 0; }
+    .two-col { display: grid; grid-template-columns: 1.25fr .75fr; gap: 14px; }
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 10px 8px; text-align: left; vertical-align: top; }
+    th { color: #c9d4df; font-size: 13px; }
+    .sev-medium { color: #ffd86b; }
+    .sev-low { color: #9dd8ff; }
+    .footer { margin-top: 22px; color: var(--muted); font-size: 13px; }
+    code { background: #0d1117; border: 1px solid #243040; border-radius: 6px; padding: 1px 6px; color: #d7e3f0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>Octopus 仓库完整审计</h1>
+      <div class="muted">审计时间 2026-04-21 12:21:52 +08:00 · 仓库 D:\GPT-codex\octopus_repo · 分支 feat/erguotou</div>
+      <div style="margin-top:12px;">
+        <span class="badge">HEAD bfa27ae</span>
+        <span class="badge">origin/dev 9c5452f</span>
+        <span class="badge good">ahead 22 / behind 0</span>
+        <span class="badge warn">84 tracked modified</span>
+        <span class="badge warn">96 untracked</span>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="section">
+        <h2>Findings</h2>
+        <div class="card">
+          <h3><span class="sev-medium">Medium</span> 备份行为验证未进入主 CI</h3>
+          <ul>
+            <li>验证脚本 `test:backup-logic` 和 `test:backup-component` 已存在并可本地通过。</li>
+            <li>`.github/workflows/validation.yaml` 仍只跑 typecheck 和 `build:static`，没有执行这两条行为验证。</li>
+            <li>这让复杂的 `Backup.tsx` 主流程仍然依赖单独脚本和人工检查，不是统一自动门禁。</li>
+          </ul>
+        </div>
+        <div class="card" style="margin-top:12px;">
+          <h3><span class="sev-low">Low</span> `devs` HTTPS 入口不可移植</h3>
+          <ul>
+            <li>`web/package.json` 的 `devs` 脚本硬编码了 `/workplace/code/octopus/build/localhost-key.pem` 和 `localhost.pem`。</li>
+            <li>仓库内没有对应生成链路或文档入口。</li>
+            <li>这更像开发残留，不是可复用的本地入口。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="section">
+        <h2>Completion</h2>
+        <div class="card">
+          <div><span class="badge good">完成度 约 88%</span></div>
+          <div><span class="badge good">可发布 约 80%</span></div>
+          <div><span class="badge warn">信心 中</span></div>
+          <ul>
+            <li>已完成 startup、healthcheck、backup/import/rollback、dynamic routing summary、静态导出同步。</li>
+            <li>部分完成的是主 CI 的行为级验证和 Windows 开发 helper 的可移植性。</li>
+            <li>未完成的是浏览器级端到端回归和本机 Go 重编译闭环。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Verification</h2>
+      <table>
+        <thead>
+          <tr><th>状态</th><th>命令</th><th>结果</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="sev-low">通过</td><td><code>D:\gol1\node.exe .\web\node_modules\typescript\bin\tsc --noEmit -p .\web\tsconfig.json</code></td><td>类型检查通过</td></tr>
+          <tr><td class="sev-low">通过</td><td><code>node scripts/sync-web-static.mjs</code></td><td>已同步 `web/out` 到 `static/out`</td></tr>
+          <tr><td class="sev-low">通过</td><td><code>node scripts/verify-backup-logic.mjs</code></td><td>backup logic verification passed</td></tr>
+          <tr><td class="sev-low">通过</td><td><code>node scripts/verify-backup-component.cjs</code></td><td>backup-component verification passed</td></tr>
+          <tr><td class="sev-medium">受限</td><td><code>next build</code></td><td>编译完成后以 <code>spawn EPERM</code> 结束</td></tr>
+          <tr><td class="sev-medium">受限</td><td><code>scripts/use-go-env.ps1</code> / <code>go build</code> / <code>go test</code></td><td>本机 Go toolchain 不可用</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Comparison Notes</h2>
+      <ul>
+        <li>当前工作区相对 `HEAD` 没有新增业务代码变更，本轮主要是审计和验证产物。</li>
+        <li>相对 `origin/dev` 当前分支领先 22 个提交。</li>
+        <li>`web/out` 与 `static/out` 已基本对齐，当前只保留仓库内的 `static/out/README.md` 作为预期差异。</li>
+        <li>之前担心的备份默认漂移、静态壳漂移和动态路由 summary 空接入问题，这一轮都已复核为已闭合或已接入。</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Top Next Actions</h2>
+      <ol>
+        <li>把 `test:backup-logic` 和 `test:backup-component` 接进 `.github/workflows/validation.yaml`。</li>
+        <li>清理或重写 `web/package.json` 里的 `devs` HTTPS 入口。</li>
+        <li>如果要把发布信心抬高，再补一条浏览器级备份主流程 smoke。</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <h2>中文摘要</h2>
+      <ul>
+        <li>本次触发时间 2026-04-21 12:21:52 +08:00。</li>
+        <li>本次检查了仓库结构、git 状态、README、核心启动链、动态路由、备份导入、静态导出同步和相关验证脚本。</li>
+        <li>本次无业务代码变更，只新增了审查 md/html 产物并更新自动化记忆。</li>
+        <li>发现的主要问题是备份行为验证没有进入主 CI，以及一个硬编码的 HTTPS 开发入口残留。</li>
+        <li>本次结果成功，但 Go 和完整 Vitest 路径仍受环境限制。</li>
+        <li>需要手动介入，重点是决定是否把备份行为脚本接进主 CI，并处理本机 Go 工具链不可用的问题。</li>
+      </ul>
+    </div>
+
+    <div class="footer">Generated by Codex audit pass.</div>
+  </div>
+</body>
+</html>

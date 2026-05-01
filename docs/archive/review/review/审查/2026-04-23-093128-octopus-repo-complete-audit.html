@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Octopus Repo Complete Audit - 2026-04-23 09:31:28 +08:00</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --text: #162031;
+      --muted: #58667a;
+      --border: #d9e0ea;
+      --critical: #8b1e1e;
+      --high: #b45309;
+      --medium: #2563eb;
+      --low: #4b5563;
+      --ok: #0f766e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 32px;
+      background: linear-gradient(180deg, #eef3fb 0%, var(--bg) 100%);
+      color: var(--text);
+      font: 14px/1.65 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    main { max-width: 1120px; margin: 0 auto; display: grid; gap: 20px; }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(22, 32, 49, 0.06);
+    }
+    .hero { padding: 28px; background: radial-gradient(circle at top right, rgba(37, 99, 235, 0.09), transparent 35%), var(--panel); }
+    .hero h1 { margin: 0 0 8px; font-size: 30px; line-height: 1.15; }
+    .hero p { margin: 0; color: var(--muted); }
+    .meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: #f8fafc; color: var(--muted); font-size: 12px; }
+    .panel { padding: 22px 24px; }
+    h2 { margin: 0 0 14px; font-size: 20px; }
+    h3 { margin: 18px 0 10px; font-size: 16px; }
+    ul, ol { margin: 8px 0 0 20px; padding: 0; }
+    li + li { margin-top: 8px; }
+    .finding { border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-top: 12px; background: #fbfcfe; }
+    .sev { display: inline-block; min-width: 78px; padding: 4px 10px; border-radius: 999px; color: #fff; font-size: 12px; font-weight: 700; text-align: center; margin-right: 10px; }
+    .sev.critical { background: var(--critical); }
+    .sev.high { background: var(--high); }
+    .sev.medium { background: var(--medium); }
+    .sev.low { background: var(--low); }
+    .muted { color: var(--muted); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+    .card { border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; background: #fbfcfe; }
+    .card strong { display: block; margin-bottom: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { border: 1px solid var(--border); padding: 10px 12px; vertical-align: top; text-align: left; }
+    th { background: #f8fafc; width: 22%; }
+    code { background: #f3f6fb; border: 1px solid #e2e8f0; border-radius: 6px; padding: 1px 5px; font-family: Consolas, "Courier New", monospace; font-size: 12px; }
+    .ok { color: var(--ok); font-weight: 700; }
+    .warn { color: var(--high); font-weight: 700; }
+    .footnote { color: var(--muted); font-size: 12px; margin-top: 10px; }
+    @media (max-width: 720px) {
+      body { padding: 18px; }
+      .hero, .panel { padding: 18px; }
+      .hero h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <h1>Octopus Repo Complete Audit</h1>
+      <p>本轮未复现后端主链的致命断裂。当前主要风险已转向发布门禁、验证覆盖与文档口径漂移，而不是“功能看起来实现了但主流程根本走不到”。</p>
+      <div class="meta">
+        <span class="chip">触发时间: 2026-04-23 09:31:28 +08:00</span>
+        <span class="chip">仓库: D:\GPT-codex\octopus_repo</span>
+        <span class="chip">基线比较: origin/dev...HEAD = 0 behind / 22 ahead</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>1. Findings</h2>
+      <p class="muted">本轮没有新的 <code>Critical</code> 级主流程断裂。问题按严重度排序如下。</p>
+      <div class="finding">
+        <div><span class="sev high">High</span><strong>release tag 路径仍然不带测试或 smoke 门禁</strong></div>
+        <ul>
+          <li><code>.github/workflows/release.yaml:45-118</code> 只做构建、上传 release、构建并推送镜像。</li>
+          <li><code>scripts/build.sh:649-705</code> 的 <code>release</code> 分支只做前端构建、价格更新、二进制构建和归档，不跑 <code>go test</code>、前端验证或 smoke。</li>
+          <li>除非仓库外另有保护规则，否则 tag 推送路径在仓库内可见层面仍可能发布未经同轮验证的产物。</li>
+        </ul>
+      </div>
+      <div class="finding">
+        <div><span class="sev high">High</span><strong>validation workflow 仍未覆盖大量现有测试与近期前端验证脚本</strong></div>
+        <ul>
+          <li><code>.github/workflows/validation.yaml:46-58</code> 目前只覆盖 <code>tsc</code>、backup/locale 脚本和部分 Go 包测试。</li>
+          <li>遗漏的 Go 测试包括 <code>internal/client/http_test.go</code>、<code>internal/conf/config_test.go</code>、<code>internal/helper/fetch_test.go</code>、<code>internal/model/*_test.go</code>、<code>internal/server/auth/auth_test.go</code>、<code>internal/transformer/model/embedding_test.go</code> 等。</li>
+          <li>遗漏的 no-browser 脚本包括 <code>verify-dynamic-routing-help</code>、<code>verify-channel-create-flow</code>、<code>verify-group-create-flow</code>、<code>verify-ccswitch-flow</code>、<code>verify-help-hint-accessible</code>、<code>verify-route-target-copy</code>、<code>verify-circuit-breaker-help</code>。</li>
+        </ul>
+      </div>
+      <div class="finding">
+        <div><span class="sev medium">Medium</span><strong>动态路由文档仍显著超前于 shipped 行为</strong></div>
+        <ul>
+          <li><code>docs/DYNAMIC_ROUTING_REQUIREMENTS.zh-CN.md:229-237</code> 仍列出 <code>shadow-ai</code>、<code>hybrid</code>、<code>metrics-only</code>、<code>strict-mechanism</code>、<code>incident-safe</code>。</li>
+          <li><code>docs/DYNAMIC_ROUTING_IMPLEMENTATION_PLAN.zh-CN.md:235-243</code> 仍以这些模式作为发布门槛。</li>
+          <li>而真实实现只有 <code>dynamic_routing_health_enabled</code> + <code>race_*_budget</code> + 每日 summary scan。</li>
+        </ul>
+      </div>
+      <div class="finding">
+        <div><span class="sev medium">Medium</span><strong><code>verify-go-env.ps1</code> 仍不能自愈 Windows cache 权限问题</strong></div>
+        <ul>
+          <li><code>scripts/verify-go-env.ps1:26-31,67-69</code> 直接运行 <code>go build ./...</code>，未设置 repo-local <code>GOCACHE</code>/<code>GOTMPDIR</code>。</li>
+          <li><code>scripts/smoke-win-backend.ps1:117-121</code> 则会先注入 repo-local 可写目录，因此同一主机上 smoke 可通过而 verify-go-env 失败。</li>
+        </ul>
+      </div>
+      <div class="finding">
+        <div><span class="sev medium">Medium</span><strong>协议转换边界仍有真实 TODO，当前没有直接定向证明</strong></div>
+        <ul>
+          <li><code>internal/transformer/inbound/anthropic/messages.go:160-163</code> 仍有 <code>TODO: support other result types</code>。</li>
+          <li><code>internal/transformer/outbound/gemini/messages.go:313-322</code> 仍未把 <code>json_schema</code> 真正转成 Gemini schema。</li>
+        </ul>
+      </div>
+      <div class="finding">
+        <div><span class="sev low">Low</span><strong>README 仍有发布占位符，<code>web/package.json</code> 仍有不可移植脚本</strong></div>
+        <ul>
+          <li><code>README.md</code> / <code>README_zh.md</code> 仍保留 <code>&lt;CURRENT_...&gt;</code> 与 TODO。</li>
+          <li><code>web/package.json:7-10</code> 的 <code>devs</code> 脚本仍硬编码本地 HTTPS 证书路径。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>2. Completion Assessment</h2>
+      <div class="grid">
+        <div class="card"><strong>已完成</strong><div>后端启动、健康检查、静态资源回退、JWT/API Key 鉴权、relay 主流程、backup/import/rollback 后端、dynamic summary scan API/UI、Windows smoke 主链。</div></div>
+        <div class="card"><strong>部分完成</strong><div>动态路由 shipped surface、前端 no-browser 验证闭环、协议转换边界能力、Windows 验证可移植性、发布收口。</div></div>
+        <div class="card"><strong>未完成 / 文档先行</strong><div>动态路由多模式 AI 体系、release 路径验证门禁、README 对外发布信息替换。</div></div>
+      </div>
+      <table>
+        <tr><th>总体判断</th><td>当前仓库已是“核心实现大多可用”的状态；主要缺口不在主链接线，而在发布门禁、验证覆盖和文档收口。</td></tr>
+        <tr><th>疑似空实现</th><td>动态路由文档中的 <code>shadow-ai</code> / <code>hybrid</code> / <code>incident-safe</code> 更像规划术语，而不是当前 shipped 功能。</td></tr>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>3. Verification Summary</h2>
+      <div class="grid">
+        <div class="card">
+          <strong class="ok">已验证</strong>
+          <ul>
+            <li><code>smoke-win-backend.ps1</code> 通过，主后端运行链真实可达。</li>
+            <li>repo-local cache 条件下 <code>go build ./...</code> 与 <code>go test ./... -count=1</code> 通过。</li>
+            <li><code>tsc --noEmit</code> 与多条 no-browser 前端脚本通过。</li>
+            <li>backup 两条验证脚本本轮已恢复为通过。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <strong class="warn">受环境阻塞</strong>
+          <ul>
+            <li>原生 <code>go build</code>/<code>go test</code> 默认命中宿主 <code>go-build</code> 权限问题。</li>
+            <li><code>verify-go-env.ps1 -GoBuild</code> 仍失败。</li>
+            <li><code>next build</code> 与 Vitest 仍被 <code>spawn EPERM</code> 阻断。</li>
+            <li><code>pnpm</code> 不在 PATH；<code>corepack pnpm</code> 又被 AppData 写权限阻断。</li>
+            <li>Docker 不在 PATH，无法跑 compose smoke。</li>
+          </ul>
+        </div>
+      </div>
+      <p class="footnote">结论：当前可以高置信证明后端主链与一批关键前端逻辑是真实可达的；无法在这台主机上完成的部分，都已经明确定位到具体宿主限制。</p>
+    </section>
+
+    <section class="panel">
+      <h2>4. Comparison Notes</h2>
+      <table>
+        <tr><th>当前工作区 vs HEAD</th><td><code>git diff --stat HEAD</code> 显示 111 个已跟踪文件差异、13697 行新增、2714 行删除，另有大量未跟踪文件。本轮结论针对当前工作区，而非纯 HEAD。</td></tr>
+        <tr><th>当前分支 vs 基线</th><td><code>origin/dev...HEAD = 0 behind / 22 ahead</code>。当前分支相对基线已引入 provider 模板、Copilot/Antigravity、DocModal、CC Switch 等一大批能力。</td></tr>
+        <tr><th>代码 vs README/docs</th><td>README 已和真实 <code>dynamic summary scan</code> 行为对齐；动态路由需求/实施文档仍明显超前；README 仍有安装/发布占位符；状态文档仍有过期 backup 结论。</td></tr>
+        <tr><th>代码 vs 测试/构建</th><td>后端主链和大量 no-browser 验证已能证明功能真实存在；CI/Release workflow 仍没有把这些验证完整收口成持续门禁。</td></tr>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>5. Top Next Actions</h2>
+      <ol>
+        <li>让 <code>release.yaml</code> 显式依赖通过的验证结果，或者把最小测试/smoke 门禁直接并入 release 路径。</li>
+        <li>扩展 <code>validation.yaml</code>，优先把近期新增的 UI no-browser 脚本和遗漏的 Go 测试纳入 CI。</li>
+        <li>把动态路由 docs 收口到当前 shipped 行为，或继续补模式实现与验证，避免长期 overclaim。</li>
+      </ol>
+      <h3>中文摘要</h3>
+      <ul>
+        <li>本次触发时间：<code>2026-04-23T09:31:28+08:00</code></li>
+        <li>检查内容：git 差异、README/docs/workflow、后端入口、relay、dynamic routing、backup/import、前端脚本与构建验证。</li>
+        <li>运行命令：<code>go build</code>、<code>go test</code>、<code>tsc</code>、backup/locale/dynamic/channel/group/ccswitch 脚本、<code>next build</code>、Vitest、Windows smoke、Docker 可用性检查。</li>
+        <li>文件变更：新增本 HTML 报告和同名 Markdown 报告。</li>
+        <li>本次结果：<span class="ok">成功</span>。</li>
+        <li>是否需要手动介入：需要，优先处理 release 门禁、validation 覆盖，以及当前 Windows 主机上的 <code>pnpm/corepack</code>、<code>spawn EPERM</code>、Docker 环境问题。</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Octopus 完整审计报告 2026-04-25</title>
+<style>
+:root { --bg: #0f172a; --card: #111827; --text: #e5e7eb; --muted: #94a3b8; --accent: #38bdf8; --critical: #ef4444; --high: #f97316; --medium: #eab308; --low: #22c55e; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif; background: linear-gradient(180deg, #020617 0%, #0f172a 100%); color: var(--text); line-height: 1.6; }
+main { max-width: 1180px; margin: 0 auto; padding: 32px 20px 48px; }
+header { padding: 28px; border: 1px solid rgba(148,163,184,.2); border-radius: 20px; background: rgba(15,23,42,.78); backdrop-filter: blur(10px); }
+h1 { margin: 0 0 8px; font-size: 2rem; }
+.subtitle { color: var(--muted); margin: 0; }
+section { margin-top: 20px; padding: 24px; border: 1px solid rgba(148,163,184,.16); border-radius: 20px; background: rgba(17,24,39,.9); }
+h2 { margin: 0 0 16px; font-size: 1.2rem; }
+.issue { border: 1px solid rgba(148,163,184,.16); border-radius: 16px; padding: 16px; margin: 14px 0; background: rgba(2,6,23,.45); }
+.badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-weight: 700; font-size: .82rem; margin-right: 8px; }
+.critical { background: rgba(239,68,68,.16); color: #fecaca; }
+.high { background: rgba(249,115,22,.16); color: #fed7aa; }
+.medium { background: rgba(234,179,8,.16); color: #fde68a; }
+.low { background: rgba(34,197,94,.16); color: #bbf7d0; }
+ul, ol { margin: 0; padding-left: 20px; }
+li { margin: 8px 0; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+pre { white-space: pre-wrap; word-break: break-word; background: rgba(2,6,23,.7); padding: 16px; border-radius: 16px; border: 1px solid rgba(148,163,184,.18); }
+.kv { display: grid; grid-template-columns: 220px 1fr; gap: 8px 16px; }
+.kv div { padding: 8px 0; border-bottom: 1px solid rgba(148,163,184,.1); }
+.kv div:nth-last-child(-n+2) { border-bottom: none; }
+small { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>Octopus 完整审计报告</h1>
+<p class="subtitle">审计时间: 2026-04-25T00:35:35.712+08:00 | 仓库: D:\GPT-codex\octopus_repo</p>
+</header>
+<section>
+<h2>Findings</h2>
+<div class="issue"><span class="badge critical">Critical</span><strong>Backup.tsx 语法回归阻断前端构建</strong><pre>web/src/components/modules/setting/Backup.tsx 在第 177 行存在 locale 对象语法错误，导致 tsc / next build / build-web-static.mjs 全部失败。</pre></div>
+<div class="issue"><span class="badge critical">Critical</span><strong>备份验证链失效</strong><pre>verify-backup-component.cjs、Backup.test.tsx 以及相关验证都被同一语法错误击穿，当前 revision 的备份链路无法再作为可信证据。</pre></div>
+<div class="issue"><span class="badge high">High</span><strong>组件疑似未完成收尾</strong><pre>Backup.tsx 看起来像大规模重写后未做最终编译检查；git diff --check 也仍有 EOF 空行噪音。</pre></div>
+<div class="issue"><span class="badge high">High</span><strong>Vitest / browser 验证仍受宿主限制</strong><pre>Vitest 在当前主机上仍报 spawn EPERM，且 next build 已先被源码语法错误阻断。</pre></div>
+<div class="issue"><span class="badge high">High</span><strong>文档与实际构建口径仍不完全一致</strong><pre>README 与 Debian Dockerfile 仍偏向直接 pnpm run build，而当前可用路径已依赖 build:static / build-web-static.mjs。</pre></div>
+<div class="issue"><span class="badge medium">Medium</span><strong>AI 自动化切换仍缺少明确运行时消费证据</strong><pre>config_source_mode / active_ai_profile_id 已接线到设置与任务上下文，但还没看到真正的 runtime consumer。</pre></div>
+<div class="issue"><span class="badge medium">Medium</span><strong>verify-go-env.ps1 -GoFmt 误扫工具链 testdata</strong><pre>格式检查会命中 .tools\go 下的测试样本，导致仓库代码卫生结论失真。</pre></div>
+<div class="issue"><span class="badge low">Low</span><strong>EOF 空行噪音</strong><pre>web/src/components/modules/channel/Form.tsx 和 web/src/components/modules/group/Editor.tsx 仍有 EOF blank line 问题。</pre></div>
+</section>
+<section>
+<h2>Completion Assessment</h2>
+<div class="kv"><div>完成度</div><div>后端与管理面较完整，但当前工作区不具备 release-clean 状态。</div><div>已完成</div><div>Go 主链、动态路由、AI 自动化 API、Windows smoke、go test / go build。</div><div>部分完成</div><div>AI source switch、文档/脚本构建口径、浏览器验证。</div><div>未完成</div><div>Backup.tsx 可编译、backup 验证链可信、host-local Vitest/browser 闭环。</div></div>
+</section>
+<section>
+<h2>Verification Summary</h2>
+<pre>通过: go test ./..., go build ./..., smoke-win-backend.ps1, tsc --noEmit, git diff --check, verify-go-env.ps1 -GoFmt(失败但已记录), build-web-static.mjs(失败于 Backup.tsx), next build(失败于 Backup.tsx), vitest(EPERM), verify-backup-component.cjs(ParseError), docker --version(不可用)</pre>
+</section>
+<section>
+<h2>Comparison Notes</h2>
+<p>当前工作区比 HEAD 更脏，且前端源码已经出现真实语法回归；相较于 origin/dev，分支仍明显更先进，但不应视为可直接发布。</p>
+</section>
+<section>
+<h2>Top Next Actions</h2>
+<ol>
+<li>修复 <code>web/src/components/modules/setting/Backup.tsx</code> 的 locale 对象语法错误。</li>
+<li>统一 README / Dockerfile / 构建脚本的实际构建口径。</li>
+<li>让 <code>verify-go-env.ps1</code> 的 <code>-GoFmt</code> 排除 <code>.tools</code>。</li>
+</ol>
+</section>
+<section>
+<h2>中文摘要</h2>
+<pre>本次触发时间: 2026-04-25T00:35:35.712+08:00
+检查: 仓库结构、git 状态、最近提交、核心文档、AI 自动化/动态路由实现、CI 与 release 配置
+命令: go test ./..., go build ./..., smoke-win-backend.ps1, tsc --noEmit, build-web-static.mjs, next build, vitest, verify-backup-component.cjs, verify-go-env.ps1 -GoFmt, git diff --check, docker --version
+修改文件: 新增 docs/review/审查/2026-04-25-003535-octopus-repo-complete-audit.md 和 docs/review/审查/2026-04-25-003535-octopus-repo-complete-audit.html
+问题: Backup.tsx 语法错误、备份验证链失效、Vitest EPERM、构建口径不一致、gofmt 扫描范围过大
+结果: 成功
+是否需要手动介入: 需要</pre>
+</section>
+</main>
+</body>
+</html>

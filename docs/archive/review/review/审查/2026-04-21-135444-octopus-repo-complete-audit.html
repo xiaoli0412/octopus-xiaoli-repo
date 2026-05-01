@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>Octopus Repo Complete Audit - 2026-04-21 13:54:44</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121933;
+      --panel-2: #0f1530;
+      --text: #eef2ff;
+      --muted: #a7b0d6;
+      --line: #263158;
+      --critical: #ef4444;
+      --high: #f97316;
+      --medium: #eab308;
+      --low: #38bdf8;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(180deg, #0a0f1e 0%, #10172e 100%);
+      color: var(--text);
+      line-height: 1.55;
+    }
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 20px 48px;
+    }
+    .hero {
+      background: radial-gradient(circle at top left, rgba(56,189,248,.12), transparent 30%), var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 24px;
+      margin-bottom: 18px;
+    }
+    h1, h2, h3 { margin: 0 0 10px; }
+    h1 { font-size: 30px; }
+    h2 { font-size: 22px; margin-top: 8px; }
+    h3 { font-size: 18px; }
+    p { margin: 0 0 10px; }
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .meta .card, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+    }
+    .muted { color: var(--muted); }
+    .section { margin-top: 18px; }
+    .finding {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-left: 6px solid var(--warn);
+      border-radius: 16px;
+      padding: 16px;
+      margin-top: 12px;
+    }
+    .finding.high { border-left-color: var(--high); }
+    .finding.medium { border-left-color: var(--medium); }
+    .finding.low { border-left-color: var(--low); }
+    .sev {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 999px;
+      margin-bottom: 8px;
+      background: rgba(255,255,255,.08);
+    }
+    .sev.high { color: #fed7aa; }
+    .sev.medium { color: #fde68a; }
+    .sev.low { color: #bae6fd; }
+    ul { margin: 10px 0 0 18px; }
+    li { margin: 6px 0; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+    }
+    .status {
+      border-radius: 14px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+    }
+    .status .label { color: var(--muted); font-size: 13px; }
+    .status .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      overflow: hidden;
+      border-radius: 14px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      vertical-align: top;
+      text-align: left;
+    }
+    th { background: rgba(255,255,255,.04); }
+    code {
+      font-family: Consolas, "Courier New", monospace;
+      background: rgba(255,255,255,.06);
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+    .kpi {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .pill {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>Octopus Repo Complete Audit</h1>
+      <p class="muted">当前仓库已具备真实主流程，但发布可信度仍被关键验证漂移、前端构建阻塞和 Go 源码级验证缺口拉低。</p>
+      <div class="meta">
+        <div class="card"><strong>触发时间</strong><div class="muted">2026-04-21T13:54:44.0343112+08:00</div></div>
+        <div class="card"><strong>仓库</strong><div class="muted">D:\GPT-codex\octopus_repo</div></div>
+        <div class="card"><strong>分支</strong><div class="muted">feat/erguotou</div></div>
+        <div class="card"><strong>对比基线</strong><div class="muted">origin/dev</div></div>
+      </div>
+      <div class="kpi">
+        <div class="pill">功能面完成度: 约 80%</div>
+        <div class="pill">发布可验证度: 约 60%</div>
+        <div class="pill">运行态 Windows smoke: 通过</div>
+        <div class="pill">前端生产构建: 本机未闭环</div>
+        <div class="pill">Go 源码级验证: 本机阻塞</div>
+      </div>
+    </section>
+
+    <section class="section panel">
+      <h2>1. Findings</h2>
+      <div class="finding high">
+        <div class="sev high">High</div>
+        <h3>备份/导入/回滚关键验证链当前不可信，而且没有接入 CI</h3>
+        <ul>
+          <li><code>web/package.json:12-14</code> 已暴露 <code>test:backup-logic</code> 与 <code>test:backup-component</code>。</li>
+          <li><code>.github/workflows/validation.yaml:46-53</code> 没有执行这两条关键备份验证。</li>
+          <li>本轮运行 <code>D:\gol1\node.exe .\scripts\verify-backup-component.cjs</code> 失败，断在 rollback preview 断言阶段。</li>
+          <li>真实页面与 mock 都显示 selective scopes 会传入 rollback preview / rollback apply，风险更像“验证脚本/fixture 漂移 + CI 漏检”。</li>
+        </ul>
+      </div>
+      <div class="finding high">
+        <div class="sev high">High</div>
+        <h3>当前工作区 Go 源码无法在本机完成源码级验证；Windows smoke 只能复用旧二进制</h3>
+        <ul>
+          <li><code>go version</code>、<code>use-go-env.ps1</code>、<code>verify-go-env.ps1</code> 都因启动 Go 进程被拒绝访问而失败。</li>
+          <li><code>scripts/smoke-win-backend.ps1</code> 明确会在 Go toolchain 不可用时复用现有 <code>build/octopus-smoke.exe</code> 并跳过本地 Go build。</li>
+          <li>这意味着本轮 smoke 证明的是“现有可执行物能跑”，不是“当前未提交 Go 源码能重新编译”。</li>
+        </ul>
+      </div>
+      <div class="finding high">
+        <div class="sev high">High</div>
+        <h3>前端当前源码在本机上仍无法完成生产构建闭环</h3>
+        <ul>
+          <li><code>tsc --noEmit</code> 通过，但 <code>next build</code> 在编译和 TypeScript 阶段后仍以 <code>spawn EPERM</code> 结束。</li>
+          <li><code>build:static</code> 是 README 与 CI 都认定的正式构建链，但当前主机无法复现通过。</li>
+          <li>Windows smoke 当前消费的是已有 <code>static/out</code>，不能证明当前 <code>web/src</code> 一定能重新导出成功。</li>
+        </ul>
+      </div>
+      <div class="finding medium">
+        <div class="sev medium">Medium</div>
+        <h3><code>AGENTS.md</code> 的环境说明已经落后于当前真实运行时契约</h3>
+        <ul>
+          <li><code>AGENTS.md:206</code> 仍写 <code>Go 1.23+</code>。</li>
+          <li><code>AGENTS.md:238-239</code> 仍给出 <code>OCTOPUS_DB_TYPE</code> 和 <code>OCTOPUS_DB_CONNSTRING</code>。</li>
+          <li>README 与 compose 已切到 <code>OCTOPUS_DATABASE_TYPE</code> / <code>OCTOPUS_DATABASE_PATH</code>。</li>
+        </ul>
+      </div>
+      <div class="finding low">
+        <div class="sev low">Low</div>
+        <h3><code>web/package.json</code> 的 <code>devs</code> HTTPS 入口不可移植</h3>
+        <ul>
+          <li>证书路径硬编码到 <code>/workplace/code/octopus/build/localhost-key.pem</code> 和 <code>/workplace/code/octopus/build/localhost.pem</code>。</li>
+          <li>离开特定机器就会失效。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section panel">
+      <h2>2. Completion Assessment</h2>
+      <div class="grid">
+        <div class="status"><div class="label">功能面完成度</div><div class="value">约 80%</div></div>
+        <div class="status"><div class="label">发布可验证度</div><div class="value">约 60%</div></div>
+        <div class="status"><div class="label">Windows Smoke</div><div class="value">通过</div></div>
+        <div class="status"><div class="label">前端构建</div><div class="value">未闭环</div></div>
+      </div>
+      <table>
+        <tr><th>已完成</th><td>启动链、<code>/healthz</code>、<code>healthcheck</code> CLI、备份导出/导入/rollback 入口、route-target override、dynamic routing summary surface、首页 token/provider/probe/circuit 摘要、Windows smoke 主链。</td></tr>
+        <tr><th>部分完成</th><td>备份/导入/回滚主流程已接线，但行为级验证链不稳定；前端 typecheck 通过但生产构建未闭环；Go 测试文件很多但本机无法做源码级 Go 验证。</td></tr>
+        <tr><th>未完成</th><td>一条在当前主机上可复现的 <code>Go build/test + front-end build:static + critical backup verification</code> 完整收口链；关键 backup/import 验证接入 CI；文档完全对齐当前环境变量与版本要求。</td></tr>
+        <tr><th>疑似空实现</th><td>本轮未发现强证据。旧审计里怀疑的 <code>dynamic summary scan</code> 现在已有 API 与前端消费链，不再属于空实现。</td></tr>
+      </table>
+    </section>
+
+    <section class="section panel">
+      <h2>3. Verification Summary</h2>
+      <table>
+        <tr><th>已验证项</th><td>仓库结构、git 状态、提交历史、README/docs/workflow、HEAD 与基线 diff、TypeScript typecheck、<code>verify-backup-logic.mjs</code>、Windows smoke、主 handler/前端消费链接线。</td></tr>
+        <tr><th>未验证项</th><td>当前未提交 Go 源码能否重新 <code>go build ./...</code> / <code>go test</code>；当前 <code>web/src</code> 能否完整 <code>build:static</code>；Docker runtime smoke；默认 <code>vitest run</code> 路径。</td></tr>
+        <tr><th>关键命令</th><td><code>tsc --noEmit</code> 通过；<code>verify-backup-logic.mjs</code> 通过；<code>verify-backup-component.cjs</code> 失败；<code>vitest</code> 失败；<code>next build</code> 失败；Windows smoke 通过；Go 与 Docker 环境探测失败。</td></tr>
+      </table>
+    </section>
+
+    <section class="section panel">
+      <h2>4. Comparison Notes</h2>
+      <table>
+        <tr><th>当前工作区 vs HEAD</th><td>相对 <code>HEAD</code> 有 85 个已跟踪文件改动，11198 行新增、1291 行删除；另有大量未跟踪测试、脚本、文档与 review 产物。</td></tr>
+        <tr><th>当前分支 vs 稳定基线</th><td>相对 <code>origin/dev</code> 的已提交分支差异规模为 72 个文件、6001 行新增、1741 行删除。</td></tr>
+        <tr><th>代码 vs README/docs</th><td><code>healthcheck</code> wildcard host fallback、<code>include_secrets</code> 语义、dynamic summary scan 口径、compose 环境变量命名均已对齐；<code>AGENTS.md</code> 仍落后。</td></tr>
+        <tr><th>代码 vs 测试/构建</th><td>测试与验证文件很多，但关键 backup 组件验证未进 CI，且本机默认 <code>vitest</code>/<code>next build</code> 都被 <code>spawn EPERM</code> 卡住。</td></tr>
+      </table>
+    </section>
+
+    <section class="section panel">
+      <h2>5. Top Next Actions</h2>
+      <ol>
+        <li>修复并统一 backup/import/rollback 的关键验证链，并接进 <code>.github/workflows/validation.yaml</code>。</li>
+        <li>打通当前主机上的 Go 源码级验证，至少让 <code>go version</code>、<code>go build ./...</code>、目标 <code>go test</code> 可执行。</li>
+        <li>解决本机 <code>next build</code> / <code>vitest</code> 的 <code>spawn EPERM</code> 阻塞，让当前 <code>web/src</code> 能完成 <code>build:static</code> 或给出明确替代路径。</li>
+      </ol>
+      <p class="muted">建议顺序：先修验证资产，再修文档；在可运行 Go 的主机或容器里补一次完整 Go 验收；最后清理 <code>devs</code> 的硬编码路径。</p>
+    </section>
+
+    <section class="section panel">
+      <h2>本次中文摘要</h2>
+      <table>
+        <tr><th>本次触发时间</th><td><code>2026-04-21T13:54:44.0343112+08:00</code></td></tr>
+        <tr><th>做了哪些检查、运行了哪些命令</th><td>检查仓库结构、git 状态、分支、最近提交、automation memory、README/docs/workflow、核心 handler/relay/task/前端组件接线；运行了 diff 统计、TypeScript typecheck、<code>verify-backup-logic.mjs</code>、<code>verify-backup-component.cjs</code>、Vitest、Next build、Windows smoke、Go 环境探测、Docker 环境探测。</td></tr>
+        <tr><th>修改了哪些文件</th><td>新增 <code>docs/review/审查/2026-04-21-135444-octopus-repo-complete-audit.md</code> 与 <code>docs/review/审查/2026-04-21-135444-octopus-repo-complete-audit.html</code>。</td></tr>
+        <tr><th>发现了什么问题</th><td>backup/import/rollback 行为验证链不稳定且 CI 未覆盖；当前主机无法做 Go 源码级验证；前端 <code>next build</code>/<code>vitest</code> 被 <code>spawn EPERM</code> 卡住；<code>AGENTS.md</code> 说明过期；<code>devs</code> 入口不可移植。</td></tr>
+        <tr><th>本次结果</th><td>成功。审计与报告已完成，失败/跳过的验证原因均已记录。</td></tr>
+        <tr><th>是否需要手动介入</th><td>需要。优先建议决定：是否继续修 <code>scripts/verify-backup-component.cjs</code> / CI 覆盖；以及是否提供一个可运行 Go 的主机、容器或权限更完整的环境，让源码级 Go 验收可执行。</td></tr>
+      </table>
+    </section>
+  </div>
+</body>
+</html>

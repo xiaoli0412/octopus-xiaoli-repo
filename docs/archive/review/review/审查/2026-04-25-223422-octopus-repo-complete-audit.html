@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Octopus 完整审计报告</title>
+  <style>
+    :root {
+      --bg: #f5f1e8;
+      --panel: #fffdf7;
+      --ink: #1f2937;
+      --muted: #5b6472;
+      --line: #e7dcc8;
+      --critical: #b42318;
+      --high: #d97706;
+      --medium: #2563eb;
+      --low: #6b7280;
+      --accent: #0f766e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(15,118,110,.10), transparent 28%),
+        radial-gradient(circle at left 20%, rgba(217,119,6,.08), transparent 25%),
+        var(--bg);
+      color: var(--ink);
+      line-height: 1.6;
+    }
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+    .hero {
+      background: linear-gradient(135deg, rgba(15,118,110,.92), rgba(28,78,216,.82));
+      color: #fff;
+      border-radius: 28px;
+      padding: 28px 30px;
+      box-shadow: 0 18px 48px rgba(15, 23, 42, .16);
+    }
+    .hero h1 {
+      margin: 0 0 10px;
+      font-size: 34px;
+      line-height: 1.15;
+    }
+    .hero p {
+      margin: 6px 0;
+      opacity: .95;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 20px;
+    }
+    .card {
+      grid-column: span 12;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 22px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+    }
+    .span-4 { grid-column: span 4; }
+    .span-6 { grid-column: span 6; }
+    .span-8 { grid-column: span 8; }
+    h2, h3 { margin-top: 0; }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.14);
+      border: 1px solid rgba(255,255,255,.18);
+      font-size: 13px;
+    }
+    .severity {
+      display: inline-block;
+      min-width: 84px;
+      text-align: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: .03em;
+      color: #fff;
+      margin-right: 10px;
+      vertical-align: middle;
+    }
+    .critical { background: var(--critical); }
+    .high { background: var(--high); }
+    .medium { background: var(--medium); }
+    .low { background: var(--low); }
+    ul {
+      margin: 12px 0 0 18px;
+      padding: 0;
+    }
+    li { margin: 8px 0; }
+    .finding {
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+      margin-top: 16px;
+    }
+    .finding:first-of-type {
+      border-top: 0;
+      margin-top: 0;
+      padding-top: 0;
+    }
+    .mini {
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .stat {
+      padding: 18px;
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(255,255,255,.85), rgba(248,244,235,.9));
+      border: 1px solid var(--line);
+    }
+    .stat .k {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+    }
+    .stat .v {
+      font-size: 30px;
+      font-weight: 800;
+      margin-top: 6px;
+    }
+    .list-tight li { margin: 6px 0; }
+    .ok { color: var(--accent); font-weight: 700; }
+    .warn { color: var(--high); font-weight: 700; }
+    .bad { color: var(--critical); font-weight: 700; }
+    code {
+      background: #f3efe6;
+      border: 1px solid #eadfc9;
+      border-radius: 8px;
+      padding: 1px 6px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+    }
+    .footer {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    @media (max-width: 900px) {
+      .span-4, .span-6, .span-8 { grid-column: span 12; }
+      .hero h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>Octopus 完整审计报告</h1>
+      <p>本次审计覆盖当前工作区、<code>HEAD</code>（<code>v0.1.3</code> / <code>bfa27ae</code>）以及 <code>origin/dev</code>，重点检查主流程是否真实可达、关键逻辑是否真正接线，以及文档/测试/构建声明是否与实现一致。</p>
+      <div class="meta">
+        <span class="pill">触发时间：2026-04-25T22:34:22+08:00</span>
+        <span class="pill">仓库：D:\GPT-codex\octopus_repo</span>
+        <span class="pill">结果：已完成审计，未改产品代码</span>
+        <span class="pill">产物：Markdown + HTML</span>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card span-4">
+        <div class="stat">
+          <div class="k">Critical</div>
+          <div class="v bad">1</div>
+        </div>
+      </div>
+      <div class="card span-4">
+        <div class="stat">
+          <div class="k">High</div>
+          <div class="v warn">3</div>
+        </div>
+      </div>
+      <div class="card span-4">
+        <div class="stat">
+          <div class="k">Medium</div>
+          <div class="v">2</div>
+        </div>
+      </div>
+
+      <div class="card span-8">
+        <h2>Findings</h2>
+
+        <div class="finding">
+          <div><span class="severity critical">Critical</span><strong>当前工作区删除了 <code>Backup.tsx</code>，但设置页和测试仍真实导入它。</strong></div>
+          <ul class="list-tight">
+            <li><code>web/src/components/modules/setting/index.tsx</code> 仍动态导入并渲染 <code>./Backup</code>。</li>
+            <li><code>web/src/components/modules/setting/Backup.test.tsx</code> 仍直接导入 <code>SettingBackup</code>。</li>
+            <li>相对 <code>HEAD</code>，当前工作区已删除该文件；这是主路径硬故障，不是普通 TODO。</li>
+          </ul>
+        </div>
+
+        <div class="finding">
+          <div><span class="severity high">High</span><strong><code>config_source_mode / active_ai_profile_id</code> 只存在于设置层，没有证据表明已接入真实运行时选择。</strong></div>
+          <ul class="list-tight">
+            <li><code>AIProfileActivate()</code> 只写 setting。</li>
+            <li>执行器只把这两个值放入 task runtime payload。</li>
+            <li>对比动态路由学习开关，后者在 relay 评分中有明确消费点。</li>
+          </ul>
+        </div>
+
+        <div class="finding">
+          <div><span class="severity high">High</span><strong>AI 自动化关键测试真实失败，远端模型发现和异步任务完成链不稳定。</strong></div>
+          <ul class="list-tight">
+            <li>远端模型发现测试期待 <code>remote_model_discovery</code>，实际回退到 <code>local_model_cache</code>。</li>
+            <li>多个异步任务测试在 5 秒轮询窗口后仍停留在 <code>running</code> / <code>pending</code>。</li>
+            <li>测试输出出现 <code>context deadline exceeded</code>，说明执行链本身存在不稳定点。</li>
+          </ul>
+        </div>
+
+        <div class="finding">
+          <div><span class="severity high">High</span><strong>备份/导入/回滚合同测试被自动初始化管理员与默认设置污染。</strong></div>
+          <ul class="list-tight">
+            <li><code>setupOpTestDB()</code> 调用 <code>InitCache()</code>。</li>
+            <li><code>InitCache()</code> 调用 <code>UserInit()</code>，空库时自动创建管理员。</li>
+            <li>导致导出用户数、setting 唯一键、回滚行数等断言大面积失真。</li>
+          </ul>
+        </div>
+
+        <div class="finding">
+          <div><span class="severity medium">Medium</span><strong>状态文档已经明显过时。</strong></div>
+          <ul class="list-tight">
+            <li>文档仍写“AI 自动化代码未开始”，但实际已有路由、页面和测试。</li>
+            <li>文档仍把 <code>Backup.tsx</code> 描述为继续收口中，但当前工作区该文件已删除。</li>
+          </ul>
+        </div>
+
+        <div class="finding">
+          <div><span class="severity medium">Medium</span><strong>当前宿主无法完成完整验证链。</strong></div>
+          <ul class="list-tight">
+            <li>Node 启动触发 <code>ncrypto::CSPRNG(nullptr, 0)</code> 断言。</li>
+            <li><code>pnpm</code> 缺失，<code>corepack</code> 异常，<code>docker</code> 缺失。</li>
+            <li><code>go build ./...</code> 受 <code>proxy.golang.org</code> DNS 失败阻断。</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card span-4">
+        <h2>Completion Assessment</h2>
+        <ul class="list-tight">
+          <li><span class="ok">已完成：</span>核心网关、渠道/分组/模型主线在已提交基线中完成度较高。</li>
+          <li><span class="warn">部分完成：</span>AI 自动化中心、动态路由学习、备份导入升级均已进入真实代码，但闭环不足。</li>
+          <li><span class="bad">未完成：</span>AI Profile 作为真实配置来源、稳定的 AI 自动化执行闭环、当前工作区可用的备份页。</li>
+          <li><strong>总体判断：</strong>当前工作区不应视为可发布状态。</li>
+        </ul>
+      </div>
+
+      <div class="card span-6">
+        <h2>Verification Summary</h2>
+        <ul class="list-tight">
+          <li><strong>已验证：</strong>git 差异、核心源码接线、README/docs 一致性、<code>internal/op</code> 关键失败、<code>internal/server/middleware</code> 与 <code>internal/relay/balancer</code> 通过测试。</li>
+          <li><strong>未验证：</strong>前端 typecheck/build、Docker smoke、完整 <code>go build ./...</code> 与浏览器级 smoke。</li>
+          <li><strong>原因：</strong>Node/pnpm/corepack/Docker/Go 依赖网络均存在宿主级阻断。</li>
+        </ul>
+      </div>
+
+      <div class="card span-6">
+        <h2>Comparison Notes</h2>
+        <ul class="list-tight">
+          <li><strong>工作区 vs HEAD：</strong>风险主要来自 `v0.1.3` 之上的大体量未提交改动，尤其是备份页删除。</li>
+          <li><strong>分支 vs 稳定基线：</strong><code>HEAD == origin/feat/erguotou == v0.1.3</code>，已提交基线相对稳定。</li>
+          <li><strong>实现 vs 文档：</strong>文档对 AI 自动化和备份主线的描述已明显滞后。</li>
+          <li><strong>实现 vs 测试：</strong>测试数量很多，但关键红灯说明主线没有真正闭环。</li>
+        </ul>
+      </div>
+
+      <div class="card span-12">
+        <h2>Top Next Actions</h2>
+        <ol>
+          <li>恢复 <code>Backup.tsx</code> 或立即下线设置页/测试对它的活动引用，先消除前端硬断路。</li>
+          <li>把 <code>config_source_mode / active_ai_profile_id</code> 接入真实运行时，或明确降级为仅 UI 元数据，并补集成测试。</li>
+          <li>修复 <code>internal/op</code> 两类红灯：AI 自动化执行链稳定性，以及备份测试基线污染。</li>
+        </ol>
+        <p class="mini">建议整改要求：先以 <code>v0.1.3</code> 为稳定参照做“最小可发布收敛”，再在健康宿主上补完前端与容器级验证。</p>
+      </div>
+
+      <div class="card span-12">
+        <h2>中文摘要</h2>
+        <ul class="list-tight">
+          <li><strong>本次触发时间：</strong>2026-04-25T22:34:22+08:00</li>
+          <li><strong>执行内容：</strong>完成 git / 文档 / 源码 / 测试 / 构建链核查，并复现 `internal/op` 关键失败。</li>
+          <li><strong>文件变更：</strong>仅新增本次 Markdown 与 HTML 审计报告，无产品代码改动。</li>
+          <li><strong>主要问题：</strong>备份页主路径删除、AI Profile 来源未接线、AI 自动化测试失败、备份合同测试污染、文档失真、宿主验证链阻断。</li>
+          <li><strong>本次结果：</strong><span class="ok">成功</span></li>
+          <li><strong>是否需要手动介入：</strong><span class="bad">需要</span>，优先处理备份页断路与验证环境问题。</li>
+        </ul>
+      </div>
+    </section>
+
+    <p class="footer">报告目录：<code>docs/review/审查/</code>。本次输出包含 Markdown 主报告与 HTML 可视化报告。</p>
+  </div>
+</body>
+</html>
