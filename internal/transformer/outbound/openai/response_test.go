@@ -659,6 +659,114 @@ func TestResponseOutboundTransformStreamSkipsMessageDoneAfterTextDelta(t *testin
 	}
 }
 
+func TestResponseOutboundTransformStreamRestoresOutputTextDoneWithoutDelta(t *testing.T) {
+	t.Parallel()
+
+	outbound := &ResponseOutbound{}
+	status := "in_progress"
+	outputIndex := 7
+	itemID := "item-output-text-only"
+	text := "Recovered from output_text.done"
+
+	createdPayload, err := json.Marshal(ResponsesStreamEvent{
+		Type: "response.created",
+		Response: &ResponsesResponse{
+			ID:     "resp-output-text-done-only",
+			Model:  "gpt-4.1",
+			Status: &status,
+		},
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal() created error = %v", err)
+	}
+	if _, err := outbound.TransformStream(context.Background(), createdPayload); err != nil {
+		t.Fatalf("TransformStream() created error = %v", err)
+	}
+
+	donePayload, err := json.Marshal(ResponsesStreamEvent{
+		Type:         "response.output_text.done",
+		OutputIndex:  outputIndex,
+		ItemID:       &itemID,
+		ContentIndex: lo.ToPtr(0),
+		Text:         text,
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal() done error = %v", err)
+	}
+
+	doneChunk, err := outbound.TransformStream(context.Background(), donePayload)
+	if err != nil {
+		t.Fatalf("TransformStream() done error = %v", err)
+	}
+	if doneChunk == nil || len(doneChunk.Choices) != 1 || doneChunk.Choices[0].Delta == nil {
+		t.Fatalf("done chunk = %#v, want assistant text fallback chunk", doneChunk)
+	}
+	if doneChunk.Choices[0].Delta.Content.Content == nil || *doneChunk.Choices[0].Delta.Content.Content != text {
+		t.Fatalf("done chunk content = %#v, want %q", doneChunk.Choices[0].Delta.Content.Content, text)
+	}
+}
+
+func TestResponseOutboundTransformStreamSkipsOutputTextDoneAfterTextDelta(t *testing.T) {
+	t.Parallel()
+
+	outbound := &ResponseOutbound{}
+	status := "in_progress"
+	outputIndex := 8
+	itemID := "item-output-text-delta"
+	text := "Already streamed via delta"
+
+	createdPayload, err := json.Marshal(ResponsesStreamEvent{
+		Type: "response.created",
+		Response: &ResponsesResponse{
+			ID:     "resp-output-text-delta",
+			Model:  "gpt-4.1",
+			Status: &status,
+		},
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal() created error = %v", err)
+	}
+	if _, err := outbound.TransformStream(context.Background(), createdPayload); err != nil {
+		t.Fatalf("TransformStream() created error = %v", err)
+	}
+
+	deltaPayload, err := json.Marshal(ResponsesStreamEvent{
+		Type:         "response.output_text.delta",
+		OutputIndex:  outputIndex,
+		ItemID:       &itemID,
+		ContentIndex: lo.ToPtr(0),
+		Delta:        text,
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal() delta error = %v", err)
+	}
+	deltaChunk, err := outbound.TransformStream(context.Background(), deltaPayload)
+	if err != nil {
+		t.Fatalf("TransformStream() delta error = %v", err)
+	}
+	if deltaChunk == nil || len(deltaChunk.Choices) != 1 || deltaChunk.Choices[0].Delta == nil {
+		t.Fatalf("delta chunk = %#v, want assistant text delta chunk", deltaChunk)
+	}
+
+	donePayload, err := json.Marshal(ResponsesStreamEvent{
+		Type:         "response.output_text.done",
+		OutputIndex:  outputIndex,
+		ItemID:       &itemID,
+		ContentIndex: lo.ToPtr(0),
+		Text:         text,
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal() done error = %v", err)
+	}
+	doneChunk, err := outbound.TransformStream(context.Background(), donePayload)
+	if err != nil {
+		t.Fatalf("TransformStream() done error = %v", err)
+	}
+	if doneChunk != nil {
+		t.Fatalf("done chunk = %#v, want nil to avoid duplicate assistant text", doneChunk)
+	}
+}
+
 func TestResponseOutboundTransformStreamMapsIncompleteAndFailedTerminalEvents(t *testing.T) {
 	t.Parallel()
 

@@ -159,6 +159,7 @@ $repoRoot = Get-NormalizedPath -Path (Join-Path $scriptDir '..')
 . (Join-Path $scriptDir 'use-go-env.ps1')
 $webDir = Join-Path $repoRoot 'web'
 $staticDir = Join-Path $repoRoot 'static'
+$versionFile = Join-Path $repoRoot 'VERSION'
 $sourceOutDir = Join-Path $webDir 'out'
 $targetOutDir = Join-Path $staticDir 'out'
 $buildDir = Join-Path $repoRoot 'build'
@@ -188,12 +189,24 @@ Assert-MinimumVersion -ToolName 'pnpm' -ActualText (& $pnpmCommand.Source --vers
 
 $gitVersion = 'dev'
 $commitId = 'unknown'
+$versionFromFile = $null
+if (Test-Path -LiteralPath $versionFile) {
+    $firstVersionLine = Get-Content -LiteralPath $versionFile -TotalCount 1
+    if (-not [string]::IsNullOrWhiteSpace($firstVersionLine)) {
+        $versionFromFile = $firstVersionLine.Trim()
+    }
+}
 if ($null -ne $gitCommand) {
     Push-Location $repoRoot
     try {
-        $describedVersion = (& $gitCommand.Source describe --tags --abbrev=0 2>$null)
-        if (-not [string]::IsNullOrWhiteSpace($describedVersion)) {
-            $gitVersion = $describedVersion.Trim()
+        if (-not [string]::IsNullOrWhiteSpace($versionFromFile)) {
+            $gitVersion = $versionFromFile
+        }
+        else {
+            $describedVersion = (& $gitCommand.Source describe --tags --abbrev=0 2>$null)
+            if (-not [string]::IsNullOrWhiteSpace($describedVersion)) {
+                $gitVersion = $describedVersion.Trim()
+            }
         }
 
         $resolvedCommit = (& $gitCommand.Source rev-parse --short HEAD 2>$null)
@@ -207,6 +220,9 @@ if ($null -ne $gitCommand) {
 }
 else {
     Write-Info 'git not found, build metadata will fall back to dev/unknown.'
+    if (-not [string]::IsNullOrWhiteSpace($versionFromFile)) {
+        $gitVersion = $versionFromFile
+    }
 }
 
 $goArchResolved = if ([string]::IsNullOrWhiteSpace($GoArch)) {

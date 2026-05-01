@@ -7,6 +7,7 @@ import { useLatestInfo, useNowVersion, useUpdateCore } from '@/api/endpoints/upd
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/common/Toast';
 import { isOctopusCacheName, isFontCacheName, SW_MESSAGE_TYPE } from '@/lib/sw';
+import { formatReleaseTagDisplay, isSameReleaseVersion } from './info-logic';
 
 export function SettingInfo() {
     const t = useTranslations('setting');
@@ -16,11 +17,12 @@ export function SettingInfo() {
 
     const backendNowVersion = nowVersionQuery.data || '';
     const latestVersion = latestInfoQuery.data?.tag_name || '';
+    const latestVersionLabel = formatReleaseTagDisplay(latestVersion);
 
     // 前端版本与后端当前版本不一致 → 浏览器缓存问题
-    const isCacheMismatch = !!backendNowVersion && backendNowVersion !== APP_VERSION;
+    const isCacheMismatch = !!backendNowVersion && !isSameReleaseVersion(backendNowVersion, APP_VERSION);
     // 最新版本与后端当前版本不一致 → 有新版本可更新
-    const hasNewVersion = latestVersion && backendNowVersion && latestVersion !== backendNowVersion;
+    const hasNewVersion = !!latestVersion && !!backendNowVersion && !isSameReleaseVersion(latestVersion, backendNowVersion);
 
     const clearCacheAndReload = async () => {
         // 通知 Service Worker 清理缓存
@@ -109,11 +111,11 @@ export function SettingInfo() {
                     <span className="text-sm font-medium">{t('info.latestVersion')}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    {latestInfoQuery.isLoading ? (
+                            {latestInfoQuery.isLoading ? (
                         <Loader2 className="size-4 animate-spin text-muted-foreground" />
                     ) : (
                         <code className="text-sm font-mono text-muted-foreground">
-                            {latestVersion || t('info.unknown')}
+                            {latestVersionLabel || t('info.unknown')}
                         </code>
                     )}
                 </div>

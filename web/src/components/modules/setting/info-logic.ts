@@ -2,6 +2,30 @@ const UNKNOWN_VERSION = 'unknown';
 const DEVELOPMENT_VERSION = 'dev';
 const DEVELOPMENT_VERSION_ALIAS = 'development';
 
+function normalizeVersionForComparison(value?: string | null) {
+	const normalized = (value ?? '').trim().toLowerCase();
+	if (!normalized) {
+		return '';
+	}
+
+	const withoutLeadingV = normalized.replace(/^v/, '');
+	return withoutLeadingV.replace(/[\s_-]*\((alpha|beta|rc)\)$/i, '-$1');
+}
+
+export function formatReleaseTagDisplay(value: string | null | undefined) {
+	const normalized = (value ?? '').trim();
+	if (!normalized) {
+		return '';
+	}
+
+	const match = normalized.match(/^v?(\d+(?:\.\d+){1,2})-(alpha|beta|rc)$/i);
+	if (match) {
+		return `${match[1]}(${match[2].toLowerCase()})`;
+	}
+
+	return normalized.replace(/^v/, '');
+}
+
 export type VersionInfoLabels = {
 	versionUnavailable: string;
 	frontendVersionUnknown: string;
@@ -45,4 +69,10 @@ export function getCacheMismatchPresentation(
 		backendLabel: formatVersionDisplay(backendVersion, labels.versionUnavailable, labels.developmentVersion),
 		note: isUnknownVersion(frontendVersion) ? labels.frontendVersionUnknownHint : '',
 	};
+}
+
+export function isSameReleaseVersion(left?: string | null, right?: string | null) {
+	const leftNormalized = normalizeVersionForComparison(left);
+	const rightNormalized = normalizeVersionForComparison(right);
+	return !!leftNormalized && !!rightNormalized && leftNormalized === rightNormalized;
 }

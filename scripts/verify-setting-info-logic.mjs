@@ -17,8 +17,10 @@ const inlineModuleURL = `data:text/javascript;base64,${Buffer.from(transformedSo
 
 const {
 	formatVersionDisplay,
+	formatReleaseTagDisplay,
 	getCacheMismatchPresentation,
 	isDevelopmentVersion,
+	isSameReleaseVersion,
 	isUnknownVersion,
 } = await import(inlineModuleURL);
 
@@ -32,6 +34,11 @@ assert.equal(formatVersionDisplay('', 'VERSION_UNAVAILABLE'), 'VERSION_UNAVAILAB
 assert.equal(formatVersionDisplay('unknown', 'FRONTEND_VERSION_UNKNOWN'), 'FRONTEND_VERSION_UNKNOWN');
 assert.equal(formatVersionDisplay('dev', 'VERSION_UNAVAILABLE', 'DEVELOPMENT_VERSION'), 'DEVELOPMENT_VERSION');
 assert.equal(formatVersionDisplay('v1.2.3', 'VERSION_UNAVAILABLE'), 'v1.2.3');
+assert.equal(formatReleaseTagDisplay('v1.12-beta'), '1.12(beta)');
+assert.equal(formatReleaseTagDisplay('v1.12.0'), '1.12.0');
+assert.equal(isSameReleaseVersion('1.12(beta)', 'v1.12-beta'), true);
+assert.equal(isSameReleaseVersion('v1.12.0', '1.12.0'), true);
+assert.equal(isSameReleaseVersion('1.12(beta)', '1.12'), false);
 
 assert.deepEqual(
 	getCacheMismatchPresentation('unknown', 'dev', {

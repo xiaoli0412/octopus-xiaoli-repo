@@ -4,6 +4,20 @@
 
 ---
 
+## 1.12(beta) - 2026-05-01
+
+### 🐛 Bug 修复
+
+- `Responses stream fallback`：补齐 `response.output_text.done` 的 outbound consumer fallback，避免缺少 `output_text.delta` 时 assistant 文本静默丢失。
+- `Responses stream fallback`：补齐 `message output_item.done` 的 message text fallback，并保持与已消费 `delta` 的去重语义一致。
+
+### 🔧 发布与版本
+
+- 新增仓库级 `VERSION` 版本源，当前发布版本固定为 `1.12(beta)`。
+- 后端默认版本、前端版本展示、Windows/Linux 构建注入、Debian Docker 构建注入统一同步到 `1.12(beta)`。
+- `release` workflow 现在区分展示版本与 Docker tag：GitHub Release 继续使用 `v1.12-beta` 一类 tag，应用显示保持 `1.12(beta)`，Docker tag 自动转成兼容格式。
+- 设置页版本信息增加规范化比较与展示，避免 `1.12(beta)` 与 `v1.12-beta` 被误判为不同版本。
+
 ## [Unreleased] - 基于 main 分支
 
 ### ✨ 新增功能

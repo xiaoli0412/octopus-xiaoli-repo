@@ -14,11 +14,25 @@ trap 'handle_error $? $LINENO' ERR
 readonly APP_NAME="octopus"
 readonly MAIN_DIR="./"
 readonly OUTPUT_DIR="build"
+readonly VERSION_FILE="VERSION"
+
+resolve_version() {
+    if [ -f "${VERSION_FILE}" ]; then
+        local version
+        version="$(tr -d '\r' < "${VERSION_FILE}" | head -n 1 | xargs)"
+        if [ -n "${version}" ]; then
+            echo "${version}"
+            return 0
+        fi
+    fi
+
+    git describe --tags --abbrev=0 2>/dev/null || echo 'dev'
+}
 
 # Build metadata
 readonly BUILD_TIME="$(TZ='Asia/Shanghai' date +'%F %T %z')"
 readonly GIT_AUTHOR="xiaoli0412"
-readonly GIT_VERSION="$(git describe --tags --abbrev=0 2>/dev/null || echo 'dev')"
+readonly GIT_VERSION="$(resolve_version)"
 readonly COMMIT_ID="$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
 
 # Build flags

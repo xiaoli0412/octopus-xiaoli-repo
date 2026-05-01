@@ -131,14 +131,8 @@ func (o *ResponseOutbound) markMessageTextSeen(outputIndex int, itemID *string) 
 	return state
 }
 
-func (o *ResponseOutbound) fallbackMessageChunk(outputIndex int, item *ResponsesItem) *model.InternalLLMResponse {
-	if item == nil {
-		return nil
-	}
-
-	itemID := lo.ToPtr(item.ID)
+func (o *ResponseOutbound) fallbackMessageTextChunk(outputIndex int, itemID *string, text string) *model.InternalLLMResponse {
 	state := o.messageState(outputIndex, itemID)
-	text := extractOutputMessageText(item)
 	if text == "" || state.TextSeen {
 		return nil
 	}
@@ -159,6 +153,14 @@ func (o *ResponseOutbound) fallbackMessageChunk(outputIndex int, item *Responses
 			},
 		}},
 	}
+}
+
+func (o *ResponseOutbound) fallbackMessageChunk(outputIndex int, item *ResponsesItem) *model.InternalLLMResponse {
+	if item == nil {
+		return nil
+	}
+
+	return o.fallbackMessageTextChunk(outputIndex, lo.ToPtr(item.ID), extractOutputMessageText(item))
 }
 
 func (o *ResponseOutbound) fallbackToolCallChunk(index int, itemID, callID, name, arguments string) *model.InternalLLMResponse {
@@ -382,6 +384,13 @@ func (o *ResponseOutbound) TransformStream(ctx context.Context, eventData []byte
 				},
 			},
 		}
+
+	case "response.output_text.done":
+		fallback := o.fallbackMessageTextChunk(streamEvent.OutputIndex, streamEvent.ItemID, streamEvent.Text)
+		if fallback == nil {
+			return nil, nil
+		}
+		resp = fallback
 
 	case "response.function_call_arguments.delta":
 		toolCallIndex := o.toolCallIndexForStreamEvent(streamEvent.OutputIndex, streamEvent.ItemID, streamEvent.CallID)

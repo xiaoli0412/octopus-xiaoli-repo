@@ -76,6 +76,24 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Prepare release metadata
+        id: release_meta
+        shell: bash
+        run: |
+          ref_name="${GITHUB_REF_NAME}"
+          docker_tag="${ref_name//\(/-}"
+          docker_tag="${docker_tag//\)/}"
+          docker_tag="${docker_tag// /-}"
+          app_version="$(tr -d '\r' < VERSION | head -n 1 | xargs)"
+          echo "release_tag=${ref_name}" >> "$GITHUB_OUTPUT"
+          echo "docker_tag=${docker_tag}" >> "$GITHUB_OUTPUT"
+          echo "app_version=${app_version}" >> "$GITHUB_OUTPUT"
+          if [[ "$ref_name" == *beta* || "$ref_name" == *alpha* || "$ref_name" == *rc* ]]; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
@@ -105,8 +123,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: build/archives/*
-          prerelease: false
-          tag_name: ${{ github.ref_name }}
+          prerelease: ${{ steps.release_meta.outputs.is_prerelease }}
+          tag_name: ${{ steps.release_meta.outputs.release_tag }}
 
       - name: Docker meta (Debian)
         id: meta-debian
@@ -117,7 +135,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}
           tags: |
             type=raw,value=latest
-            type=raw,value=${{ github.ref_name }}
+            type=raw,value=${{ steps.release_meta.outputs.docker_tag }}
 
       - name: Docker meta (Alpine)
         id: meta-alpine
@@ -128,7 +146,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}
           tags: |
             type=raw,value=latest-alpine
-            type=raw,value=${{ github.ref_name }}-alpine
+            type=raw,value=${{ steps.release_meta.outputs.docker_tag }}-alpine
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -172,3 +190,4 @@ jobs:
           labels: ${{ steps.meta-debian.outputs.labels }}
           build-args: |
             TARGETPLATFORM
+            APP_VERSION=${{ steps.release_meta.outputs.app_version }}
