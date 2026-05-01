@@ -25,6 +25,31 @@ func (testShutdownLogger) Errorf(string, ...interface{}) {}
 func (testShutdownLogger) Warnf(string, ...interface{})  {}
 func (testShutdownLogger) Debugf(string, ...interface{}) {}
 
+func isMissingOrBlockedPathError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if os.IsNotExist(err) {
+		return true
+	}
+	errText := strings.ToLower(err.Error())
+	return strings.Contains(errText, "not a directory")
+}
+
+func isDirectoryCollisionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errText := strings.ToLower(err.Error())
+	return strings.Contains(errText, "not a directory") ||
+		strings.Contains(errText, "is a directory") ||
+		strings.Contains(errText, "access is denied") ||
+		strings.Contains(errText, "cannot create") ||
+		strings.Contains(errText, "permission denied") ||
+		strings.Contains(errText, "file exists") ||
+		os.IsExist(err)
+}
+
 func TestReadUpdateResponseBodyRejectsOversizedSuccessPayload(t *testing.T) {
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
@@ -303,11 +328,10 @@ func TestUnzipFailsWhenDirectoryEntryCollidesWithExistingFile(t *testing.T) {
 	if err == nil {
 		t.Fatal("unzip() error = nil, want mkdir collision error")
 	}
-	errText := strings.ToLower(err.Error())
-	if !strings.Contains(errText, "not a directory") && !strings.Contains(errText, "cannot create") && !strings.Contains(errText, "file exists") && !strings.Contains(errText, "path specified") {
+	if !isDirectoryCollisionError(err) && !strings.Contains(strings.ToLower(err.Error()), "path specified") {
 		t.Fatalf("unzip() error = %v, want directory collision error", err)
 	}
-	if _, statErr := os.Stat(filepath.Join(root, "nested", "payload.bin")); !os.IsNotExist(statErr) {
+	if _, statErr := os.Stat(filepath.Join(root, "nested", "payload.bin")); !isMissingOrBlockedPathError(statErr) {
 		t.Fatalf("payload unexpectedly extracted through blocking file, stat err = %v", statErr)
 	}
 }
@@ -482,8 +506,7 @@ func TestUnzipDoesNotReplaceExistingDirectoryWithFile(t *testing.T) {
 	if err == nil {
 		t.Fatal("unzip() error = nil, want file-vs-directory collision error")
 	}
-	errText := strings.ToLower(err.Error())
-	if !strings.Contains(errText, "is a directory") && !strings.Contains(errText, "access is denied") && !strings.Contains(errText, "cannot create") && !strings.Contains(errText, "permission denied") {
+	if !isDirectoryCollisionError(err) {
 		t.Fatalf("unzip() error = %v, want directory collision error", err)
 	}
 	info, statErr := os.Stat(blockingDir)

@@ -5,6 +5,24 @@ PUID=${PUID:-10001}
 PGID=${PGID:-10001}
 DATA_DIR=${DATA_DIR:-/app/data}
 
+can_write_data_dir_as_target() {
+    if [ "$PUID" = 0 ] && [ "$PGID" = 0 ]; then
+        return 0
+    fi
+
+    if command -v su-exec >/dev/null 2>&1; then
+        su-exec "$PUID:$PGID" sh -c "test -w \"$DATA_DIR\""
+        return $?
+    fi
+
+    if command -v gosu >/dev/null 2>&1; then
+        gosu "$PUID:$PGID" sh -c "test -w \"$DATA_DIR\""
+        return $?
+    fi
+
+    return 1
+}
+
 case "$PUID" in
     ''|*[!0-9]*)
         echo 'Error: PUID must be a non-negative integer.' >&2
@@ -20,10 +38,18 @@ case "$PGID" in
 esac
 
 if [ "$(id -u)" = 0 ] && { [ "$PUID" != 0 ] || [ "$PGID" != 0 ]; }; then
-    chown -R "$PUID:$PGID" "$DATA_DIR"
+    if ! chown -R "$PUID:$PGID" "$DATA_DIR"; then
+        echo "Warning: unable to change ownership of $DATA_DIR; checking existing write permissions instead." >&2
+    fi
 fi
 
 cd /app
+
+if [ "$(id -u)" = 0 ] && { [ "$PUID" != 0 ] || [ "$PGID" != 0 ]; } && ! can_write_data_dir_as_target; then
+    echo "Warning: target uid/gid cannot write $DATA_DIR with the current mount permissions; starting Octopus as root." >&2
+    echo 'Hint: fix the host volume ownership or run the container with matching PUID/PGID to restore unprivileged runtime.' >&2
+    exec ./octopus start
+fi
 
 if command -v su-exec >/dev/null 2>&1; then
     exec su-exec "$PUID:$PGID" ./octopus start
