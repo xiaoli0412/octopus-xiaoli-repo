@@ -45,7 +45,19 @@ Run directly:
 docker run -d --name octopus -v /path/to/data:/app/data -p 8080:8080 ghcr.io/xiaoli0412/octopus-xiaoli-repo:latest
 ```
 
-Or use the one-click install script later:
+Or use the install script. It keeps `8080` as the default external port, probes the port before startup, and prompts for a replacement port such as `1008` when `8080` is already occupied:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
+```
+
+Non-interactive custom port example:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | OCTOPUS_PORT=1008 bash
+```
+
+If you prefer the manual path, you can still clone the repository and run compose directly:
 
 ```bash
 git clone https://github.com/xiaoli0412/octopus-xiaoli-repo.git

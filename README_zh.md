@@ -45,7 +45,19 @@
 docker run -d --name octopus -v /path/to/data:/app/data -p 8080:8080 ghcr.io/xiaoli0412/octopus-xiaoli-repo:latest
 ```
 
-或者使用一键安装脚本运行
+或者使用安装脚本。脚本默认仍使用 `8080` 作为外部端口，启动前会先探测端口占用；如果 `8080` 已被占用，会提示你直接输入新的端口，例如 `1008`：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
+```
+
+非交互自定义端口示例：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | OCTOPUS_PORT=1008 bash
+```
+
+如果你仍然希望手动安装，也可以继续使用仓库内 compose：
 
 ```bash
 git clone https://github.com/xiaoli0412/octopus-xiaoli-repo.git
