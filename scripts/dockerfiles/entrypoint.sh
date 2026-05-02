@@ -23,6 +23,18 @@ can_write_data_dir_as_target() {
     return 1
 }
 
+target_runtime_is_writable() {
+    if [ ! -d "$DATA_DIR" ]; then
+        return 1
+    fi
+
+    if [ -w "$DATA_DIR" ]; then
+        return 0
+    fi
+
+    return 1
+}
+
 case "$PUID" in
     ''|*[!0-9]*)
         echo 'Error: PUID must be a non-negative integer.' >&2
@@ -45,9 +57,9 @@ fi
 
 cd /app
 
-if [ "$(id -u)" = 0 ] && { [ "$PUID" != 0 ] || [ "$PGID" != 0 ]; } && ! can_write_data_dir_as_target; then
-    echo "Warning: target uid/gid cannot write $DATA_DIR with the current mount permissions; starting Octopus as root." >&2
-    echo 'Hint: fix the host volume ownership or run the container with matching PUID/PGID to restore unprivileged runtime.' >&2
+if [ "$(id -u)" = 0 ] && { [ "$PUID" != 0 ] || [ "$PGID" != 0 ]; } && ! target_runtime_is_writable; then
+    echo "Warning: $DATA_DIR is not writable for the container runtime; starting Octopus as root." >&2
+    echo 'Hint: fix the host volume ownership or mount a writable data directory to restore unprivileged runtime.' >&2
     exec ./octopus start
 fi
 
