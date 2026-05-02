@@ -132,7 +132,7 @@ jobs:
         with:
           images: |
             ghcr.io/${{ github.repository }}
-            ${{ secrets.DOCKERHUB_USERNAME != '' && format('{0}/{1}', secrets.DOCKERHUB_USERNAME, github.event.repository.name) || '' }}
+            ${{ secrets.DOCKERHUB_USERNAME != '' && (secrets.DOCKERHUB_TOKEN != '' || secrets.DOCKERHUB_PASSWORD != '') && format('{0}/{1}', secrets.DOCKERHUB_USERNAME, github.event.repository.name) || '' }}
           tags: |
             type=raw,value=latest
             type=raw,value=${{ steps.release_meta.outputs.docker_tag }}
@@ -143,7 +143,7 @@ jobs:
         with:
           images: |
             ghcr.io/${{ github.repository }}
-            ${{ secrets.DOCKERHUB_USERNAME != '' && format('{0}/{1}', secrets.DOCKERHUB_USERNAME, github.event.repository.name) || '' }}
+            ${{ secrets.DOCKERHUB_USERNAME != '' && (secrets.DOCKERHUB_TOKEN != '' || secrets.DOCKERHUB_PASSWORD != '') && format('{0}/{1}', secrets.DOCKERHUB_USERNAME, github.event.repository.name) || '' }}
           tags: |
             type=raw,value=latest-alpine
             type=raw,value=${{ steps.release_meta.outputs.docker_tag }}-alpine
@@ -162,11 +162,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Login to Docker Hub
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && (secrets.DOCKERHUB_TOKEN != '' || secrets.DOCKERHUB_PASSWORD != '') }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          password: ${{ secrets.DOCKERHUB_TOKEN != '' && secrets.DOCKERHUB_TOKEN || secrets.DOCKERHUB_PASSWORD }}
 
       - name: Build and push (Alpine)
         uses: docker/build-push-action@v5
