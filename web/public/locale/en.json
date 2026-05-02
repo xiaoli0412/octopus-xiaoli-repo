@@ -90,9 +90,51 @@
       "models": "Models",
       "learning": "Learning"
     },
+    "views": {
+      "result": "Run result",
+      "profiles": "AI Profiles",
+      "dispatch": "Advanced dispatch",
+      "assets": "Templates and tools",
+      "history": "History and learning"
+    },
+    "sidebar": {
+      "title": "Status bar",
+      "desc": "Current runtime status.",
+      "executionModel": "Execution model",
+      "sourceMode": "Source mode",
+      "activeProfile": "Active Profile",
+      "learningState": "Learning state",
+      "latestSnapshot": "Latest snapshot",
+      "latestTask": "Latest task"
+    },
+    "result": {
+      "title": "Current result",
+      "currentStatus": "Current status",
+      "updatedAt": "Updated at",
+      "idleSummary": "No active result yet.",
+      "empty": "No result yet.",
+      "profileOutputTitle": "Profile output",
+      "profileReady": "A switchable Profile has been prepared for this result.",
+      "profileNotReady": "This result does not contain a new Profile output.",
+      "activateProfile": "Activate Profile",
+      "protectedActionsTitle": "Protected actions",
+      "noProtectedActions": "No protected actions were executed.",
+      "executed": "Executed",
+      "notExecuted": "Not executed",
+      "toolExecutionHint": "Review tool execution and protected actions before switching runtime reads."
+    },
+    "dispatch": {
+      "title": "Advanced dispatch",
+      "desc": "Keep multi-AI orchestration available without putting it on the first screen."
+    },
+    "assets": {
+      "templatesDesc": "Templates, tool access, and snapshots stay here as reusable assets."
+    },
     "config": {
       "title": "AI execution model",
       "desc": "Customize the AI channel, model, and base URL. Without customization, Octopus uses the local OpenAI-compatible endpoint.",
+      "shortTitle": "Execution source",
+      "shortDesc": "Compact source and model controls.",
       "baseUrl": "Base URL",
       "apiKey": "API Key",
       "apiKeyPlaceholder": "Optional: enter a temporary API key or leave empty for the local default",
@@ -216,6 +258,7 @@
       "diffSummary": "Field comparison: {added} added, {removed} removed, {shared} shared",
       "taskType": "Task type",
       "currentTaskTypeTitle": "Current task guidance",
+      "mainChainHint": "Keep the first screen focused on one task chain. Advanced dispatch, templates, history, and learning stay below as secondary workspaces.",
       "types": {
         "natural_language": "Natural-language digest",
         "group_suggestion": "Smart grouping",
@@ -487,6 +530,9 @@
       "migrationStatus": "Migration",
       "title": "AI Profiles",
       "desc": "AI-generated grouping, channel recognition, price recognition, and model classification are saved here for review and switching without overwriting manual config.",
+      "openWorkspace": "Open Profiles",
+      "updatedAt": "Updated at",
+      "confidenceTitle": "Confidence",
       "empty": "No AI Profiles yet. Generated task results will appear here later.",
       "activeTitle": "Activated Profile",
       "noActiveLabel": "Not activated yet",

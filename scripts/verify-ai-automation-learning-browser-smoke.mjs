@@ -305,8 +305,10 @@ async function waitForLearningSection(timeoutMs = 45000) {
   const startedAt = Date.now();
   let lastBodyText = '';
   let lastErrorMessage = '';
+  let historyTabClicked = false;
   const snapshotEval = `() => ({
     page: !!document.querySelector('[data-testid="ai-automation-page"]'),
+    historyTab: !!Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('历史与学习') || button.textContent?.includes('History and learning') || button.textContent?.includes('歷史與學習') || button.textContent?.includes('履歴と学習')),
     section: !!document.querySelector('[data-testid="ai-automation-learning-section"]'),
     stage: !!document.querySelector('[data-testid="ai-automation-learning-stage-card"]'),
     controls: !!document.querySelector('[data-testid="ai-automation-learning-controls"]'),
@@ -324,6 +326,15 @@ async function waitForLearningSection(timeoutMs = 45000) {
       const snapshot = parsePlaywrightJson(result.stdout);
       lastBodyText = snapshot.bodyText || '';
       lastErrorMessage = '';
+      if (!historyTabClicked && snapshot.page && snapshot.historyTab && !snapshot.section) {
+        await runPlaywrightCli(['eval', `() => {
+          const button = Array.from(document.querySelectorAll('button')).find((node) => node.textContent?.includes('历史与学习') || node.textContent?.includes('History and learning') || node.textContent?.includes('歷史與學習') || node.textContent?.includes('履歴と学習'));
+          if (button instanceof HTMLButtonElement) button.click();
+        }`], { raw: true });
+        historyTabClicked = true;
+        await sleep(300);
+        continue;
+      }
       if (snapshot.page && snapshot.section && snapshot.stage && snapshot.controls && snapshot.presetCard && snapshot.switchCard && snapshot.summary && snapshot.secondarySummary && snapshot.states) {
         return snapshot;
       }
@@ -412,7 +423,7 @@ async function main() {
     assert.ok(desktop.bodyText.includes('AI 自动化'), 'AI automation shell should be visible');
     assert.ok(desktop.bodyText.includes('动态路由学习'), 'learning title should be visible');
     assert.ok(desktop.bodyText.includes('学习预设'), 'preset title should be visible');
-    assert.ok(desktop.bodyText.includes('运行时学习开关'), 'learning switch title should be visible');
+    assert.ok(desktop.bodyText.includes('本地 AI 学习开关'), 'learning switch title should be visible');
 
     smokeLog('checking mobile viewport');
     await runPlaywrightCli(['resize', '375', '1400']);

@@ -90,9 +90,51 @@
       "models": "候選模型",
       "learning": "學習狀態"
     },
+    "views": {
+      "result": "執行結果",
+      "profiles": "AI 方案檔案",
+      "dispatch": "進階調度",
+      "assets": "模板與工具",
+      "history": "歷史與學習"
+    },
+    "sidebar": {
+      "title": "狀態欄",
+      "desc": "目前執行狀態。",
+      "executionModel": "執行模型",
+      "sourceMode": "來源模式",
+      "activeProfile": "目前方案",
+      "learningState": "學習狀態",
+      "latestSnapshot": "最近快照",
+      "latestTask": "最近任務"
+    },
+    "result": {
+      "title": "目前結果",
+      "currentStatus": "目前狀態",
+      "updatedAt": "更新時間",
+      "idleSummary": "目前還沒有執行結果。",
+      "empty": "還沒有結果。",
+      "profileOutputTitle": "方案檔案產出",
+      "profileReady": "目前結果已經生成可切換的方案檔案。",
+      "profileNotReady": "目前結果沒有新的方案檔案產出。",
+      "activateProfile": "啟用方案檔案",
+      "protectedActionsTitle": "保護動作",
+      "noProtectedActions": "目前沒有執行保護動作。",
+      "executed": "已執行",
+      "notExecuted": "未執行",
+      "toolExecutionHint": "切換執行來源前，先檢查工具執行與保護動作結果。"
+    },
+    "dispatch": {
+      "title": "進階調度",
+      "desc": "保留多 AI 調度能力，但不讓它搶占首屏。"
+    },
+    "assets": {
+      "templatesDesc": "模板、工具權限與快照統一收在這裡作為可重用資產。"
+    },
     "config": {
       "title": "AI 執行模型",
       "desc": "自訂 AI 供應源、模型和介面地址；未自訂時預設使用本機 Octopus OpenAI 相容地址。",
+      "shortTitle": "執行來源",
+      "shortDesc": "壓縮後的來源與模型控制。",
       "baseUrl": "介面地址",
       "apiKey": "API 金鑰",
       "apiKeyPlaceholder": "可選：輸入臨時 API 金鑰，或留空走本機預設",
@@ -216,6 +258,7 @@
       "diffSummary": "欄位對比：新增 {added}，刪除 {removed}，共享 {shared}",
       "taskType": "任務類型",
       "currentTaskTypeTitle": "目前任務說明",
+      "mainChainHint": "首屏只保留單 AI 主鏈，進階調度、模板、工具與學習都收進下方固定工作區。",
       "types": {
         "natural_language": "自然語言整理",
         "group_suggestion": "智慧分組",
@@ -492,6 +535,9 @@
       "noActiveLabel": "尚未啟用",
       "activeHint": "當設定頁切到 AI 方案檔案模式時，執行時會優先讀取這裡對應的方案。",
       "noActiveHint": "如果你希望 AI 方案參與執行時讀取，請先在這裡啟用一個方案檔案，再到設定頁切換來源。",
+      "openWorkspace": "打開方案工作區",
+      "updatedAt": "更新時間",
+      "confidenceTitle": "置信度",
       "preview": "查看詳情",
       "activate": "切換啟用",
       "fields": {

@@ -4,6 +4,29 @@
 
 ---
 
+## 1.16(beta) - 2026-05-02
+
+### ✨ AI 自动化中心重建
+
+- `AI Automation` 按 `单页内二级视图 + 单 AI 主链优先 + 右侧状态栏 + 固定高度工作区` 重建，顶层路由仍保持 `ai`。
+- 首屏主链收敛为 `任务类型 -> 输入 -> 执行模型/来源 -> 运行 -> 当前结果`，结果默认摘要视图，并保留 `对比 / 原始` 切换。
+- `AI Profile` 继续主链化：结果区可一键启用新产出的 Profile，但默认不自动切换运行来源；`manual / ai_profile` 保护链继续保留。
+- 多 AI 能力保留为二级“高级调度区”，支持 `split mode / dispatch mode / 并发数 / lane 模型覆盖 / lane 来源覆盖`，不再抢占首屏。
+- 模板、工具、快照、历史、学习全部收敛到固定容器内滚动区域，移除大块说明卡、展开撑高和宣传式文案。
+
+### 🔧 前端契约与验证
+
+- `web/src/components/modules/ai-automation/` 已拆分为稳定模块：页面壳、主链、状态栏、结果面板、Profile 面板、高级调度、资产区、学习区、历史区和共享逻辑。
+- 结果消费逻辑补强为优先读取 `result_payload`，并在仅返回 `result_json` 时安全回退解析，稳定支持 `摘要 / 对比 / 原始 / 工具执行 / Profile 产物 / 保护动作`。
+- 四套语言 `zh-Hans / zh-Hant / ja / en` 已同步到新工作台结构，避免 key path 泄漏、英文 fallback 和混语。
+- AI 自动化页面测试、设置页联动测试、学习焦点静态守门已按新结构重写，保持单 AI 主链、多 AI 调度、Profile 激活、学习区、历史区与脱敏 API key 覆盖。
+
+### 📦 发布与版本
+
+- 当前发布版本升级为 `1.16(beta)`，Git tag / Release 名称同步为 `v1.16-beta`。
+- 后端默认版本、前端展示版本、仓库级 `VERSION` 版本源、Debian Docker 构建默认版本注入统一同步到 `1.16(beta)`。
+- `docs/UI_MAINLINE_TASK_2026-04-30.zh-CN.md` 与 `docs/MANUAL_FRONTEND_CHECKLIST.zh-CN.md` 已改写为本轮 AI 自动化整页重建口径和验收项。
+
 ## 1.12.5(beta) - 2026-05-01
 
 ### 🐛 Bug 修复

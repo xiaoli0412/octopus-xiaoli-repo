@@ -1,2 +1,2 @@
-export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '1.12.5(beta)';
+export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '1.16(beta)';
 export const GITHUB_REPO = process.env.NEXT_PUBLIC_GITHUB_REPO || 'https://github.com/xiaoli0412/octopus-xiaoli-repo';

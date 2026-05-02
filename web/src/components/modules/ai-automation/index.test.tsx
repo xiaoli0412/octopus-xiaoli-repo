@@ -64,8 +64,6 @@ const state = vi.hoisted(() => ({
   fetchModelsMutateAsync: vi.fn(),
   createPromptTemplateMutateAsync: vi.fn(),
   createTaskMutateAsync: vi.fn(),
-  cancelTaskMutate: vi.fn(),
-  retryTaskMutate: vi.fn(),
   activateProfileMutateAsync: vi.fn(),
   resetLearningMutate: vi.fn(),
   setSettingMutate: vi.fn(),
@@ -182,8 +180,6 @@ vi.mock('@/api/endpoints/ai-automation', () => ({
   useAITask: () => ({ data: state.latestTask }),
   useAITaskArtifacts: () => ({ data: state.latestTask?.result_json ? { result_json: state.latestTask.result_json } : undefined }),
   useAITasks: () => ({ data: state.taskHistory, isLoading: false }),
-  useCancelAITask: () => ({ isPending: false, mutate: state.cancelTaskMutate }),
-  useRetryAITask: () => ({ isPending: false, mutate: state.retryTaskMutate }),
   useAIProfiles: () => ({ data: state.profiles }),
   useAIProfile: (id?: number) => ({ data: id ? state.profileDetails[id] : undefined }),
   useActivateAIProfile: () => ({ isPending: false, mutateAsync: state.activateProfileMutateAsync }),
@@ -198,12 +194,16 @@ describe('AIAutomation', () => {
     Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: state.scrollIntoViewMock });
 
     state.latestTask = undefined;
+    state.learning = {
+      enabled: true,
+      states: [
+        { id: 301, channel_id: 7, channel_key_id: 3, model_name: 'gpt-free', success_count: 9, failure_count: 1, fallback_count: 2, race_winner_count: 6, latency_ms_ewma: 180, score: 0.88, confidence: 0.81, last_sample_at: 1713900000 },
+      ],
+    };
     state.updateConfigMutateAsync.mockReset();
     state.fetchModelsMutateAsync.mockReset();
     state.createPromptTemplateMutateAsync.mockReset();
     state.createTaskMutateAsync.mockReset();
-    state.cancelTaskMutate.mockReset();
-    state.retryTaskMutate.mockReset();
     state.activateProfileMutateAsync.mockReset();
     state.resetLearningMutate.mockReset();
     state.setSettingMutate.mockReset();
@@ -214,9 +214,9 @@ describe('AIAutomation', () => {
     state.toastWarning.mockReset();
     state.scrollIntoViewMock.mockReset();
 
-	state.config.api_key = '';
-	state.config.manual_config.api_key = '';
-	state.config.effective_config.api_key = '';
+    state.config.api_key = '';
+    state.config.manual_config.api_key = '';
+    state.config.effective_config.api_key = '';
 
     state.updateConfigMutateAsync.mockResolvedValue(state.config);
     state.fetchModelsMutateAsync.mockResolvedValue({ source: 'local', candidates: state.modelCandidates, selected_name: 'gpt-free', policy: 'free-success-latency' });
@@ -227,15 +227,15 @@ describe('AIAutomation', () => {
     state.resetLearningMutate.mockImplementation((_payload: unknown, options?: { onSuccess?: () => void }) => options?.onSuccess?.());
   });
 
-  it('renders the rebuilt workbench shell and learning section markers', () => {
+  it('renders the rebuilt workbench shell', () => {
     render(<AIAutomation />);
 
     expect(screen.getByTestId('ai-automation-page')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-automation-learning-section')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-automation-learning-controls')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-automation-learning-preset-card')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-automation-learning-switch-card')).toBeInTheDocument();
     expect(screen.getByText('aiAutomation.hero.title')).toBeInTheDocument();
+    expect(screen.getByText('aiAutomation.sidebar.title')).toBeInTheDocument();
+    expect(screen.getByTestId('result-view-summary')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'aiAutomation.views.result' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'aiAutomation.views.history' })).toBeInTheDocument();
   });
 
   it('creates a task from the main chain', async () => {
@@ -254,10 +254,10 @@ describe('AIAutomation', () => {
     expect(payload.config_snapshot.model).toBe('gpt-free');
   });
 
-  it('creates a custom prompt template from the template workspace', async () => {
+  it('creates a custom prompt template from assets workspace', async () => {
     render(<AIAutomation />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.task.promptTemplatesTitle' }));
+    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.views.assets' }));
     fireEvent.change(screen.getByPlaceholderText('aiAutomation.task.templateNamePlaceholder'), { target: { value: 'My Template' } });
     fireEvent.change(screen.getByPlaceholderText('aiAutomation.task.templatePromptPlaceholder'), { target: { value: 'normalize channels' } });
     fireEvent.change(screen.getByPlaceholderText('aiAutomation.task.templateRequirementPlaceholder'), { target: { value: 'keep manual config' } });
@@ -268,20 +268,43 @@ describe('AIAutomation', () => {
     });
   });
 
-  it('shows structured profile preview in the profiles workspace', () => {
+  it('shows structured profile preview in profiles workspace', () => {
     render(<AIAutomation />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.profiles.title' }));
+    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.views.profiles' }));
+
+    expect(screen.getByText('aiAutomation.profiles.title')).toBeInTheDocument();
     expect(screen.getByTestId('ai-profile-structured-preview')).toBeInTheDocument();
   });
 
-  it('renders task history list and paging controls', () => {
+  it('launches multi-lane dispatch from advanced dispatch workspace', async () => {
     render(<AIAutomation />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.taskHistory.historyTitle' }));
+    fireEvent.change(screen.getByPlaceholderText('aiAutomation.task.placeholder'), { target: { value: '做一次多 AI 分流审查' } });
+    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.views.dispatch' }));
+    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.task.runMultiLane' }));
+
+    await waitFor(() => {
+      expect(state.createTaskMutateAsync).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  it('renders task history and learning workspace together', () => {
+    render(<AIAutomation />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.views.history' }));
+
+    expect(screen.getByTestId('ai-automation-learning-controls')).toBeInTheDocument();
+    expect(screen.getByTestId('ai-automation-learning-preset-card')).toBeInTheDocument();
+    expect(screen.getByTestId('ai-automation-learning-switch-card')).toBeInTheDocument();
     expect(screen.getByText(/#601/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'aiAutomation.taskHistory.historyPrev' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'aiAutomation.taskHistory.historyNext' })).toBeInTheDocument();
+    expect(screen.getByTestId('ai-automation-learning-section')).toBeInTheDocument();
+    expect(screen.getByTestId('ai-automation-learning-state-summary')).toBeInTheDocument();
+    expect(screen.getByTestId('ai-automation-learning-secondary-summary')).toBeInTheDocument();
+    expect(screen.getByTestId('ai-automation-learning-states')).toBeInTheDocument();
+    expect(screen.getByTestId('ai-automation-learning-state-301')).toBeInTheDocument();
   });
 
   it('consumes queued learning focus target and scrolls to learning section', async () => {
@@ -292,20 +315,13 @@ describe('AIAutomation', () => {
     await waitFor(() => {
       expect(state.scrollIntoViewMock).toHaveBeenCalled();
     });
-  });
-
-  it('renders learning summaries and state cards', () => {
-    render(<AIAutomation />);
-
-    expect(screen.getByTestId('ai-automation-learning-state-summary')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-automation-learning-secondary-summary')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-automation-learning-states')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-automation-learning-state-301')).toBeInTheDocument();
+    expect(screen.getByTestId('ai-automation-learning-section')).toBeInTheDocument();
   });
 
   it('toggles learning preset and reset action', async () => {
     render(<AIAutomation />);
 
+    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.views.history' }));
     fireEvent.click(screen.getByTestId('ai-automation-learning-preset-safe'));
 
     await waitFor(() => {
@@ -323,37 +339,60 @@ describe('AIAutomation', () => {
     state.learning = { enabled: true, states: [] };
 
     render(<AIAutomation />);
+    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.views.history' }));
 
     expect(screen.getByTestId('ai-automation-learning-empty')).toBeInTheDocument();
   });
 
-	it('omits redacted api key placeholder from config save payload', async () => {
-	  state.config.api_key = '[redacted]';
-	  state.config.manual_config.api_key = '[redacted]';
-	  state.config.effective_config.api_key = '[redacted]';
+  it('activates profile from result panel when result contains profile output', async () => {
+    state.latestTask = {
+      id: 777,
+      status: 'succeeded',
+      progress: 100,
+      result_summary: 'profile generated',
+      result_json: '{"result_payload":{"summary":"done","domain_payload":{"groups":1},"tool_execution":{"writes":[{"key":"profile_write","profile_id":12}],"protected_actions":[]}}}',
+      error_message: '',
+      steps: [],
+      selected_model: 'gpt-free',
+      updated_at: '2026-04-24T00:00:00Z',
+      type: 'group_suggestion',
+    };
 
-	  render(<AIAutomation />);
-	  fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.config.save' }));
+    render(<AIAutomation />);
+    fireEvent.click(screen.getAllByRole('button', { name: 'aiAutomation.result.activateProfile' })[0]);
 
-	  await waitFor(() => {
-		expect(state.updateConfigMutateAsync).toHaveBeenCalledTimes(1);
-	  });
+    await waitFor(() => {
+      expect(state.activateProfileMutateAsync).toHaveBeenCalledWith(12);
+    });
+  });
 
-	  expect(state.updateConfigMutateAsync.mock.calls[0]?.[0]?.api_key).toBeUndefined();
-	});
+  it('omits redacted api key placeholder from config save payload', async () => {
+    state.config.api_key = '[redacted]';
+    state.config.manual_config.api_key = '[redacted]';
+    state.config.effective_config.api_key = '[redacted]';
 
-	it('omits redacted api key placeholder from model fetch payload', async () => {
-	  state.config.api_key = '[redacted]';
-	  state.config.manual_config.api_key = '[redacted]';
-	  state.config.effective_config.api_key = '[redacted]';
+    render(<AIAutomation />);
+    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.config.save' }));
 
-	  render(<AIAutomation />);
-	  fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.config.fetchModels' }));
+    await waitFor(() => {
+      expect(state.updateConfigMutateAsync).toHaveBeenCalledTimes(1);
+    });
 
-	  await waitFor(() => {
-		expect(state.fetchModelsMutateAsync).toHaveBeenCalledTimes(1);
-	  });
+    expect(state.updateConfigMutateAsync.mock.calls[0]?.[0]?.api_key).toBeUndefined();
+  });
 
-	  expect(state.fetchModelsMutateAsync.mock.calls[0]?.[0]?.api_key).toBeUndefined();
-	});
+  it('omits redacted api key placeholder from model fetch payload', async () => {
+    state.config.api_key = '[redacted]';
+    state.config.manual_config.api_key = '[redacted]';
+    state.config.effective_config.api_key = '[redacted]';
+
+    render(<AIAutomation />);
+    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.config.fetchModels' }));
+
+    await waitFor(() => {
+      expect(state.fetchModelsMutateAsync).toHaveBeenCalledTimes(1);
+    });
+
+    expect(state.fetchModelsMutateAsync.mock.calls[0]?.[0]?.api_key).toBeUndefined();
+  });
 });

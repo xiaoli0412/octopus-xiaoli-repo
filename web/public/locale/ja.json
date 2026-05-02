@@ -90,9 +90,51 @@
       "models": "候補モデル",
       "learning": "学習状態"
     },
+    "views": {
+      "result": "実行結果",
+      "profiles": "AI プラン保存",
+      "dispatch": "高度ディスパッチ",
+      "assets": "テンプレートとツール",
+      "history": "履歴と学習"
+    },
+    "sidebar": {
+      "title": "ステータスバー",
+      "desc": "現在の実行状態です。",
+      "executionModel": "実行モデル",
+      "sourceMode": "ソースモード",
+      "activeProfile": "現在のプラン",
+      "learningState": "学習状態",
+      "latestSnapshot": "最新スナップショット",
+      "latestTask": "最新タスク"
+    },
+    "result": {
+      "title": "現在の結果",
+      "currentStatus": "現在の状態",
+      "updatedAt": "更新時刻",
+      "idleSummary": "まだ実行結果はありません。",
+      "empty": "まだ結果はありません。",
+      "profileOutputTitle": "プラン出力",
+      "profileReady": "この結果には切り替え可能なプランが用意されています。",
+      "profileNotReady": "この結果には新しいプラン出力が含まれていません。",
+      "activateProfile": "プランを有効化",
+      "protectedActionsTitle": "保護アクション",
+      "noProtectedActions": "保護アクションは実行されていません。",
+      "executed": "実行済み",
+      "notExecuted": "未実行",
+      "toolExecutionHint": "実行ソースを切り替える前に、ツール実行と保護アクション結果を確認してください。"
+    },
+    "dispatch": {
+      "title": "高度ディスパッチ",
+      "desc": "複数 AI の調度機能は残しつつ、最初の画面を占有させません。"
+    },
+    "assets": {
+      "templatesDesc": "テンプレート、ツール権限、スナップショットを再利用資産としてここへまとめます。"
+    },
     "config": {
       "title": "AI 実行モデル",
       "desc": "AI チャネル、モデル、接続先アドレスをカスタマイズできます。未設定時はローカル Octopus の OpenAI 互換エンドポイントを使います。",
+      "shortTitle": "実行ソース",
+      "shortDesc": "圧縮したソースとモデルの制御です。",
       "baseUrl": "接続先アドレス",
       "apiKey": "APIキー",
       "apiKeyPlaceholder": "任意: 一時的な API キーを入力するか、空欄でローカル既定値を使います",
@@ -216,6 +258,7 @@
       "diffSummary": "項目比較: 追加 {added}、削除 {removed}、共通 {shared}",
       "taskType": "タスク種別",
       "currentTaskTypeTitle": "現在のタスク説明",
+      "mainChainHint": "先頭画面には単一 AI の主導線だけを置き、高度ディスパッチ、テンプレート、ツール、学習は下部の固定ワークスペースへ集約します。",
       "types": {
         "natural_language": "自然言語整理",
         "group_suggestion": "スマートグループ化",
@@ -492,6 +535,9 @@
       "noActiveLabel": "まだ有効化されていません",
       "activeHint": "設定画面を AI プランモードに切り替えると、実行時はまずこの有効な AI プランを読み取ります。",
       "noActiveHint": "AI 生成プランを実行時の読み取りに参加させたい場合は、先にここで AI プランを有効化し、その後で設定画面のソースを切り替えてください。",
+      "openWorkspace": "プラン作業区を開く",
+      "updatedAt": "更新時刻",
+      "confidenceTitle": "信頼度",
       "preview": "詳細を見る",
       "activate": "有効化",
       "fields": {

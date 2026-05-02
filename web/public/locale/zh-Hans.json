@@ -90,9 +90,51 @@
       "models": "候选模型",
       "learning": "学习状态"
     },
+    "views": {
+      "result": "运行结果",
+      "profiles": "AI 方案档案",
+      "dispatch": "高级调度",
+      "assets": "模板与工具",
+      "history": "历史与学习"
+    },
+    "sidebar": {
+      "title": "状态栏",
+      "desc": "当前运行状态。",
+      "executionModel": "执行模型",
+      "sourceMode": "来源模式",
+      "activeProfile": "当前方案",
+      "learningState": "学习状态",
+      "latestSnapshot": "最近快照",
+      "latestTask": "最近任务"
+    },
+    "result": {
+      "title": "当前结果",
+      "currentStatus": "当前状态",
+      "updatedAt": "更新时间",
+      "idleSummary": "当前还没有运行结果。",
+      "empty": "还没有结果。",
+      "profileOutputTitle": "方案档案产出",
+      "profileReady": "当前结果已经生成可切换的方案档案。",
+      "profileNotReady": "当前结果没有新的方案档案产出。",
+      "activateProfile": "启用方案档案",
+      "protectedActionsTitle": "保护动作",
+      "noProtectedActions": "当前没有执行保护动作。",
+      "executed": "已执行",
+      "notExecuted": "未执行",
+      "toolExecutionHint": "切换运行来源前，先检查工具执行与保护动作结果。"
+    },
+    "dispatch": {
+      "title": "高级调度",
+      "desc": "保留多 AI 调度能力，但不让它抢占首屏。"
+    },
+    "assets": {
+      "templatesDesc": "模板、工具权限与快照统一收在这里作为可复用资产。"
+    },
     "config": {
       "title": "AI 执行模型",
       "desc": "自定义 AI 渠道、模型和接口地址；未自定义时默认使用本机 Octopus OpenAI 兼容地址。",
+      "shortTitle": "执行来源",
+      "shortDesc": "压缩后的来源与模型控制。",
       "baseUrl": "接口地址",
       "apiKey": "API 密钥",
       "apiKeyPlaceholder": "可选：输入临时 API 密钥或留空走本地默认",
@@ -216,6 +258,7 @@
       "diffSummary": "字段对比：新增 {added}，删除 {removed}，共享 {shared}",
       "taskType": "任务类型",
       "currentTaskTypeTitle": "当前任务说明",
+      "mainChainHint": "首屏只保留一条任务主链。高级调度、模板、历史和学习都下沉到二级工作区。",
       "types": {
         "natural_language": "自然语言整理",
         "group_suggestion": "智能分组",
@@ -487,6 +530,9 @@
       "migrationStatus": "迁移状态",
       "title": "AI 方案档案",
       "desc": "AI 生成的分组、渠道识别、价格识别和模型归类都保存在这里，可回看、可切换，不覆盖手动配置。",
+      "openWorkspace": "打开方案区",
+      "updatedAt": "更新时间",
+      "confidenceTitle": "置信度",
       "empty": "暂无 AI 方案档案。后续 AI 任务生成结果后会出现在这里。",
       "activeTitle": "已激活方案档案",
       "noActiveLabel": "尚未激活",
