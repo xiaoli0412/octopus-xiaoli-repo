@@ -594,7 +594,6 @@ func AITaskCancel(id int, ctx context.Context) (model.AITask, error) {
 	if isTerminalAITaskStatus(task.Status) {
 		return task, nil
 	}
-	cancelAITaskExecution(id)
 	now := time.Now()
 	updates := map[string]any{"status": model.AITaskStatusCanceled, "finished_at": &now, "progress": 100}
 	result := db.GetDB().WithContext(ctx).Model(&model.AITask{}).
@@ -606,6 +605,7 @@ func AITaskCancel(id int, ctx context.Context) (model.AITask, error) {
 	if result.RowsAffected == 0 {
 		return AITaskGet(id, ctx)
 	}
+	cancelAITaskExecution(id)
 	if !waitForAITaskStop(id, aiTaskCancelWaitTimeout) {
 		return model.AITask{}, fmt.Errorf("timed out waiting for AI task %d to stop", id)
 	}
