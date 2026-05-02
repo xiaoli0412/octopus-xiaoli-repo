@@ -55,6 +55,24 @@ require_command curl "Install curl and ensure it is on PATH."
 require_command python3 "Install Python 3 and ensure it is on PATH."
 
 mkdir -p "${COMPOSE_DATA_DIR}"
+chmod 0777 "${COMPOSE_DATA_DIR}" 2>/dev/null || true
+
+cat > "${COMPOSE_DATA_DIR}/config.json" <<'JSON'
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8080,
+    "static_dir": "static/out"
+  },
+  "database": {
+    "type": "sqlite",
+    "path": "data/data.db"
+  },
+  "log": {
+    "level": "info"
+  }
+}
+JSON
 
 write_step "Building and starting docker compose runtime"
 (
