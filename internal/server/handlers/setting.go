@@ -7,24 +7,26 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/resp"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/task"
-	"github.com/gin-gonic/gin"
 )
 
 type dbExportFormat string
 
 const (
-	dbExportFormatStandard dbExportFormat = "standard"
-	dbExportFormatLegacy   dbExportFormat = "legacy"
+	dbExportFormatStandard       dbExportFormat = "standard"
+	dbExportFormatLegacy         dbExportFormat = "legacy"
+	importSnapshotDisplayDirName                = "import-snapshots"
 )
 
 var maxDBImportPayloadBytes int64 = 128 << 20
@@ -121,14 +123,25 @@ func setSetting(c *gin.Context) {
 }
 
 func exportDB(c *gin.Context) {
-	includeLogs, _ := strconv.ParseBool(c.DefaultQuery("include_logs", "false"))
-	includeStats, _ := strconv.ParseBool(c.DefaultQuery("include_stats", "false"))
-	exportFormat := normalizeDBExportFormat(c.DefaultQuery("format", string(dbExportFormatStandard)))
-	includeSecretsRaw := strings.TrimSpace(c.Query("include_secrets"))
-	includeSecrets := true
-	if includeSecretsRaw != "" {
-		parsedIncludeSecrets, _ := strconv.ParseBool(includeSecretsRaw)
-		includeSecrets = parsedIncludeSecrets
+	includeLogs, err := parseOptionalBoolQuery(c, "include_logs", false)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	includeStats, err := parseOptionalBoolQuery(c, "include_stats", false)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	exportFormat, err := parseOptionalDBExportFormat(c, "format", dbExportFormatStandard)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	includeSecrets, err := parseOptionalBoolQuery(c, "include_secrets", true)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	dump, err := op.DBExportAll(c.Request.Context(), includeLogs, includeStats, includeSecrets)
@@ -152,8 +165,17 @@ func exportDB(c *gin.Context) {
 
 func importDB(c *gin.Context) {
 	var dump model.DBDump
-	dryRun, _ := strconv.ParseBool(c.DefaultQuery("dry_run", "false"))
-	mode := model.DefaultDBImportMode(c.DefaultQuery("mode", string(model.DBImportModeIncremental)))
+	dryRun, err := parseOptionalBoolQuery(c, "dry_run", false)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	modeRaw := strings.TrimSpace(c.DefaultQuery("mode", string(model.DBImportModeIncremental)))
+	mode := model.DefaultDBImportMode(modeRaw)
+	if modeRaw != "" && !model.IsValidDBImportMode(model.NormalizeDBImportMode(modeRaw)) {
+		resp.Error(c, http.StatusBadRequest, "unsupported import mode")
+		return
+	}
 	options := model.DBImportOptions{}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxDBImportPayloadBytes)
 	contentType := c.GetHeader("Content-Type")
@@ -262,7 +284,7 @@ func rollbackLatestImportSnapshot(c *gin.Context) {
 		return
 	}
 	_ = op.InitCache()
-	resp.Success(c, result)
+	resp.Success(c, sanitizeRollbackResult(result))
 }
 
 func listImportSnapshots(c *gin.Context) {
@@ -271,7 +293,11 @@ func listImportSnapshots(c *gin.Context) {
 		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	resp.Success(c, items)
+	sanitized := make([]model.DBImportSnapshotInfo, 0, len(items))
+	for _, item := range items {
+		sanitized = append(sanitized, sanitizeImportSnapshotInfo(item))
+	}
+	resp.Success(c, sanitized)
 }
 
 func rollbackImportSnapshot(c *gin.Context) {
@@ -289,7 +315,7 @@ func rollbackImportSnapshot(c *gin.Context) {
 		return
 	}
 	_ = op.InitCache()
-	resp.Success(c, result)
+	resp.Success(c, sanitizeRollbackResult(result))
 }
 
 func previewRollbackImportSnapshot(c *gin.Context) {
@@ -306,7 +332,42 @@ func previewRollbackImportSnapshot(c *gin.Context) {
 		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	resp.Success(c, result)
+	resp.Success(c, sanitizeRollbackPreviewResult(result))
+}
+
+func sanitizeSnapshotDisplayPath(snapshotName string) string {
+	trimmed := strings.TrimSpace(snapshotName)
+	if trimmed == "" {
+		return ""
+	}
+	displayName := filepath.Base(strings.ReplaceAll(trimmed, `\`, `/`))
+	if displayName == "." || displayName == "/" || strings.TrimSpace(displayName) == "" {
+		return ""
+	}
+	return importSnapshotDisplayDirName + "/" + displayName
+}
+
+func sanitizeImportSnapshotInfo(item model.DBImportSnapshotInfo) model.DBImportSnapshotInfo {
+	item.SnapshotPath = sanitizeSnapshotDisplayPath(item.SnapshotName)
+	return item
+}
+
+func sanitizeRollbackResult(result *model.DBRollbackResult) *model.DBRollbackResult {
+	if result == nil {
+		return nil
+	}
+	clone := *result
+	clone.SnapshotPath = sanitizeSnapshotDisplayPath(clone.SnapshotName)
+	return &clone
+}
+
+func sanitizeRollbackPreviewResult(result *model.DBRollbackPreviewResult) *model.DBRollbackPreviewResult {
+	if result == nil {
+		return nil
+	}
+	clone := *result
+	clone.SnapshotPath = sanitizeSnapshotDisplayPath(clone.SnapshotName)
+	return &clone
 }
 
 func respondImportReadError(c *gin.Context, err error, fallback string) {
@@ -379,11 +440,25 @@ func decodeDBDump(body []byte, dump *model.DBDump) error {
 
 func normalizeDBExportFormat(input string) dbExportFormat {
 	switch strings.ToLower(strings.TrimSpace(input)) {
+	case "", string(dbExportFormatStandard):
+		return dbExportFormatStandard
 	case string(dbExportFormatLegacy):
 		return dbExportFormatLegacy
 	default:
-		return dbExportFormatStandard
+		return ""
 	}
+}
+
+func parseOptionalDBExportFormat(c *gin.Context, key string, defaultValue dbExportFormat) (dbExportFormat, error) {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return defaultValue, nil
+	}
+	format := normalizeDBExportFormat(raw)
+	if format == "" {
+		return "", fmt.Errorf("unsupported export format")
+	}
+	return format, nil
 }
 
 func attachLegacyHints(body []byte, dump *model.DBDump) {

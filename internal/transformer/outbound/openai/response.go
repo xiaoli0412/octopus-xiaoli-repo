@@ -39,8 +39,47 @@ type streamedToolCallState struct {
 }
 
 type streamedMessageState struct {
-	ItemID   string
-	TextSeen bool
+	ItemID             string
+	WholeTextSeen      bool
+	SeenContentIndexes map[int]struct{}
+}
+
+func (s *streamedMessageState) contentSeen(contentIndex *int) bool {
+	if s == nil {
+		return false
+	}
+	if s.WholeTextSeen {
+		return true
+	}
+	if contentIndex == nil || s.SeenContentIndexes == nil {
+		return false
+	}
+	_, ok := s.SeenContentIndexes[*contentIndex]
+	return ok
+}
+
+func (s *streamedMessageState) anyTextSeen() bool {
+	if s == nil {
+		return false
+	}
+	return s.WholeTextSeen || len(s.SeenContentIndexes) > 0
+}
+
+func (s *streamedMessageState) markTextSeen(contentIndex *int) {
+	if s == nil {
+		return
+	}
+	if contentIndex == nil {
+		s.WholeTextSeen = true
+		return
+	}
+	if s.SeenContentIndexes == nil {
+		s.SeenContentIndexes = make(map[int]struct{})
+	}
+	if s.WholeTextSeen {
+		return
+	}
+	s.SeenContentIndexes[*contentIndex] = struct{}{}
 }
 
 func (o *ResponseOutbound) resetToolCallStreamState() {
@@ -99,25 +138,31 @@ func (o *ResponseOutbound) markToolCallState(index int, itemID, callID, name, ar
 	return state
 }
 
-func (o *ResponseOutbound) messageState(outputIndex int, itemID *string) *streamedMessageState {
+func (o *ResponseOutbound) messageState(outputIndex *int, itemID *string) *streamedMessageState {
 	o.ensureMessageStreamState()
 
 	if itemID != nil && *itemID != "" {
 		if state, ok := o.messageStateByItemID[*itemID]; ok {
-			o.messageStateByOutput[outputIndex] = state
+			if outputIndex != nil {
+				o.messageStateByOutput[*outputIndex] = state
+			}
 			return state
 		}
 	}
-	if state, ok := o.messageStateByOutput[outputIndex]; ok {
-		if itemID != nil && *itemID != "" {
-			state.ItemID = *itemID
-			o.messageStateByItemID[*itemID] = state
+	if outputIndex != nil {
+		if state, ok := o.messageStateByOutput[*outputIndex]; ok {
+			if itemID != nil && *itemID != "" {
+				state.ItemID = *itemID
+				o.messageStateByItemID[*itemID] = state
+			}
+			return state
 		}
-		return state
 	}
 
 	state := &streamedMessageState{}
-	o.messageStateByOutput[outputIndex] = state
+	if outputIndex != nil {
+		o.messageStateByOutput[*outputIndex] = state
+	}
 	if itemID != nil && *itemID != "" {
 		state.ItemID = *itemID
 		o.messageStateByItemID[*itemID] = state
@@ -125,19 +170,26 @@ func (o *ResponseOutbound) messageState(outputIndex int, itemID *string) *stream
 	return state
 }
 
-func (o *ResponseOutbound) markMessageTextSeen(outputIndex int, itemID *string) *streamedMessageState {
+func (o *ResponseOutbound) markMessageTextSeen(outputIndex *int, itemID *string, contentIndex *int) *streamedMessageState {
 	state := o.messageState(outputIndex, itemID)
-	state.TextSeen = true
+	state.markTextSeen(contentIndex)
 	return state
 }
 
-func (o *ResponseOutbound) fallbackMessageTextChunk(outputIndex int, itemID *string, text string) *model.InternalLLMResponse {
+func (o *ResponseOutbound) fallbackMessageTextChunk(outputIndex *int, itemID *string, contentIndex *int, text string) *model.InternalLLMResponse {
 	state := o.messageState(outputIndex, itemID)
-	if text == "" || state.TextSeen {
+	if text == "" {
+		return nil
+	}
+	if contentIndex == nil {
+		if state.anyTextSeen() {
+			return nil
+		}
+	} else if state.contentSeen(contentIndex) {
 		return nil
 	}
 
-	o.markMessageTextSeen(outputIndex, itemID)
+	o.markMessageTextSeen(outputIndex, itemID, contentIndex)
 	return &model.InternalLLMResponse{
 		ID:      o.streamID,
 		Model:   o.streamModel,
@@ -155,16 +207,72 @@ func (o *ResponseOutbound) fallbackMessageTextChunk(outputIndex int, itemID *str
 	}
 }
 
-func (o *ResponseOutbound) fallbackMessageChunk(outputIndex int, item *ResponsesItem) *model.InternalLLMResponse {
+func resolvedMessageItemID(item *ResponsesItem, streamItemID *string) *string {
+	if item != nil && item.ID != "" {
+		return &item.ID
+	}
+	if streamItemID != nil && *streamItemID != "" {
+		return streamItemID
+	}
+	return nil
+}
+
+func resolvedToolCallItemID(item *ResponsesItem, streamItemID *string) string {
+	if item != nil && item.ID != "" {
+		return item.ID
+	}
+	return resolvedStreamItemID(streamItemID)
+}
+
+func (o *ResponseOutbound) fallbackMessageChunk(outputIndex *int, item *ResponsesItem, streamItemID *string) *model.InternalLLMResponse {
 	if item == nil {
 		return nil
 	}
 
-	return o.fallbackMessageTextChunk(outputIndex, lo.ToPtr(item.ID), extractOutputMessageText(item))
+	state := o.messageState(outputIndex, resolvedMessageItemID(item, streamItemID))
+	if item.Content == nil || len(item.Content.Items) == 0 {
+		return nil
+	}
+
+	var text strings.Builder
+	seenContentIndexes := make([]int, 0, len(item.Content.Items))
+	for contentIndex, contentItem := range item.Content.Items {
+		if contentItem.Type != "output_text" || contentItem.Text == nil || *contentItem.Text == "" {
+			continue
+		}
+		if state.contentSeen(&contentIndex) {
+			continue
+		}
+		text.WriteString(*contentItem.Text)
+		seenContentIndexes = append(seenContentIndexes, contentIndex)
+	}
+	if text.Len() == 0 {
+		return nil
+	}
+
+	for _, contentIndex := range seenContentIndexes {
+		o.markMessageTextSeen(outputIndex, resolvedMessageItemID(item, streamItemID), lo.ToPtr(contentIndex))
+	}
+
+	return &model.InternalLLMResponse{
+		ID:      o.streamID,
+		Model:   o.streamModel,
+		Object:  "chat.completion.chunk",
+		Created: 0,
+		Choices: []model.Choice{{
+			Index: 0,
+			Delta: &model.Message{
+				Role: "assistant",
+				Content: model.MessageContent{
+					Content: lo.ToPtr(text.String()),
+				},
+			},
+		}},
+	}
 }
 
 func (o *ResponseOutbound) fallbackToolCallChunk(index int, itemID, callID, name, arguments string) *model.InternalLLMResponse {
-	state := o.markToolCallState(index, itemID, callID, "", "", false)
+	state := o.toolCallState(index)
 
 	missingID := state.CallID == "" && callID != ""
 	missingName := !state.NameSeen && name != ""
@@ -188,7 +296,7 @@ func (o *ResponseOutbound) fallbackToolCallChunk(index int, itemID, callID, name
 		toolCall.Function.Arguments = arguments
 	}
 
-	o.markToolCallState(index, itemID, callID, toolCall.Function.Name, toolCall.Function.Arguments, false)
+	o.markToolCallState(index, itemID, callID, name, arguments, false)
 
 	return &model.InternalLLMResponse{
 		ID:      o.streamID,
@@ -205,12 +313,14 @@ func (o *ResponseOutbound) fallbackToolCallChunk(index int, itemID, callID, name
 	}
 }
 
-func (o *ResponseOutbound) rememberToolCallIndex(outputIndex int, itemID, callID string) int {
+func (o *ResponseOutbound) rememberToolCallIndex(outputIndex *int, itemID, callID string) int {
 	o.ensureToolCallStreamState()
 
 	if itemID != "" {
 		if idx, ok := o.toolCallIndexByItemID[itemID]; ok {
-			o.toolCallIndexByOutput[outputIndex] = idx
+			if outputIndex != nil {
+				o.toolCallIndexByOutput[*outputIndex] = idx
+			}
 			if callID != "" {
 				o.toolCallIndexByCallID[callID] = idx
 			}
@@ -219,26 +329,32 @@ func (o *ResponseOutbound) rememberToolCallIndex(outputIndex int, itemID, callID
 	}
 	if callID != "" {
 		if idx, ok := o.toolCallIndexByCallID[callID]; ok {
-			o.toolCallIndexByOutput[outputIndex] = idx
+			if outputIndex != nil {
+				o.toolCallIndexByOutput[*outputIndex] = idx
+			}
 			if itemID != "" {
 				o.toolCallIndexByItemID[itemID] = idx
 			}
 			return idx
 		}
 	}
-	if idx, ok := o.toolCallIndexByOutput[outputIndex]; ok {
-		if itemID != "" {
-			o.toolCallIndexByItemID[itemID] = idx
+	if outputIndex != nil {
+		if idx, ok := o.toolCallIndexByOutput[*outputIndex]; ok {
+			if itemID != "" {
+				o.toolCallIndexByItemID[itemID] = idx
+			}
+			if callID != "" {
+				o.toolCallIndexByCallID[callID] = idx
+			}
+			return idx
 		}
-		if callID != "" {
-			o.toolCallIndexByCallID[callID] = idx
-		}
-		return idx
 	}
 
 	idx := o.nextToolCallIndex
 	o.nextToolCallIndex++
-	o.toolCallIndexByOutput[outputIndex] = idx
+	if outputIndex != nil {
+		o.toolCallIndexByOutput[*outputIndex] = idx
+	}
 	if itemID != "" {
 		o.toolCallIndexByItemID[itemID] = idx
 	}
@@ -248,7 +364,7 @@ func (o *ResponseOutbound) rememberToolCallIndex(outputIndex int, itemID, callID
 	return idx
 }
 
-func (o *ResponseOutbound) toolCallIndexForStreamEvent(outputIndex int, itemID *string, callID string) int {
+func (o *ResponseOutbound) toolCallIndexForStreamEvent(outputIndex *int, itemID *string, callID string) int {
 	resolvedItemID := ""
 	if itemID != nil {
 		resolvedItemID = *itemID
@@ -372,7 +488,7 @@ func (o *ResponseOutbound) TransformStream(ctx context.Context, eventData []byte
 		}
 
 	case "response.output_text.delta":
-		o.markMessageTextSeen(streamEvent.OutputIndex, streamEvent.ItemID)
+		o.markMessageTextSeen(streamEvent.OutputIndex, streamEvent.ItemID, streamEvent.ContentIndex)
 		resp.Choices = []model.Choice{
 			{
 				Index: 0,
@@ -386,7 +502,17 @@ func (o *ResponseOutbound) TransformStream(ctx context.Context, eventData []byte
 		}
 
 	case "response.output_text.done":
-		fallback := o.fallbackMessageTextChunk(streamEvent.OutputIndex, streamEvent.ItemID, streamEvent.Text)
+		fallback := o.fallbackMessageTextChunk(streamEvent.OutputIndex, streamEvent.ItemID, streamEvent.ContentIndex, streamEvent.Text)
+		if fallback == nil {
+			return nil, nil
+		}
+		resp = fallback
+
+	case "response.content_part.done":
+		if streamEvent.Part == nil || streamEvent.Part.Type != "output_text" || streamEvent.Part.Text == nil {
+			return nil, nil
+		}
+		fallback := o.fallbackMessageTextChunk(streamEvent.OutputIndex, streamEvent.ItemID, streamEvent.ContentIndex, *streamEvent.Part.Text)
 		if fallback == nil {
 			return nil, nil
 		}
@@ -417,26 +543,14 @@ func (o *ResponseOutbound) TransformStream(ctx context.Context, eventData []byte
 
 	case "response.output_item.added":
 		if streamEvent.Item != nil && streamEvent.Item.Type == "function_call" {
-			toolCallIndex := o.rememberToolCallIndex(streamEvent.OutputIndex, streamEvent.Item.ID, streamEvent.Item.CallID)
-			o.markToolCallState(toolCallIndex, streamEvent.Item.ID, streamEvent.Item.CallID, streamEvent.Item.Name, "", true)
-			resp.Choices = []model.Choice{
-				{
-					Index: 0,
-					Delta: &model.Message{
-						Role: "assistant",
-						ToolCalls: []model.ToolCall{
-							{
-								Index: toolCallIndex,
-								ID:    streamEvent.Item.CallID,
-								Type:  "function",
-								Function: model.FunctionCall{
-									Name: streamEvent.Item.Name,
-								},
-							},
-						},
-					},
-				},
+			resolvedItemID := resolvedToolCallItemID(streamEvent.Item, streamEvent.ItemID)
+			toolCallIndex := o.rememberToolCallIndex(streamEvent.OutputIndex, resolvedItemID, streamEvent.Item.CallID)
+			fallback := o.fallbackToolCallChunk(toolCallIndex, resolvedItemID, streamEvent.Item.CallID, streamEvent.Item.Name, "")
+			o.markToolCallState(toolCallIndex, resolvedItemID, streamEvent.Item.CallID, streamEvent.Item.Name, "", true)
+			if fallback == nil {
+				return nil, nil
 			}
+			resp = fallback
 		} else {
 			return nil, nil
 		}
@@ -455,14 +569,15 @@ func (o *ResponseOutbound) TransformStream(ctx context.Context, eventData []byte
 		}
 		switch streamEvent.Item.Type {
 		case "function_call":
-			toolCallIndex := o.rememberToolCallIndex(streamEvent.OutputIndex, streamEvent.Item.ID, streamEvent.Item.CallID)
-			fallback := o.fallbackToolCallChunk(toolCallIndex, streamEvent.Item.ID, streamEvent.Item.CallID, streamEvent.Item.Name, streamEvent.Item.Arguments)
+			resolvedItemID := resolvedToolCallItemID(streamEvent.Item, streamEvent.ItemID)
+			toolCallIndex := o.rememberToolCallIndex(streamEvent.OutputIndex, resolvedItemID, streamEvent.Item.CallID)
+			fallback := o.fallbackToolCallChunk(toolCallIndex, resolvedItemID, streamEvent.Item.CallID, streamEvent.Item.Name, streamEvent.Item.Arguments)
 			if fallback == nil {
 				return nil, nil
 			}
 			resp = fallback
 		case "message":
-			fallback := o.fallbackMessageChunk(streamEvent.OutputIndex, streamEvent.Item)
+			fallback := o.fallbackMessageChunk(streamEvent.OutputIndex, streamEvent.Item, streamEvent.ItemID)
 			if fallback == nil {
 				return nil, nil
 			}
@@ -737,21 +852,28 @@ type ResponsesError struct {
 }
 
 type ResponsesStreamEvent struct {
-	Type           string             `json:"type"`
-	SequenceNumber int                `json:"sequence_number"`
-	Response       *ResponsesResponse `json:"response,omitempty"`
-	OutputIndex    int                `json:"output_index"`
-	Item           *ResponsesItem     `json:"item,omitempty"`
-	ItemID         *string            `json:"item_id,omitempty"`
-	ContentIndex   *int               `json:"content_index,omitempty"`
-	Delta          string             `json:"delta,omitempty"`
-	Text           string             `json:"text,omitempty"`
-	Name           string             `json:"name,omitempty"`
-	CallID         string             `json:"call_id,omitempty"`
-	Arguments      string             `json:"arguments,omitempty"`
-	SummaryIndex   *int               `json:"summary_index,omitempty"`
-	Code           string             `json:"code,omitempty"`
-	Message        string             `json:"message,omitempty"`
+	Type           string                `json:"type"`
+	SequenceNumber int                   `json:"sequence_number"`
+	Response       *ResponsesResponse    `json:"response,omitempty"`
+	OutputIndex    *int                  `json:"output_index,omitempty"`
+	Item           *ResponsesItem        `json:"item,omitempty"`
+	ItemID         *string               `json:"item_id,omitempty"`
+	ContentIndex   *int                  `json:"content_index,omitempty"`
+	Delta          string                `json:"delta,omitempty"`
+	Text           string                `json:"text,omitempty"`
+	Name           string                `json:"name,omitempty"`
+	CallID         string                `json:"call_id,omitempty"`
+	Arguments      string                `json:"arguments,omitempty"`
+	SummaryIndex   *int                  `json:"summary_index,omitempty"`
+	Part           *ResponsesContentPart `json:"part,omitempty"`
+	Code           string                `json:"code,omitempty"`
+	Message        string                `json:"message,omitempty"`
+}
+
+type ResponsesContentPart struct {
+	Type        string                `json:"type"`
+	Text        *string               `json:"text,omitempty"`
+	Annotations []ResponsesAnnotation `json:"annotations,omitempty"`
 }
 
 // Conversion functions

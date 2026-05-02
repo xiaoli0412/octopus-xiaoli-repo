@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/gin-gonic/gin"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 )
 
 func TestCreateGroupReturnsBadRequestForInvalidRuntimeConfig(t *testing.T) {
@@ -50,6 +50,21 @@ func TestDeleteGroupReturnsNotFoundForMissingGroup(t *testing.T) {
 
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusNotFound, recorder.Body.String())
+	}
+}
+
+func TestDeleteGroupRejectsNonPositivePathIDs(t *testing.T) {
+	setupHandlerTest(t)
+
+	for _, id := range []string{"0", "-1"} {
+		recorder := performParamHandlerRequest(t, http.MethodDelete, "/api/v1/group/delete/"+id, nil, map[string]string{"id": id}, deleteGroup)
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("id %s status = %d, want %d, body = %s", id, recorder.Code, http.StatusBadRequest, recorder.Body.String())
+		}
+		res := decodeHandlerResponse(t, recorder)
+		if res.Message != "Invalid parameter" {
+			t.Fatalf("id %s message = %q, want %q", id, res.Message, "Invalid parameter")
+		}
 	}
 }
 

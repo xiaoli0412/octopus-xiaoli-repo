@@ -183,6 +183,45 @@ func TestAITaskHandlerCreatesProgressSteps(t *testing.T) {
 	}
 }
 
+func TestListAITasksRejectsInvalidPagingQueryValues(t *testing.T) {
+	setupHandlerTest(t)
+	if err := op.SettingSetString(model.SettingKeyAIAutomationEnabled, "true"); err != nil {
+		t.Fatalf("SettingSetString(enabled) error = %v", err)
+	}
+
+	for _, target := range []string{
+		"/api/v1/ai/tasks?page=nan",
+		"/api/v1/ai/tasks?page=0",
+		"/api/v1/ai/tasks?page=-1",
+		"/api/v1/ai/tasks?page_size=huge",
+		"/api/v1/ai/tasks?page_size=0",
+		"/api/v1/ai/tasks?page_size=-3",
+		"/api/v1/ai/tasks?page_size=101",
+	} {
+		recorder := performJSONHandlerRequest(t, http.MethodGet, target, nil, listAITasks)
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("target %s status = %d, want %d, body = %s", target, recorder.Code, http.StatusBadRequest, recorder.Body.String())
+		}
+	}
+}
+
+func TestListAITasksRejectsInvalidTimeFilterQueryValues(t *testing.T) {
+	setupHandlerTest(t)
+	if err := op.SettingSetString(model.SettingKeyAIAutomationEnabled, "true"); err != nil {
+		t.Fatalf("SettingSetString(enabled) error = %v", err)
+	}
+
+	for _, target := range []string{
+		"/api/v1/ai/tasks?created_from=not-a-rfc3339-timestamp",
+		"/api/v1/ai/tasks?created_to=still-not-a-rfc3339-timestamp",
+	} {
+		recorder := performJSONHandlerRequest(t, http.MethodGet, target, nil, listAITasks)
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("target %s status = %d, want %d, body = %s", target, recorder.Code, http.StatusBadRequest, recorder.Body.String())
+		}
+	}
+}
+
 func TestAITaskHandlerRejectsWhenDisabled(t *testing.T) {
 	setupHandlerTest(t)
 

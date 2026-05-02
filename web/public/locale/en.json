@@ -1160,6 +1160,7 @@
       "summaryRange": "{start} to {end}",
       "summaryFrom": "From {start}",
       "summaryTo": "Until {end}",
+      "partialRange": "Start and end time must be set together",
       "invalidRange": "Start time cannot be later than end time"
     },
     "card": {

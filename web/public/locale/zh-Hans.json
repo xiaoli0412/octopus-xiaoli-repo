@@ -1173,6 +1173,7 @@
       "summaryRange": "{start} 至 {end}",
       "summaryFrom": "从 {start} 开始",
       "summaryTo": "截止到 {end}",
+      "partialRange": "开始时间和结束时间必须同时填写",
       "invalidRange": "开始时间不能晚于结束时间"
     },
     "card": {

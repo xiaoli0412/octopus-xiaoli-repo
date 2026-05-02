@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db"
 	dbmodel "github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
@@ -21,7 +22,6 @@ import (
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/inbound"
 	tmodel "github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound"
-	"github.com/gin-gonic/gin"
 )
 
 func setupRelayTestDB(t *testing.T) context.Context {
@@ -1765,6 +1765,133 @@ func TestFinalizeRaceFallbackSuccessWritesResponseAndRecordsWinner(t *testing.T)
 	if metrics.InternalResponse == nil || metrics.ActualModel != "gpt-4o" {
 		t.Fatal("metrics should capture race fallback internal response and actual model")
 	}
+}
+
+func TestRelayLogJSONContentIsTruncatedPerStringField(t *testing.T) {
+	ctxDB := setupRelayTestDB(t)
+	longText := strings.Repeat("a", relayLogMaxStringRunes+128)
+	longReasoning := strings.Repeat("b", relayLogMaxStringRunes+64)
+	longArgument := strings.Repeat("c", relayLogMaxStringRunes+96)
+	longResponse := strings.Repeat("d", relayLogMaxStringRunes+160)
+
+	metrics := NewRelayMetrics(1, "gpt-4o", &tmodel.InternalLLMRequest{
+		Model: "gpt-4o",
+		Messages: []tmodel.Message{{
+			Role:    "user",
+			Content: tmodel.MessageContent{Content: strPtr(longText)},
+			ToolCalls: []tmodel.ToolCall{{
+				ID:   "tool-1",
+				Type: "function",
+				Function: tmodel.FunctionCall{
+					Name:      "search",
+					Arguments: longArgument,
+				},
+			}},
+			ReasoningContent: strPtr(longReasoning),
+		}},
+	})
+	metrics.SetInternalResponse(&tmodel.InternalLLMResponse{
+		ID:      "resp_1",
+		Object:  "chat.completion",
+		Created: time.Now().Unix(),
+		Model:   "gpt-4o",
+		Choices: []tmodel.Choice{{
+			Index: 0,
+			Message: &tmodel.Message{
+				Role:    "assistant",
+				Content: tmodel.MessageContent{Content: strPtr(longResponse)},
+			},
+		}},
+	}, "gpt-4o")
+
+	metrics.saveLog(ctxDB, nil, 10*time.Millisecond, nil, 0, "")
+
+	logs := relayLogsForTest(t)
+	if len(logs) != 1 {
+		t.Fatalf("logs len = %d, want 1", len(logs))
+	}
+
+	var requestPayload map[string]any
+	if err := json.Unmarshal([]byte(logs[0].RequestContent), &requestPayload); err != nil {
+		t.Fatalf("request content should remain valid JSON: %v", err)
+	}
+	messages, ok := requestPayload["messages"].([]any)
+	if !ok || len(messages) != 1 {
+		t.Fatalf("request messages = %#v, want single message", requestPayload["messages"])
+	}
+	message, ok := messages[0].(map[string]any)
+	if !ok {
+		t.Fatalf("request message = %#v, want object", messages[0])
+	}
+	if got := message["content"].(string); got != truncateRelayLogString(longText) {
+		t.Fatalf("request content length = %d, want truncated length %d", len([]rune(got)), len([]rune(truncateRelayLogString(longText))))
+	}
+	if got := message["reasoning_content"].(string); got != truncateRelayLogString(longReasoning) {
+		t.Fatalf("reasoning content not truncated as expected")
+	}
+	toolCalls, ok := message["tool_calls"].([]any)
+	if !ok || len(toolCalls) != 1 {
+		t.Fatalf("tool_calls = %#v, want single call", message["tool_calls"])
+	}
+	toolCall, ok := toolCalls[0].(map[string]any)
+	if !ok {
+		t.Fatalf("tool_call = %#v, want object", toolCalls[0])
+	}
+	function, ok := toolCall["function"].(map[string]any)
+	if !ok {
+		t.Fatalf("function = %#v, want object", toolCall["function"])
+	}
+	if got := function["arguments"].(string); got != truncateRelayLogString(longArgument) {
+		t.Fatalf("tool arguments not truncated as expected")
+	}
+
+	var responsePayload map[string]any
+	if err := json.Unmarshal([]byte(logs[0].ResponseContent), &responsePayload); err != nil {
+		t.Fatalf("response content should remain valid JSON: %v", err)
+	}
+	choices, ok := responsePayload["choices"].([]any)
+	if !ok || len(choices) != 1 {
+		t.Fatalf("response choices = %#v, want single choice", responsePayload["choices"])
+	}
+	choice, ok := choices[0].(map[string]any)
+	if !ok {
+		t.Fatalf("response choice = %#v, want object", choices[0])
+	}
+	respMessage, ok := choice["message"].(map[string]any)
+	if !ok {
+		t.Fatalf("response message = %#v, want object", choice["message"])
+	}
+	if got := respMessage["content"].(string); got != truncateRelayLogString(longResponse) {
+		t.Fatalf("response content not truncated as expected")
+	}
+	if !strings.Contains(logs[0].RequestContent, relayLogTruncatedSuffix) {
+		t.Fatalf("request content = %q, want truncation marker", logs[0].RequestContent)
+	}
+	if !strings.Contains(logs[0].ResponseContent, relayLogTruncatedSuffix) {
+		t.Fatalf("response content = %q, want truncation marker", logs[0].ResponseContent)
+	}
+}
+
+func TestRelayMetricsSaveUsesRequestContextForDailyStats(t *testing.T) {
+	setupRelayTestDB(t)
+
+	originalUpdate := relayStatsDailyUpdate
+	relayStatsDailyUpdate = func(ctx context.Context, metrics dbmodel.StatsMetrics) error {
+		if ctx == nil {
+			t.Fatal("stats daily update ctx = nil, want request context")
+		}
+		if ctx.Err() == nil {
+			t.Fatal("stats daily update ctx should be canceled after request cancellation")
+		}
+		return nil
+	}
+	t.Cleanup(func() { relayStatsDailyUpdate = originalUpdate })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	metrics := NewRelayMetrics(1, "gpt-4o", &tmodel.InternalLLMRequest{Model: "gpt-4o"})
+	metrics.Save(ctx, true, nil, nil)
 }
 
 func TestRunRaceFallbackCancelsSlowerLowerPriorityProbeAfterWinner(t *testing.T) {

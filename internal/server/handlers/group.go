@@ -5,16 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
+	"github.com/dlclark/regexp2"
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/resp"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
-	"github.com/dlclark/regexp2"
-	"github.com/gin-gonic/gin"
 )
 
 func respondGroupOpError(c *gin.Context, err error) {
@@ -136,10 +135,9 @@ func updateGroup(c *gin.Context) {
 }
 
 func deleteGroup(c *gin.Context) {
-	id := c.Param("id")
-	idNum, err := strconv.Atoi(id)
-	if err != nil {
-		resp.Error(c, http.StatusBadRequest, err.Error())
+	idNum, ok := parsePositivePathIDValue(c, "id")
+	if !ok {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidParam)
 		return
 	}
 	if err := op.GroupDel(idNum, c.Request.Context()); err != nil {

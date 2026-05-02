@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	transformerOutbound "github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound"
-	"github.com/gin-gonic/gin"
 )
 
 func TestUpsertRouteTargetOverrideSucceeds(t *testing.T) {
@@ -145,6 +145,28 @@ func TestListRouteTargetOverridesFiltersByChannel(t *testing.T) {
 	}
 }
 
+func TestListRouteTargetOverridesRejectsNonPositiveChannelIDFilter(t *testing.T) {
+	setupHandlerTest(t)
+
+	for _, target := range []string{
+		"/api/v1/route-target/list?channel_id=0",
+		"/api/v1/route-target/list?channel_id=-1",
+	} {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodGet, target, nil)
+		listRouteTargetOverrides(c)
+
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("target %s status = %d, want %d, body = %s", target, recorder.Code, http.StatusBadRequest, recorder.Body.String())
+		}
+		res := decodeHandlerResponse(t, recorder)
+		if res.Message != "invalid channel id" {
+			t.Fatalf("target %s message = %q, want invalid channel id", target, res.Message)
+		}
+	}
+}
+
 func TestDeleteRouteTargetOverrideReturnsNotFoundForMissingRow(t *testing.T) {
 	setupHandlerTest(t)
 
@@ -212,5 +234,27 @@ func TestListRouteTargetOverridesReturnsRows(t *testing.T) {
 	}
 	if len(rows) == 0 {
 		t.Fatalf("rows = %#v, want non-empty route target overrides", rows)
+	}
+}
+
+func TestListRouteTargetOverridesRejectsInvalidChannelIDFilter(t *testing.T) {
+	setupHandlerTest(t)
+
+	for _, target := range []string{
+		"/api/v1/route-target/list?channel_id=0",
+		"/api/v1/route-target/list?channel_id=-1",
+	} {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodGet, target, nil)
+		listRouteTargetOverrides(c)
+
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("target %s status = %d, want %d, body = %s", target, recorder.Code, http.StatusBadRequest, recorder.Body.String())
+		}
+		res := decodeHandlerResponse(t, recorder)
+		if res.Message != "invalid channel id" {
+			t.Fatalf("target %s message = %q, want invalid channel id", target, res.Message)
+		}
 	}
 }

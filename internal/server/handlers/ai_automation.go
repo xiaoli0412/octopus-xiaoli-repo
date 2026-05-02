@@ -4,16 +4,15 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/resp"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
-	"github.com/gin-gonic/gin"
 )
 
 func init() {
@@ -129,9 +128,31 @@ func createAITask(c *gin.Context) {
 }
 
 func listAITasks(c *gin.Context) {
+	page, err := parseOptionalIntQuery(c, "page", 1)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if page <= 0 {
+		resp.Error(c, http.StatusBadRequest, "invalid page")
+		return
+	}
+	pageSize, err := parseOptionalIntQuery(c, "page_size", 20)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if pageSize <= 0 {
+		resp.Error(c, http.StatusBadRequest, "invalid page_size")
+		return
+	}
+	if pageSize > 100 {
+		resp.Error(c, http.StatusBadRequest, "invalid page_size")
+		return
+	}
 	req := model.AITaskListRequest{
-		Page:          parseQueryInt(c, "page", 1),
-		PageSize:      parseQueryInt(c, "page_size", 20),
+		Page:          page,
+		PageSize:      pageSize,
 		Status:        strings.TrimSpace(c.Query("status")),
 		Type:          strings.TrimSpace(c.Query("type")),
 		ProfileDomain: strings.TrimSpace(c.Query("profile_domain")),
@@ -159,18 +180,6 @@ func listAITasks(c *gin.Context) {
 		return
 	}
 	resp.Success(c, result)
-}
-
-func parseQueryInt(c *gin.Context, name string, fallback int) int {
-	value := strings.TrimSpace(c.Query(name))
-	if value == "" {
-		return fallback
-	}
-	parsed, err := strconv.Atoi(value)
-	if err != nil {
-		return fallback
-	}
-	return parsed
 }
 
 func getAITask(c *gin.Context) {
@@ -261,8 +270,8 @@ func activateAIProfile(c *gin.Context) {
 }
 
 func parsePositivePathID(c *gin.Context, name string) (int, bool) {
-	id, err := strconv.Atoi(strings.TrimSpace(c.Param(name)))
-	if err != nil || id <= 0 {
+	id, ok := parsePositivePathIDValue(c, name)
+	if !ok {
 		resp.Error(c, http.StatusBadRequest, "invalid "+name)
 		return 0, false
 	}

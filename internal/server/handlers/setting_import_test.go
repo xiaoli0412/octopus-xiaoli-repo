@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
-	"github.com/gin-gonic/gin"
 )
 
 func TestExportDBDefaultsToFullSnapshotAndCanExplicitlyRedactSecrets(t *testing.T) {
@@ -144,6 +144,42 @@ func TestExportDBSupportsLegacyFormat(t *testing.T) {
 	}
 }
 
+func TestExportDBRejectsInvalidBooleanQueryValues(t *testing.T) {
+	setupHandlerTest(t)
+
+	for _, target := range []string{
+		`/api/v1/setting/export?include_logs=maybe`,
+		`/api/v1/setting/export?include_stats=definitely-not`,
+		`/api/v1/setting/export?include_secrets=redacted-please`,
+	} {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, target, nil)
+		exportDB(ctx)
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf(`target %s status = %d, want %d, body = %s`, target, recorder.Code, http.StatusBadRequest, recorder.Body.String())
+		}
+	}
+}
+
+func TestExportDBRejectsInvalidFormatQueryValue(t *testing.T) {
+	setupHandlerTest(t)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, `/api/v1/setting/export?format=surprise`, nil)
+
+	exportDB(ctx)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf(`status = %d, want %d, body = %s`, recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+	response := decodeHandlerResponse(t, recorder)
+	if !strings.Contains(response.Message, `unsupported export format`) {
+		t.Fatalf(`message = %q, want unsupported export format`, response.Message)
+	}
+}
+
 func TestDecodeDBDumpNormalizesLegacyRawStructure(t *testing.T) {
 	legacyJSON := []byte(`{"version":1,"exported_at":"2026-04-21T17:45:36Z","include_logs":false,"include_stats":false,"channels":[{"id":1,"name":"legacy-channel","type":0,"enabled":true,"base_urls":[{"url":"https://legacy.example.com/v1","delay":1}],"keys":null,"model":"gpt-4o","custom_model":""}],"channel_keys":[{"id":2,"channel_id":1,"enabled":true,"channel_key":"sk-legacy"}],"groups":[{"id":3,"name":"legacy-group","mode":1}],"group_items":[{"id":4,"group_id":3,"channel_id":1,"model_name":"gpt-4o","priority":1,"weight":1}],"llm_infos":[{"name":"gpt-4o","input":1,"output":2}],"api_keys":[{"id":5,"name":"client","api_key":"sk-client","enabled":true}],"settings":[{"key":"api_base_url","value":"https://legacy.example.com"}]}`)
 	var dump model.DBDump
@@ -212,6 +248,21 @@ func TestImportDBDryRunReturnsPreviewTokenAndApplyWithSameTokenSucceeds(t *testi
 	}
 	if !containsHandlerWarning(applyResult.Warnings, `dump contains no channels`) {
 		t.Fatalf(`apply warnings = %#v, want standard import warnings`, applyResult.Warnings)
+	}
+}
+
+func TestImportDBRejectsInvalidDryRunAndModeQueryValues(t *testing.T) {
+	setupHandlerTest(t)
+	dump := testImportPreviewDump(`https://preview-token.example.com`)
+
+	invalidDryRun := performImportMultipartHandlerRequest(t, `/api/v1/setting/import?dry_run=not-a-bool&mode=incremental`, dump, nil)
+	if invalidDryRun.Code != http.StatusBadRequest {
+		t.Fatalf(`invalid dry_run status = %d, want %d, body = %s`, invalidDryRun.Code, http.StatusBadRequest, invalidDryRun.Body.String())
+	}
+
+	invalidMode := performImportMultipartHandlerRequest(t, `/api/v1/setting/import?dry_run=true&mode=surprise`, dump, nil)
+	if invalidMode.Code != http.StatusBadRequest {
+		t.Fatalf(`invalid mode status = %d, want %d, body = %s`, invalidMode.Code, http.StatusBadRequest, invalidMode.Body.String())
 	}
 }
 
@@ -718,6 +769,14 @@ func TestPreviewRollbackImportSnapshotReturnsStructuredReport(t *testing.T) {
 	if len(snapshots) == 0 {
 		t.Fatalf(`snapshots = %#v, want at least one snapshot`, snapshots)
 	}
+	for _, snapshot := range snapshots {
+		if strings.Contains(snapshot.SnapshotPath, `:\\`) || strings.HasPrefix(snapshot.SnapshotPath, `/`) {
+			t.Fatalf(`snapshot_path = %q, want display-safe relative value`, snapshot.SnapshotPath)
+		}
+		if want := `import-snapshots/` + snapshot.SnapshotName; snapshot.SnapshotPath != want {
+			t.Fatalf(`snapshot_path = %q, want %q`, snapshot.SnapshotPath, want)
+		}
+	}
 
 	previewRecorder := performJSONHandlerRequest(t, http.MethodPost, `/api/v1/setting/preview-rollback-import-snapshot`, map[string]string{
 		`snapshot_name`: snapshots[0].SnapshotName,
@@ -732,6 +791,9 @@ func TestPreviewRollbackImportSnapshotReturnsStructuredReport(t *testing.T) {
 	}
 	if preview.SnapshotName != snapshots[0].SnapshotName {
 		t.Fatalf(`snapshot_name = %q, want %q`, preview.SnapshotName, snapshots[0].SnapshotName)
+	}
+	if preview.SnapshotPath != snapshots[0].SnapshotPath {
+		t.Fatalf(`snapshot_path = %q, want %q`, preview.SnapshotPath, snapshots[0].SnapshotPath)
 	}
 	if preview.ImportedAt.IsZero() {
 		t.Fatalf(`imported_at = %v, want non-zero`, preview.ImportedAt)
@@ -814,6 +876,9 @@ func TestPreviewRollbackImportSnapshotHonorsImportScopes(t *testing.T) {
 	if len(snapshots) == 0 {
 		t.Fatalf(`snapshots = %#v, want at least one snapshot`, snapshots)
 	}
+	if snapshots[0].SnapshotPath != `import-snapshots/`+snapshots[0].SnapshotName {
+		t.Fatalf(`snapshot_path = %q, want display-safe relative path`, snapshots[0].SnapshotPath)
+	}
 
 	previewRecorder := performJSONHandlerRequest(t, http.MethodPost, `/api/v1/setting/preview-rollback-import-snapshot`, map[string]any{
 		`snapshot_name`: snapshots[0].SnapshotName,
@@ -865,6 +930,30 @@ func TestPreviewRollbackImportSnapshotRequiresSnapshotName(t *testing.T) {
 	response := decodeHandlerResponse(t, recorder)
 	if !strings.Contains(response.Message, `snapshot_name is required`) {
 		t.Fatalf(`message = %q, want snapshot_name is required`, response.Message)
+	}
+}
+
+func TestSanitizeSnapshotDisplayPathDropsDirectorySegments(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		wantPath string
+	}{
+		{name: `unix style`, input: `import-snapshots/nested/snapshot-a.json`, wantPath: `import-snapshots/snapshot-a.json`},
+		{name: `windows style`, input: `import-snapshots\\nested\\snapshot-b.json`, wantPath: `import-snapshots/snapshot-b.json`},
+		{name: `bare file`, input: `snapshot-c.json`, wantPath: `import-snapshots/snapshot-c.json`},
+		{name: `empty`, input: `   `, wantPath: ``},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			if got := sanitizeSnapshotDisplayPath(tt.input); got != tt.wantPath {
+				t.Fatalf(`sanitizeSnapshotDisplayPath(%q) = %q, want %q`, tt.input, got, tt.wantPath)
+			}
+		})
 	}
 }
 

@@ -2,17 +2,16 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 	"strings"
 
+	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/auth"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/resp"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
-	"github.com/gin-gonic/gin"
-	"github.com/samber/lo"
 )
 
 func init() {
@@ -84,9 +83,8 @@ func updateAPIKey(c *gin.Context) {
 }
 
 func deleteAPIKey(c *gin.Context) {
-	id := c.Param("id")
-	idNum, err := strconv.Atoi(id)
-	if err != nil {
+	idNum, ok := parsePositivePathIDValue(c, "id")
+	if !ok {
 		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidParam)
 		return
 	}

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/components/common/Toast';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { hasPartialTimeRange } from './range-logic';
 
 type ExportFormat = 'json' | 'jsonl';
 
@@ -87,9 +88,15 @@ export function Log() {
         return parsedStart !== undefined && parsedEnd !== undefined && parsedStart > parsedEnd;
     }, [endTime, startTime]);
 
+    const partialRange = hasPartialTimeRange(startTime, endTime);
+
     const handleExport = useCallback(async () => {
         const parsedStart = parseDateTimeLocal(startTime);
         const parsedEnd = parseDateTimeLocal(endTime);
+        if (partialRange) {
+            toast.error(t('list.partialRange'));
+            return;
+        }
         if (invalidRange) {
             toast.error(t('list.invalidRange'));
             return;
@@ -121,7 +128,7 @@ export function Log() {
         } finally {
             setIsExporting(false);
         }
-    }, [endTime, exportFormat, exportLimit, invalidRange, startTime, t]);
+    }, [endTime, exportFormat, exportLimit, invalidRange, partialRange, startTime, t]);
 
     const handleQuickRange = useCallback((hours: number) => {
         const now = Date.now();
@@ -192,7 +199,10 @@ export function Log() {
                                         <Input type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="rounded-xl text-sm" />
                                     </label>
                                 </div>
-                                {invalidRange && (
+                                {partialRange && (
+                                    <div className="text-xs text-destructive">{t('list.partialRange')}</div>
+                                )}
+                                {!partialRange && invalidRange && (
                                     <div className="text-xs text-destructive">{t('list.invalidRange')}</div>
                                 )}
                             </div>
@@ -213,7 +223,7 @@ export function Log() {
                                     <SlidersHorizontal className="h-4 w-4" />
                                     <span className="ml-1">{t('list.reset')}</span>
                                 </Button>
-                                <Button type="button" size="sm" className="rounded-xl" disabled={isExporting || invalidRange} onClick={() => void handleExport()}>
+                                <Button type="button" size="sm" className="rounded-xl" disabled={isExporting || invalidRange || partialRange} onClick={() => void handleExport()}>
                                     {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarRange className="h-4 w-4" />}
                                     <span className="ml-1">{t('list.confirmExport')}</span>
                                 </Button>

@@ -41,6 +41,21 @@ func TestUpdateChannelReturnsNotFoundForMissingChannel(t *testing.T) {
 	}
 }
 
+func TestDeleteChannelRejectsNonPositivePathIDs(t *testing.T) {
+	setupHandlerTest(t)
+
+	for _, id := range []string{"0", "-1"} {
+		recorder := performParamHandlerRequest(t, http.MethodDelete, "/api/v1/channel/delete/"+id, nil, map[string]string{"id": id}, deleteChannel)
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("id %s status = %d, want %d, body = %s", id, recorder.Code, http.StatusBadRequest, recorder.Body.String())
+		}
+		res := decodeHandlerResponse(t, recorder)
+		if res.Message != "Invalid parameter" {
+			t.Fatalf("id %s message = %q, want %q", id, res.Message, "Invalid parameter")
+		}
+	}
+}
+
 func TestTestChannelModelsByConfigReturnsBadRequestForEmptyModels(t *testing.T) {
 	setupHandlerTest(t)
 
@@ -95,6 +110,24 @@ func TestFetchModelAcceptsHTTPBaseURL(t *testing.T) {
 	}
 }
 
+func TestFetchModelRejectsInvalidBaseURL(t *testing.T) {
+	setupHandlerTest(t)
+
+	recorder := performJSONHandlerRequest(t, http.MethodPost, "/api/v1/channel/fetch-model", map[string]any{
+		"type":     int(transformerOutbound.OutboundTypeOpenAIResponse),
+		"base_url": "ftp://example.com/v1",
+		"key":      "sk-http",
+	}, fetchModel)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+	res := decodeHandlerResponse(t, recorder)
+	if res.Message != "base_url must be absolute http or https URL" {
+		t.Fatalf("message = %q, want %q", res.Message, "base_url must be absolute http or https URL")
+	}
+}
+
 func TestFetchModelAcceptsZeroOutboundTypeForOpenAIChat(t *testing.T) {
 	setupHandlerTest(t)
 
@@ -127,5 +160,24 @@ func TestFetchModelAcceptsZeroOutboundTypeForOpenAIChat(t *testing.T) {
 	}
 	if len(models) != 1 || models[0] != "zero-type-model" {
 		t.Fatalf("models = %#v, want [zero-type-model]", models)
+	}
+}
+
+func TestTestChannelModelsByConfigRejectsInvalidBaseURL(t *testing.T) {
+	setupHandlerTest(t)
+
+	recorder := performJSONHandlerRequest(t, http.MethodPost, "/api/v1/channel/test-models-by-config", map[string]any{
+		"type":      int(transformerOutbound.OutboundTypeOpenAIChat),
+		"base_urls": []map[string]any{{"url": "ftp://example.com/v1", "delay": 0}},
+		"keys":      []map[string]any{{"enabled": true, "channel_key": "sk-test", "source_type": "public/free"}},
+		"models":    []string{"gpt-4o"},
+	}, testChannelModelsByConfig)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+	res := decodeHandlerResponse(t, recorder)
+	if res.Message != "base_url must be absolute http or https URL" {
+		t.Fatalf("message = %q, want %q", res.Message, "base_url must be absolute http or https URL")
 	}
 }

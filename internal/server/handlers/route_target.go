@@ -4,15 +4,14 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/resp"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
-	"github.com/gin-gonic/gin"
 )
 
 func respondRouteTargetOpError(c *gin.Context, err error) {
@@ -57,8 +56,8 @@ func listRouteTargetOverrides(c *gin.Context) {
 		err  error
 	)
 	if channelIDParam != "" {
-		channelID, parseErr := strconv.Atoi(channelIDParam)
-		if parseErr != nil {
+		channelID, ok, parseErr := parseOptionalPositiveIntQuery(c, "channel_id")
+		if parseErr != nil || !ok {
 			resp.Error(c, http.StatusBadRequest, "invalid channel id")
 			return
 		}

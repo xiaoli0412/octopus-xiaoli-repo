@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/assets"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/log"
-	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -175,12 +174,7 @@ func validateProvidersPayload(data []byte) error {
 		if provider.BaseURL == "" {
 			return fmt.Errorf("invalid providers payload: provider %d missing base_url", i)
 		}
-		parsed, err := url.Parse(provider.BaseURL)
-		if err != nil {
-			return fmt.Errorf("invalid providers payload: provider %d invalid base_url: %w", i, err)
-		}
-		scheme := strings.ToLower(strings.TrimSpace(parsed.Scheme))
-		if !parsed.IsAbs() || (scheme != "http" && scheme != "https") || strings.TrimSpace(parsed.Host) == "" {
+		if err := validateAbsoluteHTTPURL(provider.BaseURL, "base_url"); err != nil {
 			return fmt.Errorf("invalid providers payload: provider %d base_url must be absolute http or https URL", i)
 		}
 	}
@@ -215,6 +209,7 @@ func GetProviders(c *gin.Context) {
 
 func init() {
 	router.NewGroupRouter("/api/v1/providers").
+		Use(middleware.Auth()).
 		AddRoute(
 			router.NewRoute("", http.MethodGet).Handle(GetProviders),
 		)

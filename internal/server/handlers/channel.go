@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/dlclark/regexp2"
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/helper"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
@@ -16,8 +17,6 @@ import (
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/task"
 	transformerOutbound "github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound"
-	"github.com/dlclark/regexp2"
-	"github.com/gin-gonic/gin"
 )
 
 func respondChannelOpError(c *gin.Context, err error) {
@@ -187,9 +186,8 @@ func enableChannel(c *gin.Context) {
 }
 
 func deleteChannel(c *gin.Context) {
-	id := c.Param("id")
-	idNum, err := strconv.Atoi(id)
-	if err != nil {
+	idNum, ok := parsePositivePathIDValue(c, "id")
+	if !ok {
 		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidParam)
 		return
 	}
@@ -204,6 +202,10 @@ func fetchModel(c *gin.Context) {
 	var request model.ChannelFetchModelRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
+		return
+	}
+	if err := validateAbsoluteHTTPURL(request.BaseURL, "base_url"); err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	channel := model.Channel{
@@ -287,6 +289,12 @@ func testChannelModelsByConfig(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
 		return
+	}
+	for _, baseURL := range req.BaseUrls {
+		if err := validateAbsoluteHTTPURL(baseURL.URL, "base_url"); err != nil {
+			resp.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 
 	if len(req.Models) == 0 {

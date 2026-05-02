@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
+	serverauth "github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/auth"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -158,6 +161,55 @@ func TestGetProvidersMarksRemoteSourceInResponseHeaders(t *testing.T) {
 	}
 	if got := recorder.Header().Get(providersCommitHeader); got != providersPinnedCommitSHA {
 		t.Fatalf("%s = %q, want %q", providersCommitHeader, got, providersPinnedCommitSHA)
+	}
+}
+
+func TestProvidersRouteRequiresAdminJWT(t *testing.T) {
+	setupHandlerTest(t)
+
+	providersRemoteFetch = func() ([]byte, error) {
+		return []byte(`[{"name":"remote","channel_type":0,"base_url":"https://remote.example/v1"}]`), nil
+	}
+	providersEmbeddedRead = func() ([]byte, error) {
+		t.Fatal("embedded fallback should not be used when remote fetch succeeds")
+		return nil, nil
+	}
+
+	engine := gin.New()
+	engine.GET("/api/v1/providers", middleware.Auth(), GetProviders)
+
+	unauthorizedReq := httptest.NewRequest(http.MethodGet, "/api/v1/providers", nil)
+	unauthorizedRec := httptest.NewRecorder()
+	engine.ServeHTTP(unauthorizedRec, unauthorizedReq)
+	if unauthorizedRec.Code != http.StatusBadRequest {
+		t.Fatalf("unauthorized status = %d, want %d, body = %s", unauthorizedRec.Code, http.StatusBadRequest, unauthorizedRec.Body.String())
+	}
+
+	invalidReq := httptest.NewRequest(http.MethodGet, "/api/v1/providers", nil)
+	invalidReq.Header.Set("Authorization", "Bearer not-a-real-token")
+	invalidRec := httptest.NewRecorder()
+	engine.ServeHTTP(invalidRec, invalidReq)
+	if invalidRec.Code != http.StatusUnauthorized {
+		t.Fatalf("invalid token status = %d, want %d, body = %s", invalidRec.Code, http.StatusUnauthorized, invalidRec.Body.String())
+	}
+
+	if err := op.UserChangePassword("admin", "provider-auth-secret"); err != nil {
+		t.Fatalf("UserChangePassword() error = %v", err)
+	}
+
+	token, _, err := serverauth.GenerateJWTToken(0)
+	if err != nil {
+		t.Fatalf("GenerateJWTToken() error = %v", err)
+	}
+	authorizedReq := httptest.NewRequest(http.MethodGet, "/api/v1/providers", nil)
+	authorizedReq.Header.Set("Authorization", "Bearer "+token)
+	authorizedRec := httptest.NewRecorder()
+	engine.ServeHTTP(authorizedRec, authorizedReq)
+	if authorizedRec.Code != http.StatusOK {
+		t.Fatalf("authorized status = %d, want %d, body = %s", authorizedRec.Code, http.StatusOK, authorizedRec.Body.String())
+	}
+	if got := authorizedRec.Header().Get(providersSourceHeader); got != "remote" {
+		t.Fatalf("%s = %q, want remote", providersSourceHeader, got)
 	}
 }
 

@@ -9,18 +9,40 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dlclark/regexp2"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound/copilot"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/httpx"
-	"github.com/dlclark/regexp2"
 )
 
 const maxModelFetchErrorBodyBytes int64 = 8 * 1024
 const maxModelFetchSuccessBodyBytes int64 = 4 << 20
 const modelFetchRequestTimeout = 20 * time.Second
 
-var channelHTTPClientForManagement = ChannelHttpClient
+var channelHTTPClientForManagement = managementHTTPClientNoRedirect
+
+func managementHTTPClientNoRedirect(channel *model.Channel) (*http.Client, error) {
+	client, err := ChannelHttpClient(channel)
+	if err != nil {
+		return nil, err
+	}
+	if client == nil {
+		return nil, fmt.Errorf("management http client is nil")
+	}
+	clone := *client
+	clone.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) == 0 || req == nil || req.URL == nil || via[len(via)-1] == nil || via[len(via)-1].URL == nil {
+			return http.ErrUseLastResponse
+		}
+		prev := via[len(via)-1].URL
+		if prev.Scheme != req.URL.Scheme || prev.Host != req.URL.Host {
+			return http.ErrUseLastResponse
+		}
+		return nil
+	}
+	return &clone, nil
+}
 
 func modelFetchKey(request model.Channel) (model.ChannelKey, error) {
 	key := request.GetChannelKey()

@@ -14,6 +14,11 @@ import (
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/log"
 )
 
+const (
+	relayLogMaxStringRunes  = 2048
+	relayLogTruncatedSuffix = "...[truncated]"
+)
+
 // RelayMetrics 负责最终的日志收集与持久化
 type RelayMetrics struct {
 	APIKeyID     int
@@ -32,6 +37,8 @@ type RelayMetrics struct {
 	Stats       model.StatsMetrics
 	Dynamic     *relayDynamicAudit
 }
+
+var relayStatsDailyUpdate = op.StatsDailyUpdate
 
 func NewRelayMetrics(apiKeyID int, requestModel string, req *transformerModel.InternalLLMRequest) *RelayMetrics {
 	return &RelayMetrics{
@@ -96,7 +103,7 @@ func (m *RelayMetrics) Save(ctx context.Context, success bool, err error, attemp
 	channelID, channelName := finalChannel(attempts)
 	op.StatsTotalUpdate(globalStats)
 	op.StatsHourlyUpdate(globalStats)
-	op.StatsDailyUpdate(context.Background(), globalStats)
+	relayStatsDailyUpdate(ctx, globalStats)
 	op.StatsAPIKeyUpdate(m.APIKeyID, globalStats)
 	op.StatsChannelUpdate(channelID, globalStats)
 
@@ -175,7 +182,7 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 	// 请求内容
 	if m.InternalRequest != nil {
 		if reqJSON, jsonErr := json.Marshal(m.InternalRequest); jsonErr == nil {
-			relayLog.RequestContent = string(reqJSON)
+			relayLog.RequestContent = truncateRelayLogJSON(reqJSON)
 		}
 	}
 
@@ -189,7 +196,7 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 				insert := fmt.Sprintf(`"usage":{"cache_creation_input_tokens":%d,`, m.InternalResponse.Usage.CacheCreationInputTokens)
 				respJSON = []byte(strings.Replace(respStr, old, insert, 1))
 			}
-			relayLog.ResponseContent = string(respJSON)
+			relayLog.ResponseContent = truncateRelayLogJSON(respJSON)
 		}
 	}
 
@@ -201,6 +208,56 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 	if logErr := op.RelayLogAdd(ctx, relayLog); logErr != nil {
 		log.Warnf("failed to save relay log: %v", logErr)
 	}
+}
+
+func truncateRelayLogJSON(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+
+	var payload any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return truncateRelayLogString(string(raw))
+	}
+
+	truncated := truncateRelayLogValue(payload)
+	encoded, err := json.Marshal(truncated)
+	if err != nil {
+		return truncateRelayLogString(string(raw))
+	}
+	return string(encoded)
+}
+
+func truncateRelayLogValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		truncated := make(map[string]any, len(typed))
+		for key, nested := range typed {
+			truncated[key] = truncateRelayLogValue(nested)
+		}
+		return truncated
+	case []any:
+		truncated := make([]any, 0, len(typed))
+		for _, item := range typed {
+			truncated = append(truncated, truncateRelayLogValue(item))
+		}
+		return truncated
+	case string:
+		return truncateRelayLogString(typed)
+	default:
+		return value
+	}
+}
+
+func truncateRelayLogString(value string) string {
+	if value == "" {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) <= relayLogMaxStringRunes {
+		return value
+	}
+	return string(runes[:relayLogMaxStringRunes]) + relayLogTruncatedSuffix
 }
 
 // filterResponseForLog 创建响应的浅拷贝，过滤掉 images、MultipleContent 中的图片数据和 Audio.Data 以减少存储压力

@@ -6,7 +6,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -264,6 +266,84 @@ func TestFetchModelsAppliesManagementTimeout(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed >= 25*time.Second {
 		t.Fatalf("FetchModels() elapsed = %v, want < 25s management timeout", elapsed)
+	}
+}
+
+func TestManagementHTTPClientNoRedirectBlocksCrossHostRedirects(t *testing.T) {
+	t.Parallel()
+
+	var redirectTargetHit atomic.Bool
+	redirectTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		redirectTargetHit.Store(true)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer redirectTarget.Close()
+
+	redirectSource := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, redirectTarget.URL+"/models", http.StatusFound)
+	}))
+	defer redirectSource.Close()
+
+	client, err := managementHTTPClientNoRedirect(&model.Channel{BaseUrls: []model.BaseUrl{{URL: redirectSource.URL}}})
+	if err != nil {
+		t.Fatalf("managementHTTPClientNoRedirect() error = %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, redirectSource.URL+"/models", nil)
+	if err != nil {
+		t.Fatalf("http.NewRequest() error = %v", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("client.Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusFound)
+	}
+	if redirectTargetHit.Load() {
+		t.Fatal("redirect target was reached, want redirect to be blocked")
+	}
+}
+
+func TestManagementHTTPClientNoRedirectAllowsSameHostRedirects(t *testing.T) {
+	t.Parallel()
+
+	var redirectTargetHit atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/models":
+			http.Redirect(w, r, "/v1/models", http.StatusFound)
+		case "/v1/models":
+			redirectTargetHit.Store(true)
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	client, err := managementHTTPClientNoRedirect(&model.Channel{BaseUrls: []model.BaseUrl{{URL: server.URL}}})
+	if err != nil {
+		t.Fatalf("managementHTTPClientNoRedirect() error = %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/models", nil)
+	if err != nil {
+		t.Fatalf("http.NewRequest() error = %v", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("client.Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if !redirectTargetHit.Load() {
+		t.Fatal("redirect target was not reached, want same-host redirect to be followed")
 	}
 }
 

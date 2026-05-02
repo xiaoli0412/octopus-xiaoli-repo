@@ -5,15 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/resp"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
-	"github.com/gin-gonic/gin"
 )
+
+const relayLogExportMaxLimit = 10000
 
 func init() {
 	router.NewGroupRouter("/api/v1/log").
@@ -43,32 +44,36 @@ func init() {
 }
 
 func listLog(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	startTimeStr := c.Query("start_time")
-	endTimeStr := c.Query("end_time")
-
+	page, err := parseOptionalIntQuery(c, "page", 1)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if page <= 0 {
+		resp.Error(c, http.StatusBadRequest, "invalid page")
+		return
+	}
+	pageSize, err := parseOptionalIntQuery(c, "page_size", 20)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if pageSize <= 0 {
+		resp.Error(c, http.StatusBadRequest, "invalid page_size")
+		return
+	}
+	if pageSize > 100 {
+		resp.Error(c, http.StatusBadRequest, "invalid page_size")
+		return
+	}
 	if page < 1 {
 		page = 1
 	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
 
-	var startTime, endTime *int
-	if startTimeStr != "" && endTimeStr != "" {
-		st, err := strconv.Atoi(startTimeStr)
-		if err != nil {
-			resp.Error(c, http.StatusBadRequest, err.Error())
-			return
-		}
-		et, err := strconv.Atoi(endTimeStr)
-		if err != nil {
-			resp.Error(c, http.StatusBadRequest, err.Error())
-			return
-		}
-		startTime = &st
-		endTime = &et
+	startTime, endTime, err := parseOptionalIntRangeQuery(c, "start_time", "end_time")
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	logs, err := op.RelayLogList(c.Request.Context(), startTime, endTime, page, pageSize)
@@ -139,24 +144,23 @@ func exportLog(c *gin.Context) {
 		return
 	}
 
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "2000"))
-	startTimeStr := c.Query("start_time")
-	endTimeStr := c.Query("end_time")
-
-	var startTime, endTime *int
-	if startTimeStr != "" && endTimeStr != "" {
-		st, err := strconv.Atoi(startTimeStr)
-		if err != nil {
-			resp.Error(c, http.StatusBadRequest, err.Error())
-			return
-		}
-		et, err := strconv.Atoi(endTimeStr)
-		if err != nil {
-			resp.Error(c, http.StatusBadRequest, err.Error())
-			return
-		}
-		startTime = &st
-		endTime = &et
+	limit, err := parseOptionalIntQuery(c, "limit", 2000)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if limit <= 0 {
+		resp.Error(c, http.StatusBadRequest, "invalid limit")
+		return
+	}
+	if limit > relayLogExportMaxLimit {
+		resp.Error(c, http.StatusBadRequest, "invalid limit")
+		return
+	}
+	startTime, endTime, err := parseOptionalIntRangeQuery(c, "start_time", "end_time")
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	logs, err := op.RelayLogExport(c.Request.Context(), startTime, endTime, limit)
