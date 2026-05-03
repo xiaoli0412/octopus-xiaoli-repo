@@ -81,7 +81,7 @@ export function resolveSelectedProfile(options: ProfileSummaryState & { profiles
 
 function fallbackManualConfig(config?: AIAutomationConfig): AIAutomationConfigValues {
     return config?.manual_config ?? {
-        base_url: config?.base_url || 'http://127.0.0.1:8080/v1',
+        base_url: config?.base_url || 'http://127.0.0.1:1088/v1',
         api_key: config?.api_key || '',
         channel_type: config?.channel_type || 'openai-compatible',
         model: config?.model || '',
@@ -91,7 +91,7 @@ function fallbackManualConfig(config?: AIAutomationConfig): AIAutomationConfigVa
 
 function fallbackEffectiveConfig(config: AIAutomationConfig | undefined, manualConfig: AIAutomationConfigValues): AIAutomationConfigValues {
     return config?.effective_config ?? {
-        base_url: config?.base_url || manualConfig.base_url || 'http://127.0.0.1:8080/v1',
+        base_url: config?.base_url || manualConfig.base_url || 'http://127.0.0.1:1088/v1',
         api_key: config?.api_key || manualConfig.api_key || '',
         channel_type: config?.channel_type || manualConfig.channel_type || 'openai-compatible',
         model: config?.model || manualConfig.model || '',
@@ -112,13 +112,13 @@ export function resolveConfigSourceRuntime(config?: AIAutomationConfig, draft: D
     const manualConfig = fallbackManualConfig(config);
     const runtimeConfig = fallbackEffectiveConfig(config, manualConfig);
 
-    const manualDraftBaseURL = draft.baseURL || manualConfig.base_url || 'http://127.0.0.1:8080/v1';
+    const manualDraftBaseURL = draft.baseURL || manualConfig.base_url || 'http://127.0.0.1:1088/v1';
     const manualDraftAPIKey = draft.apiKey || manualConfig.api_key || '';
     const manualDraftChannelType = draft.channelType || manualConfig.channel_type || 'openai-compatible';
     const manualDraftUseLocalDefault = draft.useLocalDefault ?? manualConfig.use_local_default;
     const manualDraftModel = draft.modelName || manualConfig.model || '';
 
-    const profileEffectiveBaseURL = runtimeConfig.base_url || manualDraftBaseURL || 'http://127.0.0.1:8080/v1';
+    const profileEffectiveBaseURL = runtimeConfig.base_url || manualDraftBaseURL || 'http://127.0.0.1:1088/v1';
     const profileEffectiveAPIKey = runtimeConfig.api_key || manualDraftAPIKey || '';
     const profileEffectiveChannelType = runtimeConfig.channel_type || manualDraftChannelType || 'openai-compatible';
     const profileEffectiveUseLocalDefault = runtimeConfig.use_local_default ?? manualDraftUseLocalDefault;

@@ -25,7 +25,7 @@ Octopus 是一个**为个人和小团队设计的 LLM API 聚合网关**。它�
 
 > 所有 AI 服务的请求，都走同一个入口。由 Octopus 来负责路由、负载均衡、协议转换和记录。
 
-你只需要告诉所有工具一个地址：`http://your-server:8080`，和一个统一的 API Key。背后接了多少个服务商、哪个 Key 在用、用了多少，完全由 Octopus 管理。
+你只需要告诉所有工具一个地址：`http://your-server:1088`，和一个统一的 API Key。背后接了多少个服务商、哪个 Key 在用、用了多少，完全由 Octopus 管理。
 
 ---
 
@@ -160,11 +160,11 @@ Octopus 是一个**为个人和小团队设计的 LLM API 聚合网关**。它�
 docker run -d \
   --name octopus \
   -v /path/to/data:/app/data \
-  -p 8080:8080 \
-  ghcr.io/xiaoli0412/octopus-xiaoli-repo:latest
+  -p 1088:1088 \
+  ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.16.4
 ```
 
-浏览器打开 `http://localhost:8080`，默认账号密码 `admin` / `admin`。
+浏览器打开 `http://localhost:1088`，默认账号密码 `admin` / `admin`。
 
 ### Docker Compose
 
@@ -188,7 +188,7 @@ docker compose up -d
 ### 场景：给团队统一发 Key
 
 1. 在 Octopus 为每个人创建独立 API Key，设置各自的费用上限
-2. 所有人统一用 `http://octopus:8080` 这个地址
+2. 所有人统一用 `http://octopus:1088` 这个地址
 3. 管理员在统计面板看谁用了多少，月底一目了然
 
 ---

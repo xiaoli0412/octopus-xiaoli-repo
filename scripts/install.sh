@@ -2,10 +2,10 @@
 
 set -euo pipefail
 
-DEFAULT_PORT="8080"
+DEFAULT_PORT="1088"
 DEFAULT_DATA_DIR="./data"
 DEFAULT_CONTAINER_NAME="octopus"
-DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.16.3"
+DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.16.4"
 
 OCTOPUS_PORT_INPUT="${OCTOPUS_PORT:-${DEFAULT_PORT}}"
 OCTOPUS_DATA_DIR_INPUT="${OCTOPUS_DATA_DIR:-${DEFAULT_DATA_DIR}}"
@@ -123,7 +123,7 @@ resolve_external_port() {
 
 find_noninteractive_fallback_port() {
     local candidate
-    for candidate in 1008 1088 18080 18086 28080; do
+    for candidate in 18080 18086 28080; do
         if ! port_in_use "$candidate"; then
             printf '%s' "$candidate"
             return 0
@@ -153,9 +153,9 @@ write_info "Starting Octopus container with external port ${EXTERNAL_PORT}"
 docker run -d \
     --name "$OCTOPUS_CONTAINER_NAME_INPUT" \
     --restart unless-stopped \
-    -p "${EXTERNAL_PORT}:8080" \
+    -p "${EXTERNAL_PORT}:1088" \
     -e OCTOPUS_SERVER_HOST=0.0.0.0 \
-    -e OCTOPUS_SERVER_PORT=8080 \
+    -e OCTOPUS_SERVER_PORT=1088 \
     -e OCTOPUS_DATABASE_TYPE=sqlite \
     -e OCTOPUS_DATABASE_PATH=/app/data/data.db \
     -e OCTOPUS_LOG_LEVEL=info \

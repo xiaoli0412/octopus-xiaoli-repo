@@ -154,7 +154,7 @@
       "activeSourceManualDesc": "Runtime is currently reading manual configuration. AI-generated plans stay preserved as Profiles until you switch them on manually.",
       "save": "Save config",
       "fetchModels": "Fetch models",
-      "localDefaultHint": "The default endpoint is inferred from the current service and falls back to http://127.0.0.1:8080/v1. This model is only for AI automation tasks and never changes business routing priority.",
+      "localDefaultHint": "The default endpoint is inferred from the current service and falls back to http://127.0.0.1:1088/v1. This model is only for AI automation tasks and never changes business routing priority.",
       "enabledTitle": "Enable AI automation",
       "enabledDesc": "When disabled, you can still review config, profiles, and learning state, but Octopus will not fetch models or create new AI tasks.",
       "disabledHint": "Enable AI automation before fetching models or creating AI tasks."
@@ -851,7 +851,7 @@
       "namePlaceholderPrefix": "My ",
       "nameHint": "Use a name you can recognize at a glance, such as one based on provider, account, or purpose, so later troubleshooting stays easy.",
       "typeHint": "The channel type controls protocol and authentication. Pick the one that matches the upstream service before testing or fetching models.",
-      "baseUrlTooltip": "API URL usually ends with /v1. Both http and https are supported, e.g. http://127.0.0.1:8080/v1 or https://api.openai.com/v1",
+      "baseUrlTooltip": "API URL usually ends with /v1. Both http and https are supported, e.g. http://127.0.0.1:1088/v1 or https://api.openai.com/v1",
       "connectionSectionHint": "Make the channel reachable first, then add keys one by one. In most cases a primary URL plus one working key is enough to continue.",
       "flow": {
         "createFlowTitle": "Setup Flow",
@@ -1929,8 +1929,8 @@
     },
     "apiBaseUrl": {
       "label": "System API Base URL",
-      "placeholder": "http://127.0.0.1:8080",
-      "hint": "Used in API docs curl example. Default: http://127.0.0.1:8080"
+      "placeholder": "http://127.0.0.1:1088",
+      "hint": "Used in API docs curl example. Default: http://127.0.0.1:1088"
     }
   },
   "model": {

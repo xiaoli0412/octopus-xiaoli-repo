@@ -42,10 +42,10 @@
 Run directly:
 
 ```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 8080:8080 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.16.3
+docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.16.4
 ```
 
-Or use the install script. It keeps `8080` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, and pulls the official `v1.16.3` Docker image directly:
+Or use the install script. It keeps `1088` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, and pulls the official `v1.16.4` Docker image directly:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
@@ -54,7 +54,7 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 Non-interactive custom port example:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | OCTOPUS_PORT=1008 bash
+curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | OCTOPUS_PORT=1088 bash
 ```
 
 If you prefer the manual path, you can still clone the repository and run compose directly:
@@ -70,7 +70,7 @@ The Debian Docker build remains available for CI and image publishing, while the
 You can also override the default compose runtime parameters without editing the file itself:
 
 ```bash
-OCTOPUS_PORT=18086 \
+OCTOPUS_PORT=1088 \
 OCTOPUS_DATA_DIR=./build/compose-smoke-data \
 OCTOPUS_CONTAINER_NAME=octopus-smoke \
 docker compose up -d
@@ -190,7 +190,7 @@ The current UI rollback-and-recovery mainline task is tracked in `docs/UI_MAINLI
 **Development Mode**
 
 ```bash
-cd web && pnpm install && NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:8080" pnpm run dev
+cd web && pnpm install && NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:1088" pnpm run dev
 ## Open a new terminal, start the backend service
 go run main.go start
 ## Access the frontend at
@@ -478,7 +478,7 @@ from openai import OpenAI
 import os
 
 client = OpenAI(   
-    base_url="http://127.0.0.1:8080/v1",   
+base_url="http://127.0.0.1:1088/v1",
     api_key="sk-octopus-P48ROljwJmWBYVARjwQM8Nkiezlg7WOrXXOWDYY8TI5p9Mzg", 
 )
 completion = client.chat.completions.create(
@@ -497,7 +497,7 @@ Edit `~/.claude/settings.json`
 ```json
 {
   "env": {
-    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8080",
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:1088",
     "ANTHROPIC_AUTH_TOKEN": "sk-octopus-P48ROljwJmWBYVARjwQM8Nkiezlg7WOrXXOWDYY8TI5p9Mzg",
     "API_TIMEOUT_MS": "3000000",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
@@ -521,7 +521,7 @@ model_provider = "octopus"
 
 [model_providers.octopus]
 name = "octopus"
-base_url = "http://127.0.0.1:8080/v1"
+base_url = "http://127.0.0.1:1088/v1"
 ```
 
 Edit `~/.codex/auth.json`

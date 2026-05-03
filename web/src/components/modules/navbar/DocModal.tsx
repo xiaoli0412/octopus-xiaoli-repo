@@ -119,7 +119,7 @@ export function DocModal({ isOpen, onClose, onGoSetting }: DocModalProps) {
 
     const baseUrl = useMemo(() => {
         const setting = settings?.find(s => s.key === SettingKey.ApiBaseUrl);
-        return setting?.value?.trim() || 'http://127.0.0.1:8080';
+        return setting?.value?.trim() || 'http://127.0.0.1:1088';
     }, [settings]);
 
     const curlCode = useMemo(

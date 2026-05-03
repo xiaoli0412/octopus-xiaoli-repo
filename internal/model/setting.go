@@ -49,7 +49,7 @@ const (
 )
 
 const (
-	DefaultAIAutomationBaseURL     = "http://127.0.0.1:8080/v1"
+	DefaultAIAutomationBaseURL     = "http://127.0.0.1:1088/v1"
 	DefaultAIAutomationChannelType = "openai-compatible"
 )
 
@@ -62,7 +62,7 @@ func DefaultSettings() []Setting {
 	return []Setting{
 		{Key: SettingKeyProxyURL, Value: ""},
 		{Key: SettingKeyAuthTokenSecret, Value: ""},
-		{Key: SettingKeyAPIBaseURL, Value: "http://localhost:8080"}, // 榛樿绯荤粺 API 鍦板潃
+		{Key: SettingKeyAPIBaseURL, Value: "http://localhost:1088"}, // 榛樿绯荤粺 API 鍦板潃
 		{Key: SettingKeyStatsSaveInterval, Value: "10"},             // 榛樿10鍒嗛挓淇濆瓨涓€娆＄粺璁′俊鎭?
 		{Key: SettingKeyCORSAllowOrigins, Value: ""},                // CORS 榛樿涓嶅厑璁歌法鍩燂紝璁剧疆涓?"*" 鎵嶅厑璁告墍鏈夋潵婧?
 		{Key: SettingKeyModelInfoUpdateInterval, Value: "24"},       // 榛樿24灏忔椂鏇存柊涓€娆℃ā鍨嬩俊鎭?

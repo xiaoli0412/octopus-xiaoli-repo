@@ -4,10 +4,10 @@ services:
       context: .
       dockerfile: scripts/dockerfiles/Dockerfile.debian
     ports:
-      - '${OCTOPUS_PORT:-8080}:8080'
+      - '${OCTOPUS_PORT:-1088}:1088'
     environment:
       OCTOPUS_SERVER_HOST: 0.0.0.0
-      OCTOPUS_SERVER_PORT: 8080
+      OCTOPUS_SERVER_PORT: 1088
       OCTOPUS_DATABASE_TYPE: sqlite
       OCTOPUS_DATABASE_PATH: /app/data/data.db
       OCTOPUS_LOG_LEVEL: info
@@ -32,7 +32,7 @@ services:
       - 'host.docker.internal:host-gateway'
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "/app/octopus", "healthcheck", "--url", "http://127.0.0.1:8080/healthz"]
+      test: ["CMD", "/app/octopus", "healthcheck", "--url", "http://127.0.0.1:1088/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3

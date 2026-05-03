@@ -154,7 +154,7 @@
       "activeSourceManualDesc": "当前运行读取手动配置；AI 生成方案会保留在方案档案中，只有手动切换后才会启用。",
       "save": "保存配置",
       "fetchModels": "获取模型列表",
-      "localDefaultHint": "默认端点优先从当前服务推导，兜底为 http://127.0.0.1:8080/v1；该模型选择只用于 AI 自动化任务，不影响业务路由。",
+      "localDefaultHint": "默认端点优先从当前服务推导，兜底为 http://127.0.0.1:1088/v1；该模型选择只用于 AI 自动化任务，不影响业务路由。",
       "enabledTitle": "启用 AI 自动化",
       "enabledDesc": "关闭后仍可查看配置、方案档案和学习状态，但不会拉取模型或创建新的 AI 任务。",
       "disabledHint": "请先启用 AI 自动化，再获取模型列表或创建 AI 任务。"
@@ -864,7 +864,7 @@
       "namePlaceholderPrefix": "我的 ",
       "nameHint": "建议用自己一眼能认出的名称，例如按供应商、账号或用途区分，后续排查和切换会更清楚。",
       "typeHint": "渠道类型决定请求协议和鉴权方式。先选最接近上游服务的类型，后面的测试、模型读取和高级设置才会走对分支。",
-      "baseUrlTooltip": "API 地址通常以 /v1 结尾，http 和 https 都支持，例如 http://127.0.0.1:8080/v1 或 https://api.openai.com/v1",
+      "baseUrlTooltip": "API 地址通常以 /v1 结尾，http 和 https 都支持，例如 http://127.0.0.1:1088/v1 或 https://api.openai.com/v1",
       "connectionSectionHint": "这一步先让渠道能连通，再逐个补密钥。普通场景只要填主地址和一个可用密钥就能继续往下走。",
       "flow": {
         "createFlowTitle": "创建顺序",
@@ -1942,8 +1942,8 @@
     },
     "apiBaseUrl": {
       "label": "系统 API 地址",
-    "placeholder": "http://127.0.0.1:8080",
-    "hint": "用于文档弹框中的 curl 示例地址，默认为 http://127.0.0.1:8080"
+    "placeholder": "http://127.0.0.1:1088",
+    "hint": "用于文档弹框中的 curl 示例地址，默认为 http://127.0.0.1:1088"
     }
   },
   "model": {
