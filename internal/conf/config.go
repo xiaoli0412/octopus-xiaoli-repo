@@ -105,7 +105,7 @@ func readConfigWithBOMFallback(path string) (string, error) {
 
 func setDefaults() {
 	viper.SetDefault("server.host", "0.0.0.0")
-	viper.SetDefault("server.port", 8080)
+	viper.SetDefault("server.port", 1088)
 	viper.SetDefault("server.static_dir", "static/out")
 	viper.SetDefault("database.type", "sqlite")
 	viper.SetDefault("database.path", "data/data.db")

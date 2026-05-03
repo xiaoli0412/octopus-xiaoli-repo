@@ -154,7 +154,7 @@
       "activeSourceManualDesc": "目前執行時仍讀取手動設定；AI 生成方案會保留在方案檔案中，只有手動切換後才會啟用。",
       "save": "儲存設定",
       "fetchModels": "取得模型列表",
-      "localDefaultHint": "預設端點優先從目前服務推導，兜底為 http://127.0.0.1:8080/v1；該模型選擇只用於 AI 自動化任務，不影響業務路由。",
+      "localDefaultHint": "預設端點優先從目前服務推導，兜底為 http://127.0.0.1:1088/v1；該模型選擇只用於 AI 自動化任務，不影響業務路由。",
       "enabledTitle": "啟用 AI 自動化",
       "enabledDesc": "關閉後仍可查看配置、方案檔案和學習狀態，但不會拉取模型或建立新的 AI 任務。",
       "disabledHint": "請先啟用 AI 自動化，再取得模型列表或建立 AI 任務。"
@@ -851,7 +851,7 @@
       "namePlaceholderPrefix": "我的 ",
       "nameHint": "建議使用自己一眼能認出的名稱，例如按供應商、帳號或用途區分，後續排查和切換會更清楚。",
       "typeHint": "供應源類型會決定請求協議和驗證方式。先選最接近上游服務的類型，後面的測試、模型讀取和進階設定才會走對分支。",
-      "baseUrlTooltip": "API 地址通常以 /v1 結尾，http 和 https 都支援，例如 http://127.0.0.1:8080/v1 或 https://api.openai.com/v1",
+      "baseUrlTooltip": "API 地址通常以 /v1 結尾，http 和 https 都支援，例如 http://127.0.0.1:1088/v1 或 https://api.openai.com/v1",
       "connectionSectionHint": "這一步先讓供應源能連通，再逐個補上金鑰。一般情況只要填主地址和一個可用金鑰，就能繼續往下走。",
       "flow": {
         "createFlowTitle": "建立順序",
@@ -1929,8 +1929,8 @@
     },
     "apiBaseUrl": {
       "label": "系統 API 地址",
-    "placeholder": "http://127.0.0.1:8080",
-    "hint": "用於文件彈框中的 curl 範例地址，預設為 http://127.0.0.1:8080"
+    "placeholder": "http://127.0.0.1:1088",
+    "hint": "用於文件彈框中的 curl 範例地址，預設為 http://127.0.0.1:1088"
     }
   },
   "model": {

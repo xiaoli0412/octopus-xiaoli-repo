@@ -9,7 +9,7 @@ import (
 )
 
 func TestNewHTTPServerUsesSecurityTimeouts(t *testing.T) {
-	srv := newHTTPServer("127.0.0.1:8080", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+    srv := newHTTPServer("127.0.0.1:1088", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 
 	if srv.ReadHeaderTimeout != httpReadHeaderTimeout {
 		t.Fatalf("ReadHeaderTimeout = %v, want %v", srv.ReadHeaderTimeout, httpReadHeaderTimeout)

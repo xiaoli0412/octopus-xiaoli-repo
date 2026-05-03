@@ -42,10 +42,10 @@
 直接运行
 
 ```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 8080:8080 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.16.3
+docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.16.4
 ```
 
-或者使用安装脚本。脚本默认仍使用 `8080` 作为外部端口，启动前会先探测端口占用；如果 `8080` 已被占用，非交互场景会自动切换到可用端口并继续安装，且会直接拉取正式版 `v1.16.3` 镜像：
+或者使用安装脚本。脚本默认使用 `1088` 作为外部端口，启动前会先探测端口占用；如果 `1088` 已被占用，非交互场景会自动切换到可用端口并继续安装，且会直接拉取正式版 `v1.16.4` 镜像：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
@@ -54,7 +54,7 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 非交互自定义端口示例：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | OCTOPUS_PORT=1008 bash
+curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | OCTOPUS_PORT=1088 bash
 ```
 
 如果你仍然希望手动安装，也可以继续使用仓库内 compose：
@@ -69,7 +69,7 @@ docker compose up -d --build
 Debian Docker 构建仍然保留给 CI 和镜像发布使用，而安装脚本会优先走最简单的正式版镜像安装路径。
 
 ```bash
-OCTOPUS_PORT=18086 \
+OCTOPUS_PORT=1088 \
 OCTOPUS_DATA_DIR=./build/compose-smoke-data \
 OCTOPUS_CONTAINER_NAME=octopus-smoke \
 docker compose up -d
@@ -179,7 +179,7 @@ chmod +x ./scripts/smoke-docker-compose.sh
 **开发模式**
 
 ```bash
-cd web && pnpm install && NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:8080" pnpm run dev
+cd web && pnpm install && NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:1088" pnpm run dev
 ## 新建终端,启动后端服务
 go run main.go start
 ## 访问前端地址
@@ -467,7 +467,7 @@ from openai import OpenAI
 import os
 
 client = OpenAI(   
-    base_url="http://127.0.0.1:8080/v1",   
+    base_url="http://127.0.0.1:1088/v1",
     api_key="sk-octopus-P48ROljwJmWBYVARjwQM8Nkiezlg7WOrXXOWDYY8TI5p9Mzg", 
 )
 completion = client.chat.completions.create(
@@ -486,7 +486,7 @@ print(completion.choices[0].message.content)
 ```json
 {
   "env": {
-    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8080",
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:1088",
     "ANTHROPIC_AUTH_TOKEN": "sk-octopus-P48ROljwJmWBYVARjwQM8Nkiezlg7WOrXXOWDYY8TI5p9Mzg",
     "API_TIMEOUT_MS": "3000000",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
@@ -510,7 +510,7 @@ model_provider = "octopus"
 
 [model_providers.octopus]
 name = "octopus"
-base_url = "http://127.0.0.1:8080/v1"
+base_url = "http://127.0.0.1:1088/v1"
 ```
 编辑 `~/.codex/auth.json`
 
