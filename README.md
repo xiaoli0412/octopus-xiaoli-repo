@@ -42,10 +42,10 @@
 Run directly:
 
 ```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 8080:8080 ghcr.io/xiaoli0412/octopus-xiaoli-repo:latest
+docker run -d --name octopus -v /path/to/data:/app/data -p 8080:8080 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.16.3
 ```
 
-Or use the install script. It keeps `8080` as the default external port, probes the port before startup, and prompts for a replacement port such as `1008` when `8080` is already occupied:
+Or use the install script. It keeps `8080` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, and pulls the official `v1.16.3` Docker image directly:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
@@ -66,7 +66,7 @@ docker compose up -d --build
 ```
 
 If you use the compose file in this repository directly, the default persistent data directory is `./data`.
-The repository compose file builds the image from the current source tree through `scripts/dockerfiles/Dockerfile.debian`.
+The Debian Docker build remains available for CI and image publishing, while the install script uses the prebuilt release image for the simplest server-side setup.
 You can also override the default compose runtime parameters without editing the file itself:
 
 ```bash

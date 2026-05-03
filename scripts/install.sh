@@ -5,14 +5,12 @@ set -euo pipefail
 DEFAULT_PORT="8080"
 DEFAULT_DATA_DIR="./data"
 DEFAULT_CONTAINER_NAME="octopus"
-DEFAULT_REPO_URL="https://github.com/xiaoli0412/octopus-xiaoli-repo.git"
-DEFAULT_REPO_DIR="octopus-xiaoli-repo"
+DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.16.3"
 
 OCTOPUS_PORT_INPUT="${OCTOPUS_PORT:-${DEFAULT_PORT}}"
 OCTOPUS_DATA_DIR_INPUT="${OCTOPUS_DATA_DIR:-${DEFAULT_DATA_DIR}}"
 OCTOPUS_CONTAINER_NAME_INPUT="${OCTOPUS_CONTAINER_NAME:-${DEFAULT_CONTAINER_NAME}}"
-REPO_URL="${OCTOPUS_REPO_URL:-${DEFAULT_REPO_URL}}"
-REPO_DIR="${OCTOPUS_REPO_DIR:-${DEFAULT_REPO_DIR}}"
+OCTOPUS_IMAGE_INPUT="${OCTOPUS_IMAGE:-${DEFAULT_IMAGE}}"
 
 write_info() {
     printf '[INFO] %s\n' "$1"
@@ -103,7 +101,16 @@ resolve_external_port() {
 
     if port_in_use "$port"; then
         if [[ ! -t 0 ]]; then
-            fail "Port ${port} is already in use. Re-run with OCTOPUS_PORT=<new-port>, for example OCTOPUS_PORT=1008."
+            local fallback_port=""
+            fallback_port="$(find_noninteractive_fallback_port)" || true
+
+            if [[ -n "$fallback_port" ]]; then
+                write_warn "Port ${port} is already in use; auto-selected ${fallback_port} for non-interactive install."
+                printf '%s' "$fallback_port"
+                return 0
+            fi
+
+            fail "Port ${port} is already in use and no fallback port is free. Re-run with OCTOPUS_PORT=<new-port>."
         fi
 
         write_warn "Detected an existing listener on port ${port}."
@@ -114,33 +121,49 @@ resolve_external_port() {
     printf '%s' "$port"
 }
 
-require_command git "Install Git and ensure it is on PATH."
+find_noninteractive_fallback_port() {
+    local candidate
+    for candidate in 1008 1088 18080 18086 28080; do
+        if ! port_in_use "$candidate"; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 require_command docker "Install Docker and ensure docker compose is available."
 
-if ! docker compose version >/dev/null 2>&1; then
-    fail "docker compose is required. Install a Docker version that includes the compose plugin."
+if ! docker info >/dev/null 2>&1; then
+    fail "Docker daemon is not available. Start Docker and try again."
 fi
 
 EXTERNAL_PORT="$(resolve_external_port "$OCTOPUS_PORT_INPUT")"
 
-if [[ -e "$REPO_DIR" && ! -d "$REPO_DIR" ]]; then
-    fail "Target path exists and is not a directory: ${REPO_DIR}"
-fi
+write_info "Pulling Docker image ${OCTOPUS_IMAGE_INPUT}"
+docker pull "$OCTOPUS_IMAGE_INPUT"
 
-if [[ ! -d "$REPO_DIR/.git" ]]; then
-    write_info "Cloning repository into ${REPO_DIR}"
-    git clone "$REPO_URL" "$REPO_DIR"
-else
-    write_info "Repository already exists in ${REPO_DIR}; reusing current checkout"
-fi
+write_info "Removing any existing container named ${OCTOPUS_CONTAINER_NAME_INPUT}"
+docker rm -f "$OCTOPUS_CONTAINER_NAME_INPUT" >/dev/null 2>&1 || true
 
-cd "$REPO_DIR"
+mkdir -p "$OCTOPUS_DATA_DIR_INPUT"
 
-write_info "Starting Octopus with external port ${EXTERNAL_PORT}"
-OCTOPUS_PORT="$EXTERNAL_PORT" \
-OCTOPUS_DATA_DIR="$OCTOPUS_DATA_DIR_INPUT" \
-OCTOPUS_CONTAINER_NAME="$OCTOPUS_CONTAINER_NAME_INPUT" \
-docker compose up -d --build
+write_info "Starting Octopus container with external port ${EXTERNAL_PORT}"
+docker run -d \
+    --name "$OCTOPUS_CONTAINER_NAME_INPUT" \
+    --restart unless-stopped \
+    -p "${EXTERNAL_PORT}:8080" \
+    -e OCTOPUS_SERVER_HOST=0.0.0.0 \
+    -e OCTOPUS_SERVER_PORT=8080 \
+    -e OCTOPUS_DATABASE_TYPE=sqlite \
+    -e OCTOPUS_DATABASE_PATH=/app/data/data.db \
+    -e OCTOPUS_LOG_LEVEL=info \
+    -e DATA_DIR=/app/data \
+    -e PUID=10001 \
+    -e PGID=10001 \
+    -v "${OCTOPUS_DATA_DIR_INPUT}:/app/data" \
+    "$OCTOPUS_IMAGE_INPUT"
 
 write_info "Octopus is starting"
 write_info "UI: http://127.0.0.1:${EXTERNAL_PORT}"

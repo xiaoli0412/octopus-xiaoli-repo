@@ -42,10 +42,10 @@
 直接运行
 
 ```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 8080:8080 ghcr.io/xiaoli0412/octopus-xiaoli-repo:latest
+docker run -d --name octopus -v /path/to/data:/app/data -p 8080:8080 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.16.3
 ```
 
-或者使用安装脚本。脚本默认仍使用 `8080` 作为外部端口，启动前会先探测端口占用；如果 `8080` 已被占用，会提示你直接输入新的端口，例如 `1008`：
+或者使用安装脚本。脚本默认仍使用 `8080` 作为外部端口，启动前会先探测端口占用；如果 `8080` 已被占用，非交互场景会自动切换到可用端口并继续安装，且会直接拉取正式版 `v1.16.3` 镜像：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
@@ -66,7 +66,7 @@ docker compose up -d --build
 ```
 
 如果直接使用当前仓库中的 compose 文件，默认持久化目录为 `./data`。
-也可以通过环境变量覆盖 compose 运行参数，而不必直接修改仓库文件：
+Debian Docker 构建仍然保留给 CI 和镜像发布使用，而安装脚本会优先走最简单的正式版镜像安装路径。
 
 ```bash
 OCTOPUS_PORT=18086 \
