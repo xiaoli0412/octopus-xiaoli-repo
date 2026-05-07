@@ -6,7 +6,7 @@ DEFAULT_PORT="1088"
 DEFAULT_DATA_DIR="./data"
 DEFAULT_CONTAINER_NAME="octopus"
 DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1"
-DEFAULT_IMAGE_FALLBACK=""
+DEFAULT_IMAGE_FALLBACK="docker.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1"
 
 OCTOPUS_PORT_INPUT="${OCTOPUS_PORT:-${DEFAULT_PORT}}"
 OCTOPUS_DATA_DIR_INPUT="${OCTOPUS_DATA_DIR:-${DEFAULT_DATA_DIR}}"
@@ -54,6 +54,18 @@ pull_image_with_fallback() {
     fi
 
     fail "Unable to pull Octopus image. Check access to GHCR or Docker Hub, or re-run with OCTOPUS_IMAGE=<reachable-image>."
+}
+
+warn_if_raw_download_host_is_unstable() {
+    if [[ -t 0 ]]; then
+        return 0
+    fi
+
+    if command -v curl >/dev/null 2>&1; then
+        if ! curl -I --silent --show-error --location --max-time 10 https://raw.githubusercontent.com/ >/dev/null 2>&1; then
+            write_warn "raw.githubusercontent.com is unreachable from this host right now. If the one-liner download fails, download scripts/install.sh elsewhere and upload it first."
+        fi
+    fi
 }
 
 is_valid_port() {
@@ -163,9 +175,10 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 EXTERNAL_PORT="$(resolve_external_port "$OCTOPUS_PORT_INPUT")"
+warn_if_raw_download_host_is_unstable
 
 if [[ ! -t 0 ]]; then
-    write_info "Non-interactive install detected. If this host cannot access raw.githubusercontent.com or GHCR reliably, download scripts/install.sh locally first or set OCTOPUS_IMAGE to a reachable registry mirror."
+    write_info "Non-interactive install detected. If this host cannot access raw.githubusercontent.com or GHCR reliably, download scripts/install.sh locally first or set OCTOPUS_IMAGE / OCTOPUS_IMAGE_FALLBACK to reachable registries."
 fi
 
 PULLED_IMAGE="$(pull_image_with_fallback "$OCTOPUS_IMAGE_INPUT" "$OCTOPUS_IMAGE_FALLBACK_INPUT")"

@@ -1,10 +1,11 @@
 FROM node:22-bookworm AS web-builder
 
 ARG APP_VERSION=1.17.1
+ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
 
 WORKDIR /src/web
 COPY web/package.json web/pnpm-lock.yaml* ./
-RUN corepack enable && pnpm install --frozen-lockfile
+RUN corepack enable && pnpm config set registry "${NPM_CONFIG_REGISTRY}" && pnpm install --frozen-lockfile
 COPY scripts/build-web-static.mjs /src/scripts/build-web-static.mjs
 COPY web/ ./
 RUN NEXT_PUBLIC_APP_VERSION="${APP_VERSION}" pnpm run build:static
@@ -14,10 +15,18 @@ FROM --platform=$BUILDPLATFORM golang:1.24.4-bookworm AS app-builder
 ARG APP_VERSION=1.17.1
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
+ARG GOPROXY=https://proxy.golang.org,direct
+ARG GOSUMDB=sum.golang.org
 
 WORKDIR /src
 COPY go.mod go.sum ./
-RUN go mod download
+RUN export GOPROXY="${GOPROXY}" GOSUMDB="${GOSUMDB}" && \
+    n=0 && until [ "$n" -ge 3 ]; do \
+      go mod download && break; \
+      n=$((n+1)); \
+      echo "go mod download failed, retry ${n}/3" >&2; \
+      sleep $((n*3)); \
+    done && [ "$n" -lt 3 ]
 COPY . ./
 COPY --from=web-builder /src/web/out ./static/out
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/octopus -ldflags="-X github.com/xiaoli0412/octopus-xiaoli-repo/internal/conf.Version=${APP_VERSION} -s -w" -tags=jsoniter ./

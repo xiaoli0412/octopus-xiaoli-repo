@@ -67,6 +67,7 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 If your network restricts GHCR, you can pin the image source explicitly or provide a fallback image:
 
 ```bash
+OCTOPUS_IMAGE=docker.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1 bash install-octopus.sh
 OCTOPUS_IMAGE=ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1 bash install-octopus.sh
 OCTOPUS_IMAGE_FALLBACK=registry.example.com/octopus-xiaoli-repo:v1.17.1 bash install-octopus.sh
 ```

@@ -67,6 +67,7 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 如果所在网络对 GHCR 有限制，也可以显式指定镜像源，或者提供一个回退镜像：
 
 ```bash
+OCTOPUS_IMAGE=docker.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1 bash install-octopus.sh
 OCTOPUS_IMAGE=ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1 bash install-octopus.sh
 OCTOPUS_IMAGE_FALLBACK=registry.example.com/octopus-xiaoli-repo:v1.17.1 bash install-octopus.sh
 ```
