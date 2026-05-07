@@ -231,7 +231,7 @@ EXTERNAL_PORT="$(resolve_external_port "$OCTOPUS_PORT_INPUT")"
 warn_if_raw_download_host_is_unstable
 
 REPO_URL="${OCTOPUS_REPO_URL:-https://github.com/xiaoli0412/octopus-xiaoli-repo.git}"
-REPO_REF="${OCTOPUS_REPO_REF:-v1.17.1}"
+REPO_REF="${OCTOPUS_REPO_REF:-main}"
 REPO_DIR="${OCTOPUS_REPO_DIR:-octopus-xiaoli-repo}"
 
 if [[ ! -t 0 ]]; then
