@@ -6,9 +6,8 @@ ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
 WORKDIR /src/web
 COPY web/package.json web/pnpm-lock.yaml* ./
 RUN corepack enable && pnpm config set registry "${NPM_CONFIG_REGISTRY}" && pnpm install --frozen-lockfile
-COPY scripts/build-web-static.mjs /src/scripts/build-web-static.mjs
 COPY web/ ./
-RUN NEXT_PUBLIC_APP_VERSION="${APP_VERSION}" pnpm run build:static
+RUN NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_APP_VERSION="${APP_VERSION}" pnpm run build
 
 FROM --platform=$BUILDPLATFORM golang:1.24.4-bookworm AS app-builder
 
