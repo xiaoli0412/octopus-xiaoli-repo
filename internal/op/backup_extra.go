@@ -1954,8 +1954,12 @@ func buildImportCompatibility(originalDump, dump *model.DBDump, state *currentIm
 			report.ReplacePrunedLLMInfos = buildReplacePrunedLLMInfoNames(dump, state)
 		}
 		if apiKeysScopeEnabled && dump.Manifest.ContainsSecrets {
-			filteredAPIKeys, _ := filterImportableAPIKeys(dump.APIKeys)
-			report.ReplacePrunedAPIKeys = buildReplacePrunedAPIKeyNames(state.apiKeysByAPIKey, filteredAPIKeys)
+			keepAPIKeys := dump.APIKeys
+			if len(keepAPIKeys) > 0 {
+				filteredAPIKeys, _ := filterImportableAPIKeys(dump.APIKeys)
+				keepAPIKeys = filteredAPIKeys
+			}
+			report.ReplacePrunedAPIKeys = buildReplacePrunedAPIKeyNames(state.apiKeysByAPIKey, keepAPIKeys)
 		}
 		if len(report.ReplacePrunedChannels) > 0 || len(report.ReplacePrunedGroups) > 0 || len(report.ReplacePrunedSettings) > 0 || len(report.ReplacePrunedLLMInfos) > 0 || len(report.ReplacePrunedAPIKeys) > 0 {
 			report.ReplacePrunePreview = &model.DBReplacePrunePreview{

@@ -21,6 +21,10 @@
   "apiKeyDashboard": {
     "error": "加载数据失败",
     "logout": "退出",
+    "statusActive": "当前可用",
+    "statusDisabled": "已禁用",
+    "authMode": "认证模式",
+    "authModeValue": "API 密钥会话",
     "copiedModel": "已复制：{label}",
     "requestStats": "请求统计",
     "totalStats": "全部统计",

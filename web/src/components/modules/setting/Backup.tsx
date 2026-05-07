@@ -132,6 +132,22 @@ function toneClasses(tone: SummaryTone) {
 	return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700';
 }
 
+function getBackupRequestErrorMessage(error: unknown, fallback: string, locale: Locale) {
+	if (error instanceof Error) {
+		const message = error.message.trim();
+		if (message === 'Failed to fetch') {
+			return localize(locale, {
+				'zh-Hans': '请求没有到达服务端。请确认当前页面仍处于登录状态，并检查浏览器能否访问当前 Octopus 服务地址。',
+				'zh-Hant': '請求沒有到達服務端。請確認目前頁面仍在登入狀態，並檢查瀏覽器能否連到目前的 Octopus 服務位址。',
+				en: 'The request did not reach the server. Confirm this page is still authenticated and that the browser can reach the current Octopus server address.',
+				ja: 'リクエストがサーバーに到達していません。現在のページがまだ認証済みか、ブラウザーから Octopus サーバーに到達できるか確認してください。',
+			});
+		}
+		return message || fallback;
+	}
+	return fallback;
+}
+
 function formatFileSize(size: number) {
 	if (size < 1024) return `${size} B`;
 	return `${Math.ceil(size / 1024)} KB`;
@@ -428,6 +444,36 @@ const backupTextByLocale = (locale: Locale) => ({
 	rollbackSignalsSummary: localize(locale, { 'zh-Hans': '先看摘要，再决定是否展开下方回滚兼容性明细。', en: 'Start with the summary signals, then expand the rollback diagnostics only when needed.' }),
 	rollbackPreviewWarningsTitle: localize(locale, { 'zh-Hans': '回滚预览警告', en: 'Rollback Preview Warnings' }),
 	rollbackPreviewWarningsSummary: localize(locale, { 'zh-Hans': '这些提示来自回滚预览本身，不一定等同于兼容性冲突。', en: 'These warnings come from the rollback preview itself and do not always mean a compatibility conflict.' }),
+	rollbackReplacePrunedChannelsTitle: localize(locale, {
+		'zh-Hans': '回滚后会移除的当前渠道',
+		'zh-Hant': '回滾後會移除的目前渠道',
+		en: 'Current channels removed by rollback',
+		ja: 'ロールバック後に削除される現在のチャネル',
+	}),
+	rollbackReplacePrunedGroupsTitle: localize(locale, {
+		'zh-Hans': '回滚后会移除的当前分组',
+		'zh-Hant': '回滾後會移除的目前分組',
+		en: 'Current groups removed by rollback',
+		ja: 'ロールバック後に削除される現在のグループ',
+	}),
+	rollbackReplacePrunedSettingsTitle: localize(locale, {
+		'zh-Hans': '回滚后会重置的当前设置',
+		'zh-Hant': '回滾後會重設的目前設定',
+		en: 'Current settings reset by rollback',
+		ja: 'ロールバック後にリセットされる現在の設定',
+	}),
+	rollbackReplacePrunedLLMInfosTitle: localize(locale, {
+		'zh-Hans': '回滚后会移除的当前模型信息',
+		'zh-Hant': '回滾後會移除的目前模型資訊',
+		en: 'Current model rows removed by rollback',
+		ja: 'ロールバック後に削除される現在のモデル行',
+	}),
+	rollbackReplacePrunedAPIKeysTitle: localize(locale, {
+		'zh-Hans': '回滚后会移除的当前 API 密钥',
+		'zh-Hant': '回滾後會移除的目前 API 金鑰',
+		en: 'Current API keys removed by rollback',
+		ja: 'ロールバック後に削除される現在の API キー',
+	}),
 	compatibilityHeadlineSafe: localize(locale, { 'zh-Hans': '当前没有明显阻塞风险', en: 'No obvious blocking risks' }),
 	compatibilityHeadlineWarning: localize(locale, { 'zh-Hans': '建议先再看一遍', en: 'Review the differences first' }),
 	compatibilityHeadlineDanger: localize(locale, { 'zh-Hans': '需要先处理风险', en: 'Resolve the risks first' }),
@@ -644,6 +690,13 @@ export function SettingBackup() {
 	}, [locale, replacePrunePreview, replacePrunedBreakdown]);
 	const postImportSummary = useMemo(() => getPostImportValidationSummary(importResult?.post_import_validation), [importResult?.post_import_validation]);
 	const rollbackCounts = useMemo(() => getCompatibilityCounts(currentRollbackPreview?.compatibility), [currentRollbackPreview?.compatibility]);
+	const rollbackReplacePrunedBreakdown = useMemo(() => getReplacePrunedBreakdownItems({
+		channels: currentRollbackPreview?.compatibility?.replace_pruned_channels,
+		groups: currentRollbackPreview?.compatibility?.replace_pruned_groups,
+		settings: currentRollbackPreview?.compatibility?.replace_pruned_settings,
+		models: currentRollbackPreview?.compatibility?.replace_pruned_llm_infos,
+		apiKeys: currentRollbackPreview?.compatibility?.replace_pruned_api_keys,
+	}, locale), [currentRollbackPreview?.compatibility?.replace_pruned_api_keys, currentRollbackPreview?.compatibility?.replace_pruned_channels, currentRollbackPreview?.compatibility?.replace_pruned_groups, currentRollbackPreview?.compatibility?.replace_pruned_llm_infos, currentRollbackPreview?.compatibility?.replace_pruned_settings, locale]);
 	const rollbackOverview = useMemo(() => getCompatibilityOverview({ counts: rollbackCounts, warningsCount: (currentRollbackPreview?.preview_warnings ?? []).length, kind: 'rollback', locale }), [rollbackCounts, currentRollbackPreview?.preview_warnings, locale]);
 	const rollbackSignals = useMemo(() => buildCompatibilitySignalItems({
 		counts: rollbackCounts,
@@ -653,6 +706,8 @@ export function SettingBackup() {
 		includeWarningsCount: true,
 		includeModelMappingPreviews: true,
 		includeUnusedModelMappings: true,
+		includeStructuredReplacePrunedCount: true,
+		structuredReplacePrunedCount: rollbackCounts.replacePrunedTargets,
 	}), [rollbackCounts, currentRollbackPreview?.preview_warnings, locale]);
 	const rollbackPreviewName = currentRollbackPreview?.snapshot_name ?? text.unknown;
 	const rollbackScopeSummary = currentRollbackPreview?.applied_scopes ? joinLocalizedList(getVisibleScopeLabels(currentRollbackPreview.applied_scopes, scopeOptions), locale) : text.unknown;
@@ -698,6 +753,11 @@ export function SettingBackup() {
 		|| rollbackBaseURLMismatchItems.length > 0
 		|| rollbackSchemaMismatchItems.length > 0
 		|| rollbackSkippedTargetItems.length > 0
+		|| rollbackReplacePrunedBreakdown.channels.length > 0
+		|| rollbackReplacePrunedBreakdown.groups.length > 0
+		|| rollbackReplacePrunedBreakdown.settings.length > 0
+		|| rollbackReplacePrunedBreakdown.llmInfos.length > 0
+		|| rollbackReplacePrunedBreakdown.apiKeys.length > 0
 		|| rollbackInvalidRouteIssueItems.length > 0
 		|| rollbackSkippedRouteIssueItems.length > 0
 		|| rollbackRoutePreviewWarningItems.length > 0
@@ -799,7 +859,7 @@ export function SettingBackup() {
 			} as never);
 			toast.success(text.toastExportSuccess);
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : text.toastImportFailed);
+			toast.error(getBackupRequestErrorMessage(error, text.toastImportFailed, locale));
 		}
 	}
 
@@ -817,7 +877,7 @@ export function SettingBackup() {
 		try {
 			prepared = createPendingRequest();
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : text.toastImportFailed);
+			toast.error(getBackupRequestErrorMessage(error, text.toastImportFailed, locale));
 			return;
 		}
 
@@ -849,7 +909,7 @@ export function SettingBackup() {
 			setPendingApplyRequest(null);
 			toast.success(text.toastImportSuccess);
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : text.toastImportFailed);
+			toast.error(getBackupRequestErrorMessage(error, text.toastImportFailed, locale));
 		}
 	}
 
@@ -881,7 +941,7 @@ export function SettingBackup() {
 			setShowReplacePruneDetails(false);
 			toast.success(text.toastImportSuccess);
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : text.toastImportFailed);
+			toast.error(getBackupRequestErrorMessage(error, text.toastImportFailed, locale));
 		}
 	}
 
@@ -896,7 +956,7 @@ export function SettingBackup() {
 			}
 			setCurrentRollbackPreview(preview);
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : text.toastRollbackFailed);
+			toast.error(getBackupRequestErrorMessage(error, text.toastRollbackFailed, locale));
 		}
 	}
 
@@ -907,7 +967,7 @@ export function SettingBackup() {
 			const result = await rollbackImportSnapshot.mutateAsync({ snapshotName: snapshot.snapshot_name, importScopes: preparedRollbackScopes });
 			toast.success(result.snapshot_name ?? snapshot.snapshot_name);
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : text.toastRollbackFailed);
+			toast.error(getBackupRequestErrorMessage(error, text.toastRollbackFailed, locale));
 		}
 	}
 
@@ -916,7 +976,7 @@ export function SettingBackup() {
 			const result = await rollbackLatestImportSnapshot.mutateAsync(undefined as never);
 			toast.success(result.snapshot_name ?? text.unknown);
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : text.toastRollbackFailed);
+			toast.error(getBackupRequestErrorMessage(error, text.toastRollbackFailed, locale));
 		}
 	}
 
@@ -1258,15 +1318,15 @@ export function SettingBackup() {
 									) : null}
 									<DetailBlock title={text.rollbackGuidanceTitle} items={rollbackGuidanceItems.map((item) => `${item.title} | ${item.detail}`)} testIdPrefix="backup-rollback-guidance" />
 								</div>
-								{rollbackPreviewWarningItems.length > 0 ? (
-									<div className="space-y-3 rounded-2xl border border-border/60 bg-background/70 p-3" data-testid="backup-rollback-preview-warnings-panel">
-										<div className="space-y-1">
-											<div className="text-sm font-medium text-card-foreground" data-testid="backup-rollback-preview-warnings-title">{text.rollbackPreviewWarningsTitle}</div>
-											<div className="text-xs text-muted-foreground" data-testid="backup-rollback-preview-warnings-summary">{text.rollbackPreviewWarningsSummary}</div>
-										</div>
-								<DetailBlock title={text.rollbackPreviewWarningsTitle} items={rollbackPreviewWarningItems} testIdPrefix="backup-rollback-preview-warnings-list" />
+							{rollbackPreviewWarningItems.length > 0 ? (
+								<div className="space-y-3 rounded-2xl border border-border/60 bg-background/70 p-3" data-testid="backup-rollback-preview-warnings-panel">
+									<div className="space-y-1">
+										<div className="text-sm font-medium text-card-foreground" data-testid="backup-rollback-preview-warnings-title">{text.rollbackPreviewWarningsTitle}</div>
+										<div className="text-xs text-muted-foreground" data-testid="backup-rollback-preview-warnings-summary">{text.rollbackPreviewWarningsSummary}</div>
 									</div>
-								) : null}
+									<DetailBlock title={text.rollbackPreviewWarningsTitle} items={rollbackPreviewWarningItems} testIdPrefix="backup-rollback-preview-warnings-list" />
+								</div>
+							) : null}
 								{hasRollbackCompatibilityDetails ? (
 									<div className="space-y-3 rounded-2xl border border-border/60 bg-background/70 p-3" data-testid="backup-rollback-compatibility-panel">
 										<div className="space-y-1">
@@ -1282,10 +1342,15 @@ export function SettingBackup() {
 											<DetailBlock title={text.missingProvidersTitle} items={rollbackMissingProviderItems} testIdPrefix="backup-rollback-compatibility-missing-providers" />
 											<DetailBlock title={text.missingModelsTitle} items={rollbackMissingModelItems} testIdPrefix="backup-rollback-compatibility-missing-models" />
 											<DetailBlock title={text.baseURLMismatchTitle} items={rollbackBaseURLMismatchItems} testIdPrefix="backup-rollback-compatibility-base-url-mismatches" />
-											<DetailBlock title={text.schemaMismatchTitle} items={rollbackSchemaMismatchItems} testIdPrefix="backup-rollback-compatibility-schema-mismatches" />
-											<DetailBlock title={text.skippedTargetsTitle} items={rollbackSkippedTargetItems} testIdPrefix="backup-rollback-compatibility-skipped-targets" />
-											<DetailBlock title={text.credentialRebindTitle} items={rollbackCredentialRebindItems} testIdPrefix="backup-rollback-compatibility-credential-rebind" />
-											<DetailBlock title={text.routeIssueTitle} items={rollbackInvalidRouteIssueItems} testIdPrefix="backup-rollback-compatibility-invalid-route-targets" />
+									<DetailBlock title={text.schemaMismatchTitle} items={rollbackSchemaMismatchItems} testIdPrefix="backup-rollback-compatibility-schema-mismatches" />
+									<DetailBlock title={text.skippedTargetsTitle} items={rollbackSkippedTargetItems} testIdPrefix="backup-rollback-compatibility-skipped-targets" />
+									<DetailBlock title={text.credentialRebindTitle} items={rollbackCredentialRebindItems} testIdPrefix="backup-rollback-compatibility-credential-rebind" />
+									<DetailBlock title={text.rollbackReplacePrunedChannelsTitle} items={rollbackReplacePrunedBreakdown.channels} testIdPrefix="backup-rollback-compatibility-replace-pruned-channels" />
+									<DetailBlock title={text.rollbackReplacePrunedGroupsTitle} items={rollbackReplacePrunedBreakdown.groups} testIdPrefix="backup-rollback-compatibility-replace-pruned-groups" />
+									<DetailBlock title={text.rollbackReplacePrunedSettingsTitle} items={rollbackReplacePrunedBreakdown.settings} testIdPrefix="backup-rollback-compatibility-replace-pruned-settings" />
+									<DetailBlock title={text.rollbackReplacePrunedLLMInfosTitle} items={rollbackReplacePrunedBreakdown.llmInfos} testIdPrefix="backup-rollback-compatibility-replace-pruned-llm-infos" />
+									<DetailBlock title={text.rollbackReplacePrunedAPIKeysTitle} items={rollbackReplacePrunedBreakdown.apiKeys} testIdPrefix="backup-rollback-compatibility-replace-pruned-api-keys" />
+									<DetailBlock title={text.routeIssueTitle} items={rollbackInvalidRouteIssueItems} testIdPrefix="backup-rollback-compatibility-invalid-route-targets" />
 											<DetailBlock title={text.skippedRouteIssueTitle} items={rollbackSkippedRouteIssueItems} testIdPrefix="backup-rollback-compatibility-skipped-route-targets" />
 											<DetailBlock title={text.routePreviewWarningTitle} items={rollbackRoutePreviewWarningItems} testIdPrefix="backup-rollback-compatibility-route-preview-warnings" />
 											<DetailBlock title={text.mappingPreviewTitle} items={rollbackMappingPreviewItems} testIdPrefix="backup-rollback-compatibility-mapping-preview" />

@@ -596,7 +596,11 @@ func AITaskCancel(id int, ctx context.Context) (model.AITask, error) {
 	if err != nil {
 		return model.AITask{}, err
 	}
+	trackedForExecution := isAITaskExecutionTracked(id)
 	if isTerminalAITaskStatus(task.Status) {
+		if task.Status == model.AITaskStatusFailed && trackedForExecution {
+			return forceAITaskCanceled(id, ctx)
+		}
 		return task, nil
 	}
 	now := time.Now()
@@ -616,6 +620,24 @@ func AITaskCancel(id int, ctx context.Context) (model.AITask, error) {
 	}
 	if err := db.GetDB().WithContext(ctx).Model(&model.AITask{}).Where("id = ?", id).Update("progress", 100).Error; err != nil {
 		return model.AITask{}, err
+	}
+	markAITaskCanceledSteps(id)
+	return AITaskGet(id, ctx)
+}
+
+func forceAITaskCanceled(id int, ctx context.Context) (model.AITask, error) {
+	now := time.Now()
+	if err := db.GetDB().WithContext(ctx).Model(&model.AITask{}).Where("id = ?", id).Updates(map[string]any{
+		"status":        model.AITaskStatusCanceled,
+		"error_message": "",
+		"finished_at":   &now,
+		"progress":      100,
+	}).Error; err != nil {
+		return model.AITask{}, err
+	}
+	cancelAITaskExecution(id)
+	if !waitForAITaskStop(id, aiTaskCancelWaitTimeout) {
+		return model.AITask{}, fmt.Errorf("timed out waiting for AI task %d to stop", id)
 	}
 	markAITaskCanceledSteps(id)
 	return AITaskGet(id, ctx)

@@ -21,6 +21,10 @@
   "apiKeyDashboard": {
     "error": "載入資料失敗",
     "logout": "登出",
+    "statusActive": "目前可用",
+    "statusDisabled": "已停用",
+    "authMode": "認證模式",
+    "authModeValue": "API 金鑰會話",
     "copiedModel": "已複製：{label}",
     "requestStats": "請求統計",
     "totalStats": "全部統計",

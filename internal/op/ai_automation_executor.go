@@ -164,13 +164,15 @@ func AITaskStartAsync(taskID int) {
 	if loaded {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithCancel(context.Background())
 	storeAITaskCancel(taskID, cancel)
 	go func() {
 		defer deleteAITaskCancel(taskID)
 		defer aiTaskStartGroup.Delete(taskID)
 		defer cancel()
-		if err := executeAITask(ctx, taskID); err != nil {
+		execCtx, execCancel := context.WithTimeout(ctx, 2*time.Minute)
+		defer execCancel()
+		if err := executeAITask(execCtx, taskID); err != nil {
 			if errors.Is(err, context.Canceled) {
 				return
 			}
@@ -631,6 +633,19 @@ func cancelAITaskExecution(taskID int) {
 		return
 	}
 	cancel()
+}
+
+func isAITaskExecutionTracked(taskID int) bool {
+	if taskID <= 0 {
+		return false
+	}
+	if _, ok := aiTaskStartGroup.Load(taskID); ok {
+		return true
+	}
+	if _, ok := aiTaskCancelFuncs.Load(taskID); ok {
+		return true
+	}
+	return false
 }
 
 func CancelAllAITasks() error {
@@ -1905,7 +1920,7 @@ func ensureAITaskRunnable(taskID int, ctx context.Context) error {
 	if task.Status == model.AITaskStatusCanceled {
 		return context.Canceled
 	}
-	if task.Status == model.AITaskStatusFailed || task.Status == model.AITaskStatusSucceeded {
+	if task.Status == model.AITaskStatusFailed || task.Status == model.AITaskStatusFailedUnrecoverable || task.Status == model.AITaskStatusSucceeded {
 		return fmt.Errorf("task is already finished")
 	}
 	return nil
@@ -1963,12 +1978,28 @@ func markAITaskStepsAfter(taskID int, stepKey, status, message string, ctx conte
 
 func finishAITaskFailure(taskID int, cause error, ctx context.Context) error {
 	_ = ctx
+	if errors.Is(cause, context.Canceled) {
+		return cause
+	}
 	message := trimTextWithSuffix(cause.Error(), aiTaskResultSummaryLimit, "...")
 	now := time.Now()
 	writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := db.GetDB().WithContext(writeCtx).Model(&model.AITask{}).Where("id = ? AND status <> ?", taskID, model.AITaskStatusCanceled).Updates(map[string]any{"status": model.AITaskStatusFailed, "error_message": message, "finished_at": &now}).Error; err != nil {
-		return err
+	result := db.GetDB().WithContext(writeCtx).Model(&model.AITask{}).
+		Where("id = ? AND status NOT IN ?", taskID, []string{model.AITaskStatusCanceled, model.AITaskStatusSucceeded, model.AITaskStatusFailedUnrecoverable}).
+		Updates(map[string]any{"status": model.AITaskStatusFailed, "error_message": message, "finished_at": &now})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		latest, err := AITaskGet(taskID, writeCtx)
+		if err == nil && latest.Status == model.AITaskStatusCanceled {
+			return context.Canceled
+		}
+		if err != nil {
+			return err
+		}
+		return cause
 	}
 	return cause
 }

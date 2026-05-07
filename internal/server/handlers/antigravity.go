@@ -105,7 +105,7 @@ func trimAntigravitySessionsLocked(currentState string) {
 	}
 }
 
-func antigravityConfig() (clientID, clientSecret, authorizeURL, tokenURL, scope string) {
+func antigravityConfig() (clientID, clientSecret, authorizeURL, tokenURL, scope string, err error) {
 	clientID = strings.TrimSpace(os.Getenv("OCTOPUS_ANTIGRAVITY_CLIENT_ID"))
 	if clientID == "" {
 		clientID = strings.TrimSpace(os.Getenv("ANTIGRAVITY_CLIENT_ID"))
@@ -135,6 +135,12 @@ func antigravityConfig() (clientID, clientSecret, authorizeURL, tokenURL, scope 
 	if scope == "" {
 		scope = "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile"
 	}
+	if err = validateAbsoluteHTTPURL(authorizeURL, "antigravity authorize url"); err != nil {
+		return "", "", "", "", "", err
+	}
+	if err = validateAbsoluteHTTPURL(tokenURL, "antigravity token url"); err != nil {
+		return "", "", "", "", "", err
+	}
 	return
 }
 
@@ -154,12 +160,11 @@ func buildAPIPublicBase(c *gin.Context) string {
 		trimmed := strings.TrimSpace(apiBaseURL)
 		if trimmed != "" {
 			trimmed = strings.TrimRight(trimmed, "/")
-			if parsed, parseErr := url.Parse(trimmed); parseErr == nil && parsed.Host != "" {
+			if validateAbsoluteHTTPURL(trimmed, "api base URL") == nil {
+				parsed, _ := url.Parse(trimmed)
 				if !hostIsLoopback(parsed.Host) || hostIsLoopback(host) {
 					return trimmed
 				}
-			} else {
-				return trimmed
 			}
 		}
 	}
@@ -192,7 +197,11 @@ func randomOAuthState() (string, error) {
 }
 
 func startAntigravityOAuth(c *gin.Context) {
-	clientID, _, authorizeURL, _, scope := antigravityConfig()
+	clientID, _, authorizeURL, _, scope, err := antigravityConfig()
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
 	if clientID == "" {
 		resp.Error(c, http.StatusBadRequest, "antigravity oauth is not configured: missing client_id")
 		return
@@ -305,7 +314,15 @@ func antigravityOAuthCallback(c *gin.Context) {
 		return
 	}
 
-	clientID, clientSecret, _, tokenURL, _ := antigravityConfig()
+	clientID, clientSecret, _, tokenURL, _, err := antigravityConfig()
+	if err != nil {
+		antigravityOAuthLock.Lock()
+		session.Status = "failed"
+		session.Error = err.Error()
+		antigravityOAuthLock.Unlock()
+		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte("<html><body><h3>Authorization failed</h3><p>Server oauth config is invalid.</p></body></html>"))
+		return
+	}
 	if clientID == "" || clientSecret == "" {
 		antigravityOAuthLock.Lock()
 		session.Status = "failed"

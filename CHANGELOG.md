@@ -4,6 +4,28 @@
 
 ---
 
+## 1.17.1 - 2026-05-07
+
+### 🐛 发布后修复
+
+- 修复 `screenshot-no-browser` 中 Backup 回滚预览契约漂移：补齐 rollback replace-prune 兼容性详情、结构化 guidance/signal 文案，以及 `backup-rollback-preview-warnings-list` 测试选择器，对齐 `Backup.tsx`、`backup-logic.ts`、no-browser verifier 与 setting mock。
+- 修复 Debian Docker 构建阶段缺少 `scripts/build-web-static.mjs` 导致的 `MODULE_NOT_FOUND`，`Dockerfile.debian` 现已在 `web-builder` 阶段显式复制该脚本，保证 `pnpm run build:static` 可在 CI 和 compose smoke 中执行。
+- 修复 API key 登录态链路：`/api/v1/apikey/login` 现在返回结构化认证状态，前端会在服务端校验成功后再持久化 API key session，并把 `enabled / expire_at / supported_models / auth_mode` 同步到 dashboard 与 auth store。
+- 修复 AI automation 任务取消与失败收口：为运行中任务补充跟踪态判断、失败后强制取消入口、取消等待和 terminal status 保护，减少后台执行与取消状态错位。
+
+### ✨ 完成度整合
+
+- 将其他自动化已完成但未发布的 backup rollback 细节收口一并纳入：回滚预览现在会展示 replace-prune 清理对象、结构化 rollback guidance、compatibility details 与更明确的网络错误提示。
+- API key dashboard 增加会话状态徽章和认证模式展示，四语 locale 同步补齐。
+- OAuth override URL 校验补到 Copilot / Antigravity handler 与测试，避免错误或带凭据 URL 在服务端静默流入后续链路。
+
+### Release Highlights (EN)
+
+- Fixed the Backup rollback preview contract drift that broke `test:screenshot-no-browser`, including the rollback replace-prune diagnostics, structured guidance/signals, and the updated `backup-rollback-preview-warnings-list` selectors.
+- Fixed Debian Docker builds by copying `scripts/build-web-static.mjs` into the web builder stage so `pnpm run build:static` no longer fails with `MODULE_NOT_FOUND`.
+- Fixed the API key auth session flow so `/api/v1/apikey/login` returns structured auth status and the frontend only persists API key auth after server validation.
+- Folded in already-finished backup rollback, dashboard, and OAuth URL validation improvements, and released them together as the `1.17.1` patch line.
+
 ## 1.17 - 2026-05-07
 
 ### ✨ 核心更新

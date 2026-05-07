@@ -234,7 +234,7 @@ module.exports = {
 					compatibility: {
 						conflicts: ['channel conflict'],
 						alias_conflicts: ['alias conflict: rollback-vision -> gpt-4.1'],
-						route_conflicts: ['route conflict: group-a -> legacy-model'],
+						route_conflicts: ['route conflict: rollback-group -> legacy-model'],
 						credential_rebind_targets: [{
 							target_type: 'channel_key',
 							channel_name: 'Primary',
@@ -249,6 +249,11 @@ module.exports = {
 						base_url_mismatches: ['rollback-channel'],
 						schema_mismatches: ['snapshot schema:v2 differs'],
 						skipped_targets: ['channel_key:101 empty credential'],
+						replace_pruned_channels: ['current-channel-a'],
+						replace_pruned_groups: ['current-group-a'],
+						replace_pruned_settings: ['proxy_url'],
+						replace_pruned_llm_infos: ['current-legacy-model'],
+						replace_pruned_api_keys: ['current-client-key'],
 						invalid_route_targets: [{ group_name: 'rollback-group', channel_name: 'Primary', model: 'legacy-model', issue_type: 'missing_target', reason: 'channel removed', action: 'rebind channel' }],
 						skipped_route_target_previews: [{ group_name: 'rollback-group', channel_name: 'Primary', model: 'legacy-model', issue_type: 'skipped_preview', reason: 'preview omitted', action: 'review mapping' }],
 						route_preview_warnings: ['rollback route may degrade'],

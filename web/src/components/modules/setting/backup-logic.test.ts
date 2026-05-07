@@ -268,6 +268,49 @@ describe('backup-logic', () => {
 		]);
 	});
 
+	it('adds rollback replace-prune guidance when structured rollback cleanup is present', () => {
+		const guidance = buildImportCompatibilityGuidanceItems({
+			kind: 'rollback',
+			counts: {
+				conflicts: 0,
+				aliasConflicts: 0,
+				routeConflicts: 0,
+				credentialRebindTargets: 0,
+				channelKeyRebindTargets: 0,
+				apiKeyRebindTargets: 0,
+				invalidRouteTargets: 0,
+				skippedRouteTargetPreviews: 0,
+				routePreviewWarnings: 0,
+				routePreviewDiffs: 0,
+				missingProviders: 0,
+				missingModels: 0,
+				baseURLMismatches: 0,
+				schemaMismatches: 0,
+				skippedTargets: 0,
+				modelMappingPreviews: 0,
+				usedModelMappings: 0,
+				unusedModelMappings: 0,
+				missingMappingTargets: 0,
+				aliasPreviewMappings: 0,
+				modelPolicyDiffs: 0,
+				replacePrunedTargets: 2,
+			},
+			compatibility: {
+				replace_pruned_channels: ['legacy-channel'],
+				replace_pruned_api_keys: ['client-key'],
+			},
+		});
+
+		expect(guidance).toEqual([
+			{
+				key: 'replace-prune',
+				tone: 'warning',
+				title: '确认回滚会清理哪些当前记录',
+				detail: '回滚恢复会清理这些当前记录：legacy-channel；client-key。建议先展开下方结构化清理明细，再决定是否执行回滚。',
+			},
+		]);
+	});
+
 	it('uses import-report wording by default when import warnings are present', () => {
 		const items = buildCompatibilitySignalItems({
 			kind: 'import',

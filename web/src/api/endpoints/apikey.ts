@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../client';
+import { apiClient, buildApiUrl } from '../client';
 import { logger } from '@/lib/logger';
 import { useAuthStore } from './user';
 import { StatsAPIKey, StatsAPIKeyFormatted } from './stats';
@@ -31,18 +31,45 @@ export interface APIKeyStatsResponseFormatted {
     info: APIKey;
 }
 
+export interface APIKeyAuthStatus {
+	ok: boolean;
+	api_key_id: number;
+	name: string;
+	enabled: boolean;
+	expire_at?: number;
+	supported_models?: string;
+	auth_mode: 'api_key';
+}
+
 /**
- * API Key 登录 Hook（仅校验 key 是否有效）
+ * API Key 登录 Hook（服务端校验成功后再落本地认证状态）
  */
 export function useAPIKeyLogin() {
     const { setAPIKeyAuth, logout } = useAuthStore();
 
     return useMutation({
         mutationFn: async (apiKey: string) => {
-            // 先设置以便 apiClient 发送请求时带上 token
-            setAPIKeyAuth(apiKey);
-            await apiClient.get<null>('/api/v1/apikey/login');
-            return apiKey;
+			const trimmedKey = apiKey.trim();
+			const response = await fetch(buildApiUrl('/api/v1/apikey/login'), {
+				method: 'GET',
+				headers: {
+					Authorization: `Bearer ${trimmedKey}`,
+				},
+			});
+			const contentType = response.headers.get('content-type') || '';
+			const isJson = contentType.includes('application/json');
+			const payload = isJson ? await response.json() : await response.text();
+			if (!response.ok) {
+				const message = typeof payload === 'object' && payload && 'message' in payload && typeof payload.message === 'string'
+					? payload.message
+					: (typeof payload === 'string' ? payload : response.statusText);
+				throw new Error(message || 'API key login failed');
+			}
+			const data = typeof payload === 'object' && payload && 'data' in payload
+				? (payload.data as APIKeyAuthStatus)
+				: (payload as APIKeyAuthStatus);
+			setAPIKeyAuth(trimmedKey, data);
+			return data;
         },
         onError: (error) => {
             logout();

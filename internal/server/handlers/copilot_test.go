@@ -145,6 +145,36 @@ func TestCopilotPollTokenRejectsOversizedOAuthResponse(t *testing.T) {
 	}
 }
 
+func TestCopilotOAuthConfigRejectsInvalidOverrideURLs(t *testing.T) {
+	t.Setenv("OCTOPUS_COPILOT_DEVICE_CODE_URL", "ftp://github.com/login/device/code")
+
+	_, _, _, _, err := copilotOAuthConfig()
+	if err == nil {
+		t.Fatal("copilotOAuthConfig() error = nil, want invalid override URL error")
+	}
+	if got := err.Error(); got != "copilot device code url must be absolute http or https URL" {
+		t.Fatalf("copilotOAuthConfig() error = %q, want %q", got, "copilot device code url must be absolute http or https URL")
+	}
+}
+
+func TestCopilotRequestDeviceCodeRejectsCredentialBearingOverrideURL(t *testing.T) {
+	setupHandlerTest(t)
+	t.Setenv("OCTOPUS_COPILOT_DEVICE_CODE_URL", "https://user:pass@github.com/login/device/code")
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/channel/copilot/device-code", nil)
+
+	copilotRequestDeviceCode(ctx)
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusInternalServerError, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "copilot device code url must not include credentials") {
+		t.Fatalf("body = %q, want credential validation message", recorder.Body.String())
+	}
+}
+
 type copilotRoundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn copilotRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {

@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { apiClient, setAuthStoreGetter } from '../client';
 import { logger } from '@/lib/logger';
+import type { APIKeyAuthStatus } from './apikey';
 
 export interface UserLoginRequest {
     username: string;
@@ -44,9 +45,10 @@ interface AuthState {
     token: string | null;
     expireAt: string | null;
     mustChangePassword: boolean;
+    apiKeyStatus: APIKeyAuthStatus | null;
 
     setAuth: (token: string, expireAt: string, mustChangePassword?: boolean) => void;
-    setAPIKeyAuth: (apiKey: string) => void;
+    setAPIKeyAuth: (apiKey: string, status: APIKeyAuthStatus) => void;
     setMustChangePassword: (mustChangePassword: boolean) => void;
     checkAuth: () => Promise<void>;
     logout: () => void;
@@ -61,6 +63,7 @@ export const useAuthStore = create<AuthState>()(
             token: null,
             expireAt: null,
             mustChangePassword: false,
+            apiKeyStatus: null,
 
             setAuth: (token: string, expireAt: string, mustChangePassword = false) => {
                 set({
@@ -69,17 +72,19 @@ export const useAuthStore = create<AuthState>()(
                     token,
                     expireAt,
                     mustChangePassword,
+                    apiKeyStatus: null,
                     isLoading: false,
                 });
             },
 
-            setAPIKeyAuth: (apiKey: string) => {
+            setAPIKeyAuth: (apiKey: string, status: APIKeyAuthStatus) => {
                 set({
                     isAuthenticated: true,
                     isAPIKeyAuth: true,
                     token: apiKey,
                     expireAt: null,
                     mustChangePassword: false,
+                    apiKeyStatus: status,
                     isLoading: false,
                 });
             },
@@ -92,7 +97,15 @@ export const useAuthStore = create<AuthState>()(
                 const { token, expireAt, isAPIKeyAuth } = get();
 
                 if (!token) {
-                    set({ isAuthenticated: false, isLoading: false, mustChangePassword: false });
+                    set({
+                        isAuthenticated: false,
+                        isLoading: false,
+                        isAPIKeyAuth: false,
+                        token: null,
+                        expireAt: null,
+                        mustChangePassword: false,
+                        apiKeyStatus: null,
+                    });
                     return;
                 }
 
@@ -106,12 +119,28 @@ export const useAuthStore = create<AuthState>()(
                 try {
                     const endpoint = isAPIKeyAuth ? '/api/v1/apikey/login' : '/api/v1/user/status';
                     const status = await apiClient.get<unknown>(endpoint);
-                    const mustChangePassword = !isAPIKeyAuth
-                        && !!status
+                    if (isAPIKeyAuth) {
+                        set({
+                            isAuthenticated: true,
+                            isLoading: false,
+                            isAPIKeyAuth: true,
+                            mustChangePassword: false,
+                            apiKeyStatus: status as APIKeyAuthStatus,
+                        });
+                        return;
+                    }
+
+                    const mustChangePassword = !!status
                         && typeof status === 'object'
                         && 'must_change_password' in status
                         && Boolean(status.must_change_password);
-                    set({ isAuthenticated: true, isLoading: false, mustChangePassword });
+                    set({
+                        isAuthenticated: true,
+                        isLoading: false,
+                        isAPIKeyAuth: false,
+                        mustChangePassword,
+                        apiKeyStatus: null,
+                    });
                 } catch (error) {
                     logger.error('璁よ瘉楠岃瘉澶辫触:', error);
                     get().logout();
@@ -125,6 +154,7 @@ export const useAuthStore = create<AuthState>()(
                     token: null,
                     expireAt: null,
                     mustChangePassword: false,
+                    apiKeyStatus: null,
                     isLoading: false,
                 });
             },
@@ -136,6 +166,7 @@ export const useAuthStore = create<AuthState>()(
                 expireAt: state.expireAt,
                 isAPIKeyAuth: state.isAPIKeyAuth,
                 mustChangePassword: state.mustChangePassword,
+                apiKeyStatus: state.apiKeyStatus,
             }),
         },
     ),
@@ -237,6 +268,7 @@ export function useAuth() {
         isAPIKeyAuth: store.isAPIKeyAuth,
         isLoading: store.isLoading,
         mustChangePassword: store.mustChangePassword,
+        apiKeyStatus: store.apiKeyStatus,
         logout: store.logout,
     };
 }

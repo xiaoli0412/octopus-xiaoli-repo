@@ -905,6 +905,7 @@ export function getCompatibilityOverview(input: CompatibilityOverviewInput) {
 		|| counts.missingProviders > 0
 		|| counts.missingModels > 0
 		|| counts.skippedTargets > 0
+		|| counts.replacePrunedTargets > 0
 		|| counts.routePreviewWarnings > 0
 		|| counts.skippedRouteTargetPreviews > 0
 		|| counts.routePreviewDiffs > 0
@@ -1095,12 +1096,19 @@ export function buildCompatibilitySignalItems(input: CompatibilitySignalItemsInp
 			}));
 	}
 	if (includeStructuredReplacePrunedCount && structuredReplacePrunedCount > 0) {
-		items.push(t(locale, {
-			'zh-Hans': `结构化清理预览还发现了 ${structuredReplacePrunedCount} 条额外记录。`,
-			'zh-Hant': `結構化清理預覽還發現了 ${structuredReplacePrunedCount} 條額外記錄。`,
-			en: `Structured prune preview found ${structuredReplacePrunedCount} additional records.`,
-			ja: `構造化された整理プレビューで追加の ${structuredReplacePrunedCount} 件が見つかりました。`,
-		}));
+		items.push(kind === 'rollback'
+			? t(locale, {
+				'zh-Hans': `回滚兼容性明细标记了 ${structuredReplacePrunedCount} 条会被删除或重置的当前记录。`,
+				'zh-Hant': `回滾相容性明細標記了 ${structuredReplacePrunedCount} 條會被刪除或重設的目前記錄。`,
+				en: `Rollback diagnostics marked ${structuredReplacePrunedCount} current records for removal or reset.`,
+				ja: `ロールバック診断で、削除またはリセット対象の現在の記録 ${structuredReplacePrunedCount} 件が示されました。`,
+			})
+			: t(locale, {
+				'zh-Hans': `结构化清理预览还发现了 ${structuredReplacePrunedCount} 条额外记录。`,
+				'zh-Hant': `結構化清理預覽還發現了 ${structuredReplacePrunedCount} 條額外記錄。`,
+				en: `Structured prune preview found ${structuredReplacePrunedCount} additional records.`,
+				ja: `構造化された整理プレビューで追加の ${structuredReplacePrunedCount} 件が見つかりました。`,
+			}));
 	}
 	if (counts.conflicts > 0) {
 		items.push(kind === 'rollback'
@@ -1467,28 +1475,44 @@ export function buildImportCompatibilityGuidanceItems(input: CompatibilityGuidan
 		});
 	}
 
-	if (effectiveMode === 'replace' && counts.replacePrunedTargets > 0) {
+	if ((effectiveMode === 'replace' || kind === 'rollback') && counts.replacePrunedTargets > 0) {
 		items.push({
 			key: 'replace-prune',
 			tone: 'warning',
 			title: t(locale, {
-				'zh-Hans': '确认替换会清理哪些当前记录',
-				'zh-Hant': '確認替換會清理哪些目前記錄',
-				en: 'Review which current records replace mode removes',
-				ja: '置換で削除される現在の記録を確認する',
+				'zh-Hans': kind === 'rollback' ? '确认回滚会清理哪些当前记录' : '确认替换会清理哪些当前记录',
+				'zh-Hant': kind === 'rollback' ? '確認回滾會清理哪些目前記錄' : '確認替換會清理哪些目前記錄',
+				en: kind === 'rollback' ? 'Review which current records rollback removes' : 'Review which current records replace mode removes',
+				ja: kind === 'rollback' ? 'ロールバックで整理される現在の記録を確認する' : '置換で削除される現在の記録を確認する',
 			}),
 			detail: replacePrunedExamples
 				? t(locale, {
-					'zh-Hans': `替换导入会清理这些当前记录：${replacePrunedExamples}。建议先展开下方结构化清理明细，再决定是否应用。`,
-					'zh-Hant': `替換導入會清理這些目前記錄：${replacePrunedExamples}。建議先展開下方結構化清理明細，再決定是否套用。`,
-					en: `Replace mode will prune these current records: ${replacePrunedExamples}. Expand the structured prune details below before you apply it.`,
-					ja: `置換モードでは次の現在記録が整理対象になります: ${replacePrunedExamples}。適用前に下の構造化プレビューを確認してください。`,
+					'zh-Hans': kind === 'rollback'
+						? `回滚恢复会清理这些当前记录：${replacePrunedExamples}。建议先展开下方结构化清理明细，再决定是否执行回滚。`
+						: `替换导入会清理这些当前记录：${replacePrunedExamples}。建议先展开下方结构化清理明细，再决定是否应用。`,
+					'zh-Hant': kind === 'rollback'
+						? `回滾恢復會清理這些目前記錄：${replacePrunedExamples}。建議先展開下方結構化清理明細，再決定是否執行回滾。`
+						: `替換導入會清理這些目前記錄：${replacePrunedExamples}。建議先展開下方結構化清理明細，再決定是否套用。`,
+					en: kind === 'rollback'
+						? `Rollback restore will prune these current records: ${replacePrunedExamples}. Expand the structured cleanup details below before restoring.`
+						: `Replace mode will prune these current records: ${replacePrunedExamples}. Expand the structured prune details below before you apply it.`,
+					ja: kind === 'rollback'
+						? `ロールバック復元では次の現在記録が整理対象になります: ${replacePrunedExamples}。復元前に下の構造化された整理詳細を確認してください。`
+						: `置換モードでは次の現在記録が整理対象になります: ${replacePrunedExamples}。適用前に下の構造化プレビューを確認してください。`,
 				})
 				: t(locale, {
-					'zh-Hans': '替换导入会清理当前项目中未被快照保留的记录，建议先展开下方结构化清理明细确认范围。',
-					'zh-Hant': '替換導入會清理目前專案中未被快照保留的記錄，建議先展開下方結構化清理明細確認範圍。',
-					en: 'Replace mode prunes current records that the snapshot does not keep. Review the structured prune details below before applying.',
-					ja: '置換モードではスナップショットに含まれない現在の記録が整理されます。適用前に下の構造化プレビューを確認してください。',
+					'zh-Hans': kind === 'rollback'
+						? '回滚恢复会清理当前项目中未被目标快照保留的记录，建议先展开下方结构化清理明细确认范围。'
+						: '替换导入会清理当前项目中未被快照保留的记录，建议先展开下方结构化清理明细确认范围。',
+					'zh-Hant': kind === 'rollback'
+						? '回滾恢復會清理目前專案中未被目標快照保留的記錄，建議先展開下方結構化清理明細確認範圍。'
+						: '替換導入會清理目前專案中未被快照保留的記錄，建議先展開下方結構化清理明細確認範圍。',
+					en: kind === 'rollback'
+						? 'Rollback restore prunes current records that the target snapshot does not keep. Review the structured cleanup details below before restoring.'
+						: 'Replace mode prunes current records that the snapshot does not keep. Review the structured prune details below before applying.',
+					ja: kind === 'rollback'
+						? 'ロールバック復元では対象スナップショットに含まれない現在の記録が整理されます。復元前に下の構造化された整理詳細を確認してください。'
+						: '置換モードではスナップショットに含まれない現在の記録が整理されます。適用前に下の構造化プレビューを確認してください。',
 				}),
 		});
 	}

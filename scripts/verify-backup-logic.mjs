@@ -416,6 +416,48 @@ assert.deepEqual(rollbackGuidanceItems, [
 	},
 ]);
 
+const rollbackReplacePruneGuidanceItems = buildImportCompatibilityGuidanceItems({
+	kind: 'rollback',
+	locale: 'en',
+	counts: {
+		conflicts: 0,
+		aliasConflicts: 0,
+		routeConflicts: 0,
+		credentialRebindTargets: 0,
+		channelKeyRebindTargets: 0,
+		apiKeyRebindTargets: 0,
+		invalidRouteTargets: 0,
+		skippedRouteTargetPreviews: 0,
+		routePreviewWarnings: 0,
+		routePreviewDiffs: 0,
+		missingProviders: 0,
+		missingModels: 0,
+		baseURLMismatches: 0,
+		schemaMismatches: 0,
+		skippedTargets: 0,
+		modelMappingPreviews: 0,
+		usedModelMappings: 0,
+		unusedModelMappings: 0,
+		missingMappingTargets: 0,
+		aliasPreviewMappings: 0,
+		modelPolicyDiffs: 0,
+		replacePrunedTargets: 2,
+	},
+	compatibility: {
+		replace_pruned_channels: ['legacy-channel'],
+		replace_pruned_api_keys: ['client-key'],
+	},
+});
+
+assert.deepEqual(rollbackReplacePruneGuidanceItems, [
+	{
+		key: 'replace-prune',
+		tone: 'warning',
+		title: 'Review which current records rollback removes',
+		detail: 'Rollback restore will prune these current records: legacy-channel; client-key. Expand the structured cleanup details below before restoring.',
+	},
+]);
+
 assert.equal(getApplySameImportGuardReason({ hasPendingApplyRequest: false, previewToken: 'token', requiresConfirm: false, confirmed: false }), 'missing_request');
 assert.equal(getApplySameImportGuardReason({ hasPendingApplyRequest: true, previewToken: '   ', requiresConfirm: false, confirmed: false }), 'missing_preview_token');
 assert.equal(getApplySameImportGuardReason({ hasPendingApplyRequest: true, previewToken: 'token', requiresConfirm: true, confirmed: false }), 'confirm_required');

@@ -39,7 +39,7 @@ import dayjs from 'dayjs';
 export function APIKeyDashboard() {
     const t = useTranslations('apiKeyDashboard');
     const { data, error } = useAPIKeyDashboardStats();
-    const { logout } = useAuthStore();
+    const { logout, apiKeyStatus } = useAuthStore();
     const { theme, setTheme } = useTheme();
     const { locale, setLocale } = useSettingStore();
     const [, copyToClipboard] = useCopyToClipboard();
@@ -104,6 +104,12 @@ export function APIKeyDashboard() {
     const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
     const toggleLanguage = () => setLocale(getNextLocale(locale));
 
+    const statusBadges = [
+        apiKeyStatus?.enabled === false ? { label: t('statusDisabled'), className: 'border-red-500/30 bg-red-500/10 text-red-700' } : null,
+        isExpired ? { label: t('expired'), className: 'border-amber-500/30 bg-amber-500/10 text-amber-700' } : null,
+        !isExpired && apiKeyStatus?.enabled !== false ? { label: t('statusActive'), className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700' } : null,
+    ].filter(Boolean) as Array<{ label: string; className: string }>;
+
     return (
         <div className="mx-auto max-w-6xl px-3 md:px-6">
             {/* Header - Consistent with app.tsx */}
@@ -134,6 +140,13 @@ export function APIKeyDashboard() {
                             <div className="p-6 md:p-8 flex flex-col relative">
                                 <KeyRound aria-hidden="true" className="pointer-events-none absolute top-6 right-6 h-27 w-27 text-muted-foreground/10" />
                                 <h2 className="text-2xl font-bold truncate pr-16">{info.name}</h2>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {statusBadges.map((badge) => (
+                                        <span key={badge.label} className={`rounded-full border px-2.5 py-1 text-xs font-medium ${badge.className}`}>
+                                            {badge.label}
+                                        </span>
+                                    ))}
+                                </div>
                                 <div className="mt-4 flex items-center gap-2 rounded-xl border border-border/50 bg-muted/50 p-3">
                                     <code className="flex-1 font-mono text-sm truncate">
                                         {info.api_key.slice(0, 11)}********{info.api_key.slice(-4)}
@@ -147,6 +160,10 @@ export function APIKeyDashboard() {
                                 </div>
                                 {/* Expiry & Quota inline */}
                                 <div className="mt-auto pt-6 text-sm">
+                                    <div className="flex items-center justify-between pb-3">
+                                        <span className="flex items-center gap-2 text-muted-foreground"><KeyRound className="w-4 h-4" />{t('authMode')}</span>
+                                        <span className="font-medium">{t('authModeValue')}</span>
+                                    </div>
                                     <div className="flex items-center justify-between">
                                         <span className="flex items-center gap-2 text-muted-foreground"><Calendar className="w-4 h-4" />{t('expireAt')}</span>
                                         {expireAt ? (

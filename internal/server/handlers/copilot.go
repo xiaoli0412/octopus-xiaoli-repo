@@ -9,15 +9,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/resp"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
-	"github.com/gin-gonic/gin"
 )
 
 const maxCopilotOAuthResponseBytes int64 = 64 << 10
 
-func copilotOAuthConfig() (clientID, scope, deviceCodeURL, accessTokenURL string) {
+func copilotOAuthConfig() (clientID, scope, deviceCodeURL, accessTokenURL string, err error) {
 	clientID = strings.TrimSpace(os.Getenv("OCTOPUS_COPILOT_CLIENT_ID"))
 	if clientID == "" {
 		clientID = strings.TrimSpace(os.Getenv("COPILOT_CLIENT_ID"))
@@ -48,6 +48,12 @@ func copilotOAuthConfig() (clientID, scope, deviceCodeURL, accessTokenURL string
 	}
 	if accessTokenURL == "" {
 		accessTokenURL = "https://github.com/login/oauth/access_token"
+	}
+	if err = validateAbsoluteHTTPURL(deviceCodeURL, "copilot device code url"); err != nil {
+		return "", "", "", "", err
+	}
+	if err = validateAbsoluteHTTPURL(accessTokenURL, "copilot access token url"); err != nil {
+		return "", "", "", "", err
 	}
 
 	return
@@ -94,7 +100,11 @@ type copilotPollResponse struct {
 var copilotHTTPClient = &http.Client{Timeout: 15 * time.Second}
 
 func copilotRequestDeviceCode(c *gin.Context) {
-	clientID, scope, deviceCodeURL, _ := copilotOAuthConfig()
+	clientID, scope, deviceCodeURL, _, err := copilotOAuthConfig()
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
 	bodyPayload, err := json.Marshal(map[string]string{
 		"client_id": clientID,
 		"scope":     scope,
@@ -144,7 +154,11 @@ func copilotPollToken(c *gin.Context) {
 		return
 	}
 
-	clientID, _, _, accessTokenURL := copilotOAuthConfig()
+	clientID, _, _, accessTokenURL, err := copilotOAuthConfig()
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
 	bodyPayload, err := json.Marshal(map[string]string{
 		"client_id":   clientID,
 		"device_code": req.DeviceCode,

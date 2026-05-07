@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 )
@@ -79,6 +80,29 @@ func TestBuildAPIPublicBasePrefersConfiguredExternalBaseURL(t *testing.T) {
 
 	if got := buildAPIPublicBase(ctx); got != "https://api.example.com/root" {
 		t.Fatalf("buildAPIPublicBase() = %q, want %q", got, "https://api.example.com/root")
+	}
+}
+
+func TestBuildAPIPublicBaseIgnoresInvalidConfiguredBaseURL(t *testing.T) {
+	setupHandlerTest(t)
+	if err := op.SettingSetString(model.SettingKeyAPIBaseURL, "ftp://gateway.example.com"); err == nil {
+		t.Fatal("SettingSetString() error = nil, want invalid setting rejection")
+	}
+	if err := db.GetDB().Model(&model.Setting{}).Where("key = ?", model.SettingKeyAPIBaseURL).Update("value", "ftp://gateway.example.com").Error; err != nil {
+		t.Fatalf("force invalid api_base_url error = %v", err)
+	}
+	if err := op.InitCache(); err != nil {
+		t.Fatalf("InitCache() error = %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/channel/antigravity/oauth/start", nil)
+	req.Host = "gateway.example.com"
+	ctx.Request = req
+
+	if got := buildAPIPublicBase(ctx); got != "http://gateway.example.com" {
+		t.Fatalf("buildAPIPublicBase() = %q, want %q", got, "http://gateway.example.com")
 	}
 }
 
@@ -185,6 +209,37 @@ func TestAntigravityOAuthCallbackRejectsBlankState(t *testing.T) {
 	}
 	if body := strings.TrimSpace(ctxRecorder.Body.String()); body != "missing state" {
 		t.Fatalf("callback body = %q, want %q", body, "missing state")
+	}
+}
+
+func TestAntigravityConfigRejectsInvalidOverrideURLs(t *testing.T) {
+	t.Setenv("OCTOPUS_ANTIGRAVITY_AUTHORIZE_URL", "ftp://accounts.google.com/o/oauth2/v2/auth")
+
+	_, _, _, _, _, err := antigravityConfig()
+	if err == nil {
+		t.Fatal("antigravityConfig() error = nil, want invalid override URL error")
+	}
+	if got := err.Error(); got != "antigravity authorize url must be absolute http or https URL" {
+		t.Fatalf("antigravityConfig() error = %q, want %q", got, "antigravity authorize url must be absolute http or https URL")
+	}
+}
+
+func TestStartAntigravityOAuthRejectsCredentialBearingAuthorizeURL(t *testing.T) {
+	setupHandlerTest(t)
+	t.Setenv("OCTOPUS_ANTIGRAVITY_CLIENT_ID", "test-client-id")
+	t.Setenv("OCTOPUS_ANTIGRAVITY_AUTHORIZE_URL", "https://user:pass@accounts.google.com/o/oauth2/v2/auth")
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/channel/antigravity/oauth/start", nil)
+
+	startAntigravityOAuth(ctx)
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusInternalServerError, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "antigravity authorize url must not include credentials") {
+		t.Fatalf("body = %q, want credential validation message", recorder.Body.String())
 	}
 }
 

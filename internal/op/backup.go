@@ -186,7 +186,11 @@ func DBImportIncrementalWithOptions(ctx context.Context, dump *model.DBDump, mod
 	}
 
 	originalDump := cloneDumpForImport(dump)
+	originalManifestContainsSecrets := originalDump.Manifest.ContainsSecrets
 	NormalizeLegacyDump(originalDump)
+	if originalManifestContainsSecrets {
+		originalDump.Manifest.ContainsSecrets = true
+	}
 	applyImportScopesToDump(originalDump, options.ImportScopes)
 	dump = cloneDumpForImport(originalDump)
 	applyModelMappingsToDump(dump, options.ModelMappings)

@@ -21,6 +21,10 @@
   "apiKeyDashboard": {
     "error": "データの読み込みに失敗しました",
     "logout": "ログアウト",
+    "statusActive": "利用可能",
+    "statusDisabled": "無効",
+    "authMode": "認証モード",
+    "authModeValue": "APIキー セッション",
     "copiedModel": "コピーしました: {label}",
     "requestStats": "リクエスト統計",
     "totalStats": "全体統計",

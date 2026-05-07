@@ -128,5 +128,19 @@ func getStatsAPIKeyById(c *gin.Context) {
 }
 
 func loginAPIKey(c *gin.Context) {
-	resp.Success(c, nil)
+	id := c.GetInt("api_key_id")
+	info, err := op.APIKeyGet(id, c.Request.Context())
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	resp.Success(c, model.APIKeyAuthStatus{
+		OK:              true,
+		APIKeyID:        info.ID,
+		Name:            info.Name,
+		Enabled:         info.Enabled,
+		ExpireAt:        info.ExpireAt,
+		SupportedModels: info.SupportedModels,
+		AuthMode:        "api_key",
+	})
 }

@@ -777,6 +777,11 @@ describe('SettingBackup', () => {
 				base_url_mismatches: ['rollback-channel'],
 				schema_mismatches: ['snapshot schema:v2 differs'],
 				skipped_targets: ['channel_key:101 empty credential'],
+				replace_pruned_channels: ['current-channel-a'],
+				replace_pruned_groups: ['current-group-a'],
+				replace_pruned_settings: ['proxy_url'],
+				replace_pruned_llm_infos: ['current-legacy-model'],
+				replace_pruned_api_keys: ['current-client-key'],
 				invalid_route_targets: [{ group_name: 'rollback-group', channel_name: 'Primary', model: 'legacy-model', issue_type: 'missing_target', reason: 'channel removed', action: 'rebind channel' }],
 				skipped_route_target_previews: [{ group_name: 'rollback-group', channel_name: 'Primary', model: 'legacy-model', issue_type: 'skipped_preview', reason: 'preview omitted', action: 'review mapping' }],
 				route_preview_warnings: ['rollback route may degrade'],
@@ -860,13 +865,15 @@ describe('SettingBackup', () => {
 		expect(screen.getByTestId('backup-rollback-signal-list')).toHaveTextContent('Rollback preview emitted 1 warnings.');
 		expect(screen.getByTestId('backup-rollback-signal-list')).toHaveTextContent('Rollback preview found 1 conflicts.');
 		expect(screen.getByTestId('backup-rollback-signal-list')).toHaveTextContent('Channel-key credential rebind is required for 1 restored targets.');
+		expect(screen.getByTestId('backup-rollback-signal-list')).toHaveTextContent('Rollback diagnostics marked 5 current records for removal or reset.');
 		expect(screen.getByTestId('backup-rollback-guidance')).toBeInTheDocument();
 		expect(screen.getByTestId('backup-rollback-guidance-title')).toHaveTextContent('Recommended Rollback Steps');
 		expect(screen.getByTestId('backup-rollback-guidance-item-0')).toHaveTextContent('Resolve rollback risks first');
 		expect(screen.getByTestId('backup-rollback-guidance-item-1')).toHaveTextContent('Restore missing targets before rollback');
 		expect(screen.getByTestId('backup-rollback-guidance-item-2')).toHaveTextContent('Prepare post-rollback credential rebinds');
 		expect(screen.getByTestId('backup-rollback-guidance-item-3')).toHaveTextContent('Review which targets rollback keeps');
-		expect(screen.getByTestId('backup-rollback-guidance-item-4')).toHaveTextContent('Review post-rollback route and policy drift');
+		expect(screen.getByTestId('backup-rollback-guidance-item-4')).toHaveTextContent('Review which current records rollback removes');
+		expect(screen.getByTestId('backup-rollback-guidance-item-5')).toHaveTextContent('Review post-rollback route and policy drift');
 		expect(screen.getByTestId('backup-rollback-preview-warnings-panel')).toBeInTheDocument();
 		expect(screen.getByTestId('backup-rollback-preview-warnings-title')).toHaveTextContent('Rollback Preview Warnings');
 		expect(screen.getByTestId('backup-rollback-preview-warnings-summary')).toHaveTextContent('These warnings come from the rollback preview itself');
@@ -884,6 +891,12 @@ describe('SettingBackup', () => {
 		expect(screen.getByTestId('backup-rollback-compatibility-schema-mismatches-item-0')).toHaveTextContent('snapshot schema:v2 differs');
 		expect(screen.getByTestId('backup-rollback-compatibility-skipped-targets-item-0')).toHaveTextContent('channel_key:101 empty credential');
 		expect(screen.getByTestId('backup-rollback-compatibility-credential-rebind-item-0')).toHaveTextContent('Primary');
+		expect(screen.getByTestId('backup-rollback-compatibility-replace-pruned-channels-title')).toHaveTextContent('Current channels removed by rollback');
+		expect(screen.getByTestId('backup-rollback-compatibility-replace-pruned-channels-item-0')).toHaveTextContent('current-channel-a');
+		expect(screen.getByTestId('backup-rollback-compatibility-replace-pruned-groups-item-0')).toHaveTextContent('current-group-a');
+		expect(screen.getByTestId('backup-rollback-compatibility-replace-pruned-settings-item-0')).toHaveTextContent('proxy_url');
+		expect(screen.getByTestId('backup-rollback-compatibility-replace-pruned-llm-infos-item-0')).toHaveTextContent('current-legacy-model');
+		expect(screen.getByTestId('backup-rollback-compatibility-replace-pruned-api-keys-item-0')).toHaveTextContent('current-client-key');
 		expect(screen.getByTestId('backup-rollback-compatibility-invalid-route-targets-item-0')).toHaveTextContent('missing_target');
 		expect(screen.getByTestId('backup-rollback-compatibility-skipped-route-targets-item-0')).toHaveTextContent('review mapping');
 		expect(screen.getByTestId('backup-rollback-compatibility-route-preview-warnings-item-0')).toHaveTextContent('rollback route may degrade');

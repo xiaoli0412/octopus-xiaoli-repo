@@ -21,6 +21,10 @@
   "apiKeyDashboard": {
     "error": "Failed to load data",
     "logout": "Logout",
+    "statusActive": "Active",
+    "statusDisabled": "Disabled",
+    "authMode": "Auth mode",
+    "authModeValue": "API key session",
     "copiedModel": "Copied: {label}",
     "requestStats": "Request Stats",
     "totalStats": "Total Stats",
