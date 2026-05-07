@@ -6,13 +6,11 @@ DEFAULT_PORT="1088"
 DEFAULT_DATA_DIR="./data"
 DEFAULT_CONTAINER_NAME="octopus"
 DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1"
-DEFAULT_IMAGE_FALLBACK="docker.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1"
 
 OCTOPUS_PORT_INPUT="${OCTOPUS_PORT:-${DEFAULT_PORT}}"
 OCTOPUS_DATA_DIR_INPUT="${OCTOPUS_DATA_DIR:-${DEFAULT_DATA_DIR}}"
 OCTOPUS_CONTAINER_NAME_INPUT="${OCTOPUS_CONTAINER_NAME:-${DEFAULT_CONTAINER_NAME}}"
 OCTOPUS_IMAGE_INPUT="${OCTOPUS_IMAGE:-${DEFAULT_IMAGE}}"
-OCTOPUS_IMAGE_FALLBACK_INPUT="${OCTOPUS_IMAGE_FALLBACK:-${DEFAULT_IMAGE_FALLBACK}}"
 
 write_info() {
     printf '[INFO] %s\n' "$1"
@@ -35,25 +33,80 @@ require_command() {
     fi
 }
 
-pull_image_with_fallback() {
-    local primary_image="$1"
-    local fallback_image="$2"
+is_disabled_dockerhub_image() {
+    local image="$1"
+    case "$image" in
+        docker.io/*|index.docker.io/*|xiaoli0412/octopus-xiaoli-repo|xiaoli0412/octopus-xiaoli-repo:*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
 
-    write_info "Pulling Docker image ${primary_image}"
-    if docker pull "$primary_image"; then
-        printf '%s' "$primary_image"
+prepare_repo_checkout() {
+    local repo_url="$1"
+    local repo_dir="$2"
+    local repo_ref="$3"
+
+    require_command git "Install Git and ensure it is on PATH."
+
+    if [[ ! -d "$repo_dir/.git" ]]; then
+        write_info "Cloning repository into ${repo_dir}"
+        git clone "$repo_url" "$repo_dir"
+    fi
+
+    git -C "$repo_dir" fetch --tags origin
+    git -C "$repo_dir" checkout -f "$repo_ref"
+}
+
+build_and_start_from_source() {
+    local repo_url="$1"
+    local repo_ref="$2"
+    local repo_dir="$3"
+    local external_port="$4"
+    local data_dir="$5"
+    local container_name="$6"
+
+    prepare_repo_checkout "$repo_url" "$repo_dir" "$repo_ref"
+
+    write_warn "Falling back to local Docker source build because image pull failed."
+    (
+        cd "$repo_dir"
+        OCTOPUS_PORT="$external_port" \
+        OCTOPUS_DATA_DIR="$data_dir" \
+        OCTOPUS_CONTAINER_NAME="$container_name" \
+        docker compose build \
+          --build-arg GOPROXY="${OCTOPUS_GOPROXY:-https://proxy.golang.org,direct}" \
+          --build-arg GOSUMDB="${OCTOPUS_GOSUMDB:-sum.golang.org}" \
+          --build-arg NPM_CONFIG_REGISTRY="${OCTOPUS_NPM_CONFIG_REGISTRY:-https://registry.npmjs.org/}"
+
+        OCTOPUS_PORT="$external_port" \
+        OCTOPUS_DATA_DIR="$data_dir" \
+        OCTOPUS_CONTAINER_NAME="$container_name" \
+        docker compose up -d
+    )
+}
+
+validate_image_source() {
+    local image="$1"
+    if is_disabled_dockerhub_image "$image"; then
+        fail "Docker Hub installation is disabled for Octopus. Use the official GHCR image or set OCTOPUS_IMAGE to a reachable private or mirrored registry."
+    fi
+}
+
+pull_image() {
+    local image="$1"
+
+    validate_image_source "$image"
+    write_info "Pulling Docker image ${image}"
+    if docker pull "$image"; then
+        printf '%s' "$image"
         return 0
     fi
 
-    if [[ -n "$fallback_image" && "$fallback_image" != "$primary_image" ]]; then
-        write_warn "Failed to pull ${primary_image}; retrying with fallback image ${fallback_image}."
-        if docker pull "$fallback_image"; then
-            printf '%s' "$fallback_image"
-            return 0
-        fi
-    fi
-
-    fail "Unable to pull Octopus image. Check access to GHCR or Docker Hub, or re-run with OCTOPUS_IMAGE=<reachable-image>."
+    return 1
 }
 
 warn_if_raw_download_host_is_unstable() {
@@ -177,11 +230,25 @@ fi
 EXTERNAL_PORT="$(resolve_external_port "$OCTOPUS_PORT_INPUT")"
 warn_if_raw_download_host_is_unstable
 
+REPO_URL="${OCTOPUS_REPO_URL:-https://github.com/xiaoli0412/octopus-xiaoli-repo.git}"
+REPO_REF="${OCTOPUS_REPO_REF:-v1.17.1}"
+REPO_DIR="${OCTOPUS_REPO_DIR:-octopus-xiaoli-repo}"
+
 if [[ ! -t 0 ]]; then
-    write_info "Non-interactive install detected. If this host cannot access raw.githubusercontent.com or GHCR reliably, download scripts/install.sh locally first or set OCTOPUS_IMAGE / OCTOPUS_IMAGE_FALLBACK to reachable registries."
+    write_info "Non-interactive install detected. The installer will try GHCR first, then fall back to a local source build from ${REPO_REF}."
 fi
 
-PULLED_IMAGE="$(pull_image_with_fallback "$OCTOPUS_IMAGE_INPUT" "$OCTOPUS_IMAGE_FALLBACK_INPUT")"
+PULLED_IMAGE=""
+if ! PULLED_IMAGE="$(pull_image "$OCTOPUS_IMAGE_INPUT")"; then
+    build_and_start_from_source "$REPO_URL" "$REPO_REF" "$REPO_DIR" "$EXTERNAL_PORT" "$OCTOPUS_DATA_DIR_INPUT" "$OCTOPUS_CONTAINER_NAME_INPUT"
+
+    write_info "Octopus is starting"
+    write_info "UI: http://127.0.0.1:${EXTERNAL_PORT}"
+    write_info "Container: ${OCTOPUS_CONTAINER_NAME_INPUT}"
+    write_info "Data dir: ${OCTOPUS_DATA_DIR_INPUT}"
+    write_info "Source build ref: ${REPO_REF}"
+    exit 0
+fi
 
 write_info "Removing any existing container named ${OCTOPUS_CONTAINER_NAME_INPUT}"
 docker rm -f "$OCTOPUS_CONTAINER_NAME_INPUT" >/dev/null 2>&1 || true

@@ -45,7 +45,7 @@ Run directly:
 docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1
 ```
 
-Or use the install script. It keeps `1088` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, and first pulls the official GHCR image. If you already have a reachable mirror or private registry, you can also provide an explicit fallback image:
+Or use the install script. It keeps `1088` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, tries the official GHCR image first, and automatically falls back to a local source build from the matching release tag when GHCR is unreachable:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
@@ -64,12 +64,10 @@ Non-interactive custom port example:
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | OCTOPUS_PORT=1088 bash
 ```
 
-If your network restricts GHCR, you can pin the image source explicitly or provide a fallback image:
+If your network restricts GHCR, you can still pin a reachable private or mirrored registry image explicitly:
 
 ```bash
-OCTOPUS_IMAGE=docker.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1 bash install-octopus.sh
-OCTOPUS_IMAGE=ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1 bash install-octopus.sh
-OCTOPUS_IMAGE_FALLBACK=registry.example.com/octopus-xiaoli-repo:v1.17.1 bash install-octopus.sh
+OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.17.1 bash install-octopus.sh
 ```
 
 If you prefer the manual path, you can still clone the repository and run compose directly:

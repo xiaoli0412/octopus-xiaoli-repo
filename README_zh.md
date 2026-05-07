@@ -45,7 +45,7 @@
 docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1
 ```
 
-或者使用安装脚本。脚本默认使用 `1088` 作为外部端口，启动前会先探测端口占用；如果 `1088` 已被占用，非交互场景会自动切换到可用端口并继续安装。脚本会先拉取 GHCR 官方镜像；如果你有可用的私有镜像或镜像代理，也可以显式指定回退镜像：
+或者使用安装脚本。脚本默认使用 `1088` 作为外部端口，启动前会先探测端口占用；如果 `1088` 已被占用，非交互场景会自动切换到可用端口并继续安装。脚本会先尝试拉取 GHCR 官方镜像；如果 GHCR 不可达，会自动回退到对应 release tag 的本地 Docker 源码构建：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
@@ -64,12 +64,10 @@ bash install-octopus.sh
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | OCTOPUS_PORT=1088 bash
 ```
 
-如果所在网络对 GHCR 有限制，也可以显式指定镜像源，或者提供一个回退镜像：
+如果所在网络对 GHCR 有限制，也可以显式指定一个可达的私有镜像或镜像代理：
 
 ```bash
-OCTOPUS_IMAGE=docker.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1 bash install-octopus.sh
-OCTOPUS_IMAGE=ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1 bash install-octopus.sh
-OCTOPUS_IMAGE_FALLBACK=registry.example.com/octopus-xiaoli-repo:v1.17.1 bash install-octopus.sh
+OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.17.1 bash install-octopus.sh
 ```
 
 如果你仍然希望手动安装，也可以继续使用仓库内 compose：
