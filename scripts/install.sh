@@ -89,6 +89,76 @@ build_and_start_from_source() {
     )
 }
 
+build_and_start_from_uploaded_binary() {
+    local binary_path="$1"
+    local external_port="$2"
+    local data_dir="$3"
+    local container_name="$4"
+    local image_tag="$5"
+
+    if [[ ! -f "$binary_path" ]]; then
+        fail "OCTOPUS_BINARY_PATH points to a missing file: ${binary_path}"
+    fi
+
+    require_command mktemp "Install coreutils or provide a writable temporary directory."
+
+    local temp_dir
+    temp_dir="$(mktemp -d)"
+    cp "$binary_path" "$temp_dir/octopus"
+    cp "$(dirname "$0")/dockerfiles/entrypoint.sh" "$temp_dir/entrypoint.sh"
+    sed -i 's/\r$//' "$temp_dir/entrypoint.sh"
+
+    cat > "$temp_dir/Dockerfile" <<'EOF'
+FROM debian:bookworm-slim
+ENV TZ=Asia/Shanghai \
+    PUID=10001 \
+    PGID=10001 \
+    DATA_DIR=/app/data \
+    OCTOPUS_SERVER_HOST=0.0.0.0 \
+    OCTOPUS_SERVER_PORT=1088 \
+    OCTOPUS_DATABASE_TYPE=sqlite \
+    OCTOPUS_DATABASE_PATH=/app/data/data.db \
+    OCTOPUS_LOG_LEVEL=info
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata gosu && \
+    ln -fs /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata && \
+    groupadd --system --gid 10001 octopus && \
+    useradd --system --uid 10001 --gid 10001 --home-dir /app --shell /usr/sbin/nologin octopus && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /app/data && \
+    chown -R 10001:10001 /app
+COPY octopus /app/octopus
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /app/octopus /entrypoint.sh
+EXPOSE 1088
+CMD ["/bin/sh", "/entrypoint.sh"]
+EOF
+
+    write_warn "Falling back to a local Docker image built from the provided binary because image pull and source build are unavailable."
+    docker build -t "$image_tag" "$temp_dir"
+    rm -rf "$temp_dir"
+
+    mkdir -p "$data_dir"
+    chown -R 10001:10001 "$data_dir" || true
+
+    docker rm -f "$container_name" >/dev/null 2>&1 || true
+    docker run -d \
+        --name "$container_name" \
+        --restart unless-stopped \
+        -p "${external_port}:1088" \
+        -e OCTOPUS_SERVER_HOST=0.0.0.0 \
+        -e OCTOPUS_SERVER_PORT=1088 \
+        -e OCTOPUS_DATABASE_TYPE=sqlite \
+        -e OCTOPUS_DATABASE_PATH=/app/data/data.db \
+        -e OCTOPUS_LOG_LEVEL=info \
+        -e DATA_DIR=/app/data \
+        -e PUID=10001 \
+        -e PGID=10001 \
+        -e ALLOW_ROOT_FALLBACK_ON_DATA_DIR_ERROR=true \
+        -v "${data_dir}:/app/data" \
+        "$image_tag"
+}
+
 validate_image_source() {
     local image="$1"
     if is_disabled_dockerhub_image "$image"; then
@@ -233,6 +303,8 @@ warn_if_raw_download_host_is_unstable
 REPO_URL="${OCTOPUS_REPO_URL:-https://github.com/xiaoli0412/octopus-xiaoli-repo.git}"
 REPO_REF="${OCTOPUS_REPO_REF:-main}"
 REPO_DIR="${OCTOPUS_REPO_DIR:-octopus-xiaoli-repo}"
+BINARY_PATH="${OCTOPUS_BINARY_PATH:-}"
+BINARY_IMAGE_TAG="${OCTOPUS_BINARY_IMAGE_TAG:-octopus-local:installer-fallback}"
 
 if [[ ! -t 0 ]]; then
     write_info "Non-interactive install detected. The installer will try GHCR first, then fall back to a local source build from ${REPO_REF}."
@@ -240,13 +312,22 @@ fi
 
 PULLED_IMAGE=""
 if ! PULLED_IMAGE="$(pull_image "$OCTOPUS_IMAGE_INPUT")"; then
-    build_and_start_from_source "$REPO_URL" "$REPO_REF" "$REPO_DIR" "$EXTERNAL_PORT" "$OCTOPUS_DATA_DIR_INPUT" "$OCTOPUS_CONTAINER_NAME_INPUT"
+    if ! build_and_start_from_source "$REPO_URL" "$REPO_REF" "$REPO_DIR" "$EXTERNAL_PORT" "$OCTOPUS_DATA_DIR_INPUT" "$OCTOPUS_CONTAINER_NAME_INPUT"; then
+        if [[ -n "$BINARY_PATH" ]]; then
+            build_and_start_from_uploaded_binary "$BINARY_PATH" "$EXTERNAL_PORT" "$OCTOPUS_DATA_DIR_INPUT" "$OCTOPUS_CONTAINER_NAME_INPUT" "$BINARY_IMAGE_TAG"
+        else
+            fail "Unable to pull the GHCR image and the source-backed Docker build did not complete. Re-run with OCTOPUS_BINARY_PATH=<local-octopus-binary> to build a local Docker image from a known-good binary."
+        fi
+    fi
 
     write_info "Octopus is starting"
     write_info "UI: http://127.0.0.1:${EXTERNAL_PORT}"
     write_info "Container: ${OCTOPUS_CONTAINER_NAME_INPUT}"
     write_info "Data dir: ${OCTOPUS_DATA_DIR_INPUT}"
     write_info "Source build ref: ${REPO_REF}"
+    if [[ -n "$BINARY_PATH" ]]; then
+        write_info "Binary fallback: ${BINARY_PATH}"
+    fi
     exit 0
 fi
 

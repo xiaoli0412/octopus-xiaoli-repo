@@ -45,7 +45,7 @@ Run directly:
 docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1
 ```
 
-Or use the install script. It keeps `1088` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, tries the official GHCR image first, and falls back to a local source-backed Docker build from the matching release tag when GHCR is unreachable. Docker Hub is no longer an official install source:
+Or use the install script. It keeps `1088` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, tries the official GHCR image first, falls back to a local source-backed Docker build from the matching release tag when GHCR is unreachable, and can finally build a local Docker image from a known-good Linux binary when the server-side source build is still blocked. Docker Hub is no longer an official install source:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
@@ -68,6 +68,12 @@ If your network restricts GHCR, you can still pin a reachable private or mirrore
 
 ```bash
 OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.17.1 bash install-octopus.sh
+```
+
+If GHCR is blocked and the server-side source build still fails, provide a known-good Linux binary and let the installer build a local Docker image from it:
+
+```bash
+OCTOPUS_BINARY_PATH=/root/octopus-linux-amd64 bash install-octopus.sh
 ```
 
 If you prefer the manual path, you can still clone the repository and run compose directly:

@@ -8,6 +8,8 @@
 
 ### 🐛 发布后修复
 
+- 废弃 Docker Hub 官方安装路径：`scripts/install.sh` 不再接受 `docker.io/xiaoli0412/octopus-xiaoli-repo`，安装入口统一收敛到 GHCR 官方镜像、显式提供的私有 / 代理镜像，或镜像拉取失败后的源码支撑 Docker 构建，避免失效安装方案继续误导用户。
+- 进一步补齐 GHCR 失败时的 Docker 安装收口：安装脚本现在会优先走 `GHCR -> 源码 Docker 构建 -> 指定 Linux 二进制构建本地 Docker 镜像` 的三级回退链，把本次线上验证过的成功路径收口成正式安装入口。
 - 修复 `screenshot-no-browser` 中 Backup 回滚预览契约漂移：补齐 rollback replace-prune 兼容性详情、结构化 guidance/signal 文案，以及 `backup-rollback-preview-warnings-list` 测试选择器，对齐 `Backup.tsx`、`backup-logic.ts`、no-browser verifier 与 setting mock。
 - 修复 Debian Docker 构建阶段缺少 `scripts/build-web-static.mjs` 导致的 `MODULE_NOT_FOUND`，`Dockerfile.debian` 现已在 `web-builder` 阶段显式复制该脚本，保证 `pnpm run build:static` 可在 CI 和 compose smoke 中执行。
 - 修复 API key 登录态链路：`/api/v1/apikey/login` 现在返回结构化认证状态，前端会在服务端校验成功后再持久化 API key session，并把 `enabled / expire_at / supported_models / auth_mode` 同步到 dashboard 与 auth store。
@@ -22,6 +24,7 @@
 ### Release Highlights (EN)
 
 - Fixed the Backup rollback preview contract drift that broke `test:screenshot-no-browser`, including the rollback replace-prune diagnostics, structured guidance/signals, and the updated `backup-rollback-preview-warnings-list` selectors.
+- Removed Docker Hub from the official install path. `scripts/install.sh` now only accepts the GHCR release image, an explicitly provided private or mirrored registry image, or the existing source-backed Docker build fallback when image pulls fail.
 - Fixed Debian Docker builds by copying `scripts/build-web-static.mjs` into the web builder stage so `pnpm run build:static` no longer fails with `MODULE_NOT_FOUND`.
 - Fixed the API key auth session flow so `/api/v1/apikey/login` returns structured auth status and the frontend only persists API key auth after server validation.
 - Folded in already-finished backup rollback, dashboard, and OAuth URL validation improvements, and released them together as the `1.17.1` patch line.
