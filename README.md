@@ -45,7 +45,7 @@ Run directly:
 docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1
 ```
 
-Or use the install script. It keeps `1088` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, tries the official GHCR image first, and automatically falls back to a local source build from the matching release tag when GHCR is unreachable:
+Or use the install script. It keeps `1088` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, tries the official GHCR image first, and falls back to a local source-backed Docker build from the matching release tag when GHCR is unreachable. Docker Hub is no longer an official install source:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
@@ -79,7 +79,7 @@ docker compose up -d --build
 ```
 
 If you use the compose file in this repository directly, the default persistent data directory is `./data`.
-The Debian Docker build remains available for CI and image publishing, while the install script uses the prebuilt release image for the simplest server-side setup.
+The Debian Docker build remains available for CI and image publishing, while the install script prefers the prebuilt release image and only falls back to a source-backed Docker build when image pulling fails.
 You can also override the default compose runtime parameters without editing the file itself:
 
 ```bash

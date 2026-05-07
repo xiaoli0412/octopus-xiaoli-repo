@@ -45,7 +45,7 @@
 docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1
 ```
 
-或者使用安装脚本。脚本默认使用 `1088` 作为外部端口，启动前会先探测端口占用；如果 `1088` 已被占用，非交互场景会自动切换到可用端口并继续安装。脚本会先尝试拉取 GHCR 官方镜像；如果 GHCR 不可达，会自动回退到对应 release tag 的本地 Docker 源码构建：
+或者使用安装脚本。脚本默认使用 `1088` 作为外部端口，启动前会先探测端口占用；如果 `1088` 已被占用，非交互场景会自动切换到可用端口并继续安装。脚本会先尝试拉取 GHCR 官方镜像；如果 GHCR 不可达，会回退到对应 release tag 的本地源码支撑 Docker 构建。Docker Hub 已不再作为官方安装来源：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
@@ -79,7 +79,7 @@ docker compose up -d --build
 ```
 
 如果直接使用当前仓库中的 compose 文件，默认持久化目录为 `./data`。
-Debian Docker 构建仍然保留给 CI 和镜像发布使用，而安装脚本会优先走最简单的正式版镜像安装路径。
+Debian Docker 构建仍然保留给 CI 和镜像发布使用，而安装脚本会优先走正式版预构建镜像；只有镜像拉取失败时，才回退到源码支撑 Docker 构建。
 
 ```bash
 OCTOPUS_PORT=1088 \
