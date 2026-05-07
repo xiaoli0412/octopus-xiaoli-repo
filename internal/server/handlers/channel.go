@@ -17,7 +17,41 @@ import (
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/task"
 	transformerOutbound "github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/log"
 )
+
+const channelPostSaveTaskMaxConcurrent = 4
+
+var channelPostSaveTaskSlots = make(chan struct{}, channelPostSaveTaskMaxConcurrent)
+var channelPostSaveTaskTimeout = 5 * time.Minute
+var channelPostSaveTaskRunner = func(channel *model.Channel, ctx context.Context) {
+	modelStr := channel.Model + "," + channel.CustomModel
+	modelArray := strings.Split(modelStr, ",")
+	if err := helper.LLMPriceAddToDB(modelArray, ctx); err != nil {
+		log.Warnf("post-save llm price update failed (channel=%d): %v", channel.ID, err)
+	}
+	helper.ChannelBaseUrlDelayUpdate(channel, ctx)
+	helper.ChannelAutoGroup(channel, ctx)
+}
+
+func scheduleChannelPostSaveTask(channel *model.Channel) bool {
+	if channel == nil {
+		return false
+	}
+	select {
+	case channelPostSaveTaskSlots <- struct{}{}:
+		go func(channel *model.Channel) {
+			defer func() { <-channelPostSaveTaskSlots }()
+			ctx, cancel := task.DetachedContextWithTimeout(channelPostSaveTaskTimeout)
+			defer cancel()
+			channelPostSaveTaskRunner(channel, ctx)
+		}(channel)
+		return true
+	default:
+		log.Warnf("post-save channel maintenance skipped because the background queue is full (channel=%d)", channel.ID)
+		return false
+	}
+}
 
 func respondChannelOpError(c *gin.Context, err error) {
 	if err == nil {
@@ -29,7 +63,7 @@ func respondChannelOpError(c *gin.Context, err error) {
 		resp.Error(c, http.StatusRequestTimeout, message)
 	case strings.Contains(message, "not found"):
 		resp.Error(c, http.StatusNotFound, message)
-	case strings.Contains(message, "invalid"), strings.Contains(message, "must be"):
+	case strings.Contains(message, "invalid"), strings.Contains(message, "must be"), strings.Contains(message, "must not"):
 		resp.Error(c, http.StatusBadRequest, message)
 	default:
 		resp.Error(c, http.StatusInternalServerError, message)
@@ -124,15 +158,7 @@ func createChannel(c *gin.Context) {
 	}
 	stats := op.StatsChannelGet(channel.ID)
 	channel.Stats = &stats
-	go func(channel *model.Channel) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-		modelStr := channel.Model + "," + channel.CustomModel
-		modelArray := strings.Split(modelStr, ",")
-		helper.LLMPriceAddToDB(modelArray, ctx)
-		helper.ChannelBaseUrlDelayUpdate(channel, ctx)
-		helper.ChannelAutoGroup(channel, ctx)
-	}(&channel)
+	scheduleChannelPostSaveTask(&channel)
 	resp.Success(c, channel)
 }
 
@@ -153,15 +179,7 @@ func updateChannel(c *gin.Context) {
 	}
 	stats := op.StatsChannelGet(channel.ID)
 	channel.Stats = &stats
-	go func(channel *model.Channel) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-		modelStr := channel.Model + "," + channel.CustomModel
-		modelArray := strings.Split(modelStr, ",")
-		helper.LLMPriceAddToDB(modelArray, ctx)
-		helper.ChannelBaseUrlDelayUpdate(channel, ctx)
-		helper.ChannelAutoGroup(channel, ctx)
-	}(channel)
+	scheduleChannelPostSaveTask(channel)
 	resp.Success(c, channel)
 }
 
@@ -208,6 +226,11 @@ func fetchModel(c *gin.Context) {
 		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
+	request.ChannelProxy = model.NormalizeChannelProxy(request.ChannelProxy)
+	if err := model.ValidateChannelProxy(request.ChannelProxy); err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
 	channel := model.Channel{
 		Type:         request.Type,
 		BaseUrls:     []model.BaseUrl{{URL: strings.TrimSpace(request.BaseURL), Delay: 0}},
@@ -246,6 +269,10 @@ func testChannelModels(c *gin.Context) {
 	var req TestModelRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
+		return
+	}
+	if req.ChannelID <= 0 {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidParam)
 		return
 	}
 
@@ -295,6 +322,11 @@ func testChannelModelsByConfig(c *gin.Context) {
 			resp.Error(c, http.StatusBadRequest, err.Error())
 			return
 		}
+	}
+	req.ChannelProxy = model.NormalizeChannelProxy(req.ChannelProxy)
+	if err := model.ValidateChannelProxy(req.ChannelProxy); err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	if len(req.Models) == 0 {

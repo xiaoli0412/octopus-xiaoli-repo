@@ -170,29 +170,54 @@ func importDB(c *gin.Context) {
 		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	modeRaw := strings.TrimSpace(c.DefaultQuery("mode", string(model.DBImportModeIncremental)))
-	mode := model.DefaultDBImportMode(modeRaw)
-	if modeRaw != "" && !model.IsValidDBImportMode(model.NormalizeDBImportMode(modeRaw)) {
+	mode, _, err := parseOptionalDBImportModeQuery(c, "mode", model.DBImportModeIncremental)
+	if err != nil {
 		resp.Error(c, http.StatusBadRequest, "unsupported import mode")
 		return
 	}
 	options := model.DBImportOptions{}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxDBImportPayloadBytes)
 	contentType := c.GetHeader("Content-Type")
-	previewToken := strings.TrimSpace(c.PostForm("preview_token"))
-	if previewToken == "" {
-		previewToken = strings.TrimSpace(c.GetHeader("X-Octopus-Import-Preview-Token"))
+	previewToken, _, err := parseOptionalNonEmptyTrimmedPostForm(c, "preview_token")
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
 	}
-	if rawModelMappings := strings.TrimSpace(c.PostForm("model_mappings")); rawModelMappings != "" {
+	if previewToken == "" {
+		previewToken, _, err = parseOptionalNonEmptyTrimmedHeader(c, "X-Octopus-Import-Preview-Token")
+		if err != nil {
+			resp.Error(c, http.StatusBadRequest, "invalid preview_token")
+			return
+		}
+	}
+	rawModelMappings, _, err := parseOptionalNonEmptyTrimmedPostForm(c, "model_mappings")
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if rawModelMappings != "" {
 		if err := json.Unmarshal([]byte(rawModelMappings), &options.ModelMappings); err != nil {
 			resp.Error(c, http.StatusBadRequest, "invalid model_mappings json")
 			return
 		}
+		if err := validateImportModelMappings(options.ModelMappings); err != nil {
+			resp.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
-	if rawImportScopes := strings.TrimSpace(c.PostForm("import_scopes")); rawImportScopes != "" {
+	rawImportScopes, _, err := parseOptionalNonEmptyTrimmedPostForm(c, "import_scopes")
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if rawImportScopes != "" {
 		var scopes model.DBImportScopes
 		if err := json.Unmarshal([]byte(rawImportScopes), &scopes); err != nil {
 			resp.Error(c, http.StatusBadRequest, "invalid import_scopes json")
+			return
+		}
+		if err := validateImportScopes(&scopes); err != nil {
+			resp.Error(c, http.StatusBadRequest, err.Error())
 			return
 		}
 		options.ImportScopes = &scopes
@@ -309,6 +334,10 @@ func rollbackImportSnapshot(c *gin.Context) {
 		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err := validateImportScopes(payload.ImportScopes); err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
 	result, err := op.DBRollbackImportSnapshot(c.Request.Context(), payload.SnapshotName, payload.ImportScopes)
 	if err != nil {
 		resp.Error(c, http.StatusBadRequest, err.Error())
@@ -324,6 +353,10 @@ func previewRollbackImportSnapshot(c *gin.Context) {
 		ImportScopes *model.DBImportScopes `json:"import_scopes"`
 	}
 	if err := c.ShouldBindJSON(&payload); err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateImportScopes(payload.ImportScopes); err != nil {
 		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -436,29 +469,6 @@ func decodeDBDump(body []byte, dump *model.DBDump) error {
 	attachLegacyHints(body, dump)
 	op.NormalizeLegacyDump(dump)
 	return nil
-}
-
-func normalizeDBExportFormat(input string) dbExportFormat {
-	switch strings.ToLower(strings.TrimSpace(input)) {
-	case "", string(dbExportFormatStandard):
-		return dbExportFormatStandard
-	case string(dbExportFormatLegacy):
-		return dbExportFormatLegacy
-	default:
-		return ""
-	}
-}
-
-func parseOptionalDBExportFormat(c *gin.Context, key string, defaultValue dbExportFormat) (dbExportFormat, error) {
-	raw := strings.TrimSpace(c.Query(key))
-	if raw == "" {
-		return defaultValue, nil
-	}
-	format := normalizeDBExportFormat(raw)
-	if format == "" {
-		return "", fmt.Errorf("unsupported export format")
-	}
-	return format, nil
 }
 
 func attachLegacyHints(body []byte, dump *model.DBDump) {

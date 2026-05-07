@@ -15,6 +15,14 @@ import (
 )
 
 const relayLogExportMaxLimit = 10000
+const relayLogListMaxOffset = 10000
+
+type relayLogExportFormat string
+
+const (
+	relayLogExportFormatJSON  relayLogExportFormat = "json"
+	relayLogExportFormatJSONL relayLogExportFormat = "jsonl"
+)
 
 func init() {
 	router.NewGroupRouter("/api/v1/log").
@@ -44,30 +52,19 @@ func init() {
 }
 
 func listLog(c *gin.Context) {
-	page, err := parseOptionalIntQuery(c, "page", 1)
+	page, _, err := parseOptionalBoundedIntQuery(c, "page", 1, 1, 0)
 	if err != nil {
-		resp.Error(c, http.StatusBadRequest, err.Error())
-		return
-	}
-	if page <= 0 {
 		resp.Error(c, http.StatusBadRequest, "invalid page")
 		return
 	}
-	pageSize, err := parseOptionalIntQuery(c, "page_size", 20)
+	pageSize, _, err := parseOptionalBoundedIntQuery(c, "page_size", 20, 1, 100)
 	if err != nil {
-		resp.Error(c, http.StatusBadRequest, err.Error())
-		return
-	}
-	if pageSize <= 0 {
 		resp.Error(c, http.StatusBadRequest, "invalid page_size")
 		return
 	}
-	if pageSize > 100 {
-		resp.Error(c, http.StatusBadRequest, "invalid page_size")
+	if int64(page-1)*int64(pageSize) >= relayLogListMaxOffset {
+		resp.Error(c, http.StatusBadRequest, "invalid page")
 		return
-	}
-	if page < 1 {
-		page = 1
 	}
 
 	startTime, endTime, err := parseOptionalIntRangeQuery(c, "start_time", "end_time")
@@ -103,8 +100,8 @@ func getStreamToken(c *gin.Context) {
 }
 
 func streamLog(c *gin.Context) {
-	token := c.Query("token")
-	if token == "" || !op.RelayLogStreamTokenConsume(token) {
+	token, _, err := parseOptionalNonEmptyTrimmedStringQuery(c, "token")
+	if err != nil || !op.RelayLogStreamTokenConsume(token) {
 		resp.Error(c, http.StatusUnauthorized, "invalid stream token")
 		return
 	}
@@ -138,22 +135,14 @@ func streamLog(c *gin.Context) {
 }
 
 func exportLog(c *gin.Context) {
-	format := c.DefaultQuery("format", "jsonl")
-	if format != "json" && format != "jsonl" {
-		resp.Error(c, http.StatusBadRequest, "unsupported format")
-		return
-	}
-
-	limit, err := parseOptionalIntQuery(c, "limit", 2000)
+	format, err := parseOptionalRelayLogExportFormat(c, "format", relayLogExportFormatJSONL)
 	if err != nil {
 		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	if limit <= 0 {
-		resp.Error(c, http.StatusBadRequest, "invalid limit")
-		return
-	}
-	if limit > relayLogExportMaxLimit {
+
+	limit, _, err := parseOptionalBoundedIntQuery(c, "limit", 2000, 1, relayLogExportMaxLimit)
+	if err != nil {
 		resp.Error(c, http.StatusBadRequest, "invalid limit")
 		return
 	}
@@ -172,7 +161,7 @@ func exportLog(c *gin.Context) {
 	fileName := fmt.Sprintf("octopus-logs-%s.%s", time.Now().Format("20060102-150405"), format)
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
 
-	if format == "json" {
+	if format == relayLogExportFormatJSON {
 		c.Header("Content-Type", "application/json; charset=utf-8")
 		c.JSON(http.StatusOK, logs)
 		return

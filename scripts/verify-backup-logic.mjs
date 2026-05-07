@@ -15,6 +15,10 @@ const jiti = createJiti(path.join(scriptDir, 'verify-backup-logic.mjs'), {
 });
 const {
 	buildCompatibilitySignalItems,
+	buildImportCompatibilityGuidanceItems,
+	getCompatibilityDiagnosticItems,
+	getCompatibilityNameItems,
+	getCredentialRebindTargetItems,
 	getAliasPreviewItems,
 	getApplySameImportGuardReason,
 	getCompatibilityCounts,
@@ -25,8 +29,10 @@ const {
 	getModelMappingPreviewItems,
 	getModelPolicyDiffItems,
 	getPostImportValidationSummary,
-	getRemainingMigrationToolingItems,
-	getRemainingMigrationToolingSections,
+	getReplacePrunedBreakdownItems,
+	getRoutePreviewDiffItems,
+	getRoutePreviewWarningItems,
+	getRouteTargetIssueItems,
 	getUnusedModelMappingItems,
 } = jiti(path.join(repoRoot, 'web/src/components/modules/setting/backup-logic.ts'));
 
@@ -168,6 +174,248 @@ const importWarningItems = buildCompatibilitySignalItems({
 
 assert.deepEqual(importWarningItems, ['Import report emitted 2 warnings.']);
 
+const rollbackSignalItems = buildCompatibilitySignalItems({
+	kind: 'rollback',
+	locale,
+	warningsCount: 1,
+	counts: {
+		conflicts: 1,
+		aliasConflicts: 0,
+		routeConflicts: 0,
+		credentialRebindTargets: 1,
+		channelKeyRebindTargets: 1,
+		apiKeyRebindTargets: 0,
+		invalidRouteTargets: 0,
+		skippedRouteTargetPreviews: 0,
+		routePreviewWarnings: 1,
+		routePreviewDiffs: 0,
+		missingProviders: 1,
+		missingModels: 1,
+		baseURLMismatches: 0,
+		schemaMismatches: 1,
+		skippedTargets: 1,
+		modelMappingPreviews: 0,
+		usedModelMappings: 0,
+		unusedModelMappings: 0,
+		missingMappingTargets: 0,
+		aliasPreviewMappings: 0,
+		modelPolicyDiffs: 1,
+		replacePrunedTargets: 0,
+	},
+});
+
+assert.deepEqual(rollbackSignalItems, [
+	'Rollback preview emitted 1 warnings.',
+	'Rollback preview found 1 conflicts.',
+	'Channel-key credential rebind is required for 1 restored targets.',
+	'Compatibility report found 1 missing providers.',
+	'Compatibility report found 1 missing models.',
+	'Compatibility report found 1 schema mismatches.',
+	'Compatibility report skipped 1 targets.',
+	'Route preview emitted 1 warnings.',
+	'Compatibility report found 1 model-policy diffs.',
+]);
+
+const guidanceItems = buildImportCompatibilityGuidanceItems({
+	effectiveMode: 'map',
+	locale: 'en',
+	counts: {
+		conflicts: 1,
+		aliasConflicts: 0,
+		routeConflicts: 1,
+		credentialRebindTargets: 1,
+		channelKeyRebindTargets: 1,
+		apiKeyRebindTargets: 0,
+		invalidRouteTargets: 1,
+		skippedRouteTargetPreviews: 1,
+		routePreviewWarnings: 1,
+		routePreviewDiffs: 1,
+		missingProviders: 1,
+		missingModels: 0,
+		baseURLMismatches: 0,
+		schemaMismatches: 0,
+		skippedTargets: 2,
+		modelMappingPreviews: 2,
+		usedModelMappings: 1,
+		unusedModelMappings: 1,
+		missingMappingTargets: 1,
+		aliasPreviewMappings: 0,
+		modelPolicyDiffs: 1,
+		replacePrunedTargets: 0,
+	},
+	compatibility: {
+		missing_providers: ['legacy-provider'],
+		skipped_targets: ['channel_key:201 empty credential', 'setting:api_base_url existing row preserved by skip mode'],
+		credential_rebind_targets: [{ target_type: 'channel_key', channel_name: 'Primary', key_name: 'key-1', models: ['legacy-model'] }],
+		skipped_route_target_previews: [{ group_name: 'group-b', channel_name: 'Backup', model: 'legacy-fallback', resolved_model: 'gpt-4.1', issue_type: 'skipped_preview', reason: 'model not declared on current channel', action: 'review mapping' }],
+		model_mapping_previews: [
+			{ source_model: 'missing-model', target_model: 'gpt-4.1-mini', used: true, target_exists: false, contexts: ['routing'], warnings: ['current model not found'] },
+			{ source_model: 'unused-model', target_model: 'gpt-4.1', used: false, contexts: ['api_keys'] },
+		],
+	},
+});
+
+assert.deepEqual(guidanceItems, [
+	{
+		key: 'blocking-risks',
+		tone: 'danger',
+		title: 'Resolve blocking risks first',
+		detail: 'The current preview still contains 1 compatibility conflicts, 1 route conflicts, 1 invalid route targets. Expand the conflict and route details below, fix them, then apply again.',
+	},
+	{
+		key: 'missing-targets',
+		tone: 'warning',
+		title: 'Restore missing providers or models',
+		detail: 'The preview already marked the missing objects. Start with these examples: legacy-provider; snapshot:missing-model | current:gpt-4.1-mini | contexts:routing | warnings:current model not found.',
+	},
+	{
+		key: 'credential-rebind',
+		tone: 'warning',
+		title: 'Prepare credential rebinds',
+		detail: 'These targets will need credential rebinds after apply: target:channel key | channel:Primary | key:key-1 | models:legacy-model.',
+	},
+	{
+		key: 'skipped-targets',
+		tone: 'warning',
+		title: 'Review which targets are skipped',
+		detail: 'This mode will preserve or skip these targets: channel_key:201 empty credential; setting:api_base_url existing row preserved by skip mode. Confirm that this matches what you want before applying.',
+	},
+	{
+		key: 'model-mappings',
+		tone: 'warning',
+		title: 'Fix model mappings before apply',
+		detail: 'The current mapping set already shows items to fix or remove: snapshot:missing-model | current:gpt-4.1-mini | contexts:routing | warnings:current model not found; snapshot:unused-model | current:gpt-4.1 | contexts:api_keys.',
+	},
+	{
+		key: 'route-and-policy',
+		tone: 'warning',
+		title: 'Review route and policy drift',
+		detail: 'The preview also surfaced 1 route diffs, 1 route warnings, 1 skipped route previews, 1 model-policy diffs. Review the route and policy details below before applying.',
+	},
+]);
+
+const replaceGuidanceItems = buildImportCompatibilityGuidanceItems({
+	effectiveMode: 'replace',
+	locale: 'en',
+	counts: {
+		conflicts: 1,
+		aliasConflicts: 0,
+		routeConflicts: 0,
+		credentialRebindTargets: 1,
+		channelKeyRebindTargets: 1,
+		apiKeyRebindTargets: 0,
+		invalidRouteTargets: 0,
+		skippedRouteTargetPreviews: 0,
+		routePreviewWarnings: 0,
+		routePreviewDiffs: 0,
+		missingProviders: 0,
+		missingModels: 0,
+		baseURLMismatches: 0,
+		schemaMismatches: 0,
+		skippedTargets: 0,
+		modelMappingPreviews: 0,
+		usedModelMappings: 0,
+		unusedModelMappings: 0,
+		missingMappingTargets: 0,
+		aliasPreviewMappings: 0,
+		modelPolicyDiffs: 0,
+		replacePrunedTargets: 2,
+	},
+	compatibility: {
+		credential_rebind_targets: [{ target_type: 'channel_key', channel_name: 'Primary' }],
+		replace_pruned_channels: ['legacy-channel'],
+		replace_pruned_api_keys: ['client-key'],
+	},
+});
+
+assert.deepEqual(replaceGuidanceItems, [
+	{
+		key: 'blocking-risks',
+		tone: 'danger',
+		title: 'Resolve blocking risks first',
+		detail: 'The current preview still contains 1 compatibility conflicts. Expand the conflict and route details below, fix them, then apply again.',
+	},
+	{
+		key: 'credential-rebind',
+		tone: 'warning',
+		title: 'Prepare credential rebinds',
+		detail: 'These targets will need credential rebinds after apply: target:channel key | channel:Primary.',
+	},
+	{
+		key: 'replace-prune',
+		tone: 'warning',
+		title: 'Review which current records replace mode removes',
+		detail: 'Replace mode will prune these current records: legacy-channel; client-key. Expand the structured prune details below before you apply it.',
+	},
+]);
+
+const rollbackGuidanceItems = buildImportCompatibilityGuidanceItems({
+	kind: 'rollback',
+	locale: 'en',
+	counts: {
+		conflicts: 1,
+		aliasConflicts: 0,
+		routeConflicts: 1,
+		credentialRebindTargets: 1,
+		channelKeyRebindTargets: 1,
+		apiKeyRebindTargets: 0,
+		invalidRouteTargets: 1,
+		skippedRouteTargetPreviews: 1,
+		routePreviewWarnings: 1,
+		routePreviewDiffs: 1,
+		missingProviders: 1,
+		missingModels: 0,
+		baseURLMismatches: 0,
+		schemaMismatches: 1,
+		skippedTargets: 1,
+		modelMappingPreviews: 0,
+		usedModelMappings: 0,
+		unusedModelMappings: 0,
+		missingMappingTargets: 0,
+		aliasPreviewMappings: 0,
+		modelPolicyDiffs: 1,
+		replacePrunedTargets: 0,
+	},
+	compatibility: {
+		missing_providers: ['rollback-provider'],
+		skipped_targets: ['channel_key:101 empty credential'],
+		credential_rebind_targets: [{ target_type: 'channel_key', channel_name: 'Primary', key_name: 'key-1', models: ['legacy-model'] }],
+	},
+});
+
+assert.deepEqual(rollbackGuidanceItems, [
+	{
+		key: 'blocking-risks',
+		tone: 'danger',
+		title: 'Resolve rollback risks first',
+		detail: 'The current rollback preview still contains 1 compatibility conflicts, 1 route conflicts, 1 invalid route targets, 1 schema mismatches. Expand the conflict and route details below, fix them, then run the rollback again.',
+	},
+	{
+		key: 'missing-targets',
+		tone: 'warning',
+		title: 'Restore missing targets before rollback',
+		detail: 'The rollback preview already marked the missing objects. Start with these examples: rollback-provider.',
+	},
+	{
+		key: 'credential-rebind',
+		tone: 'warning',
+		title: 'Prepare post-rollback credential rebinds',
+		detail: 'These targets will need credential rebinds after rollback: target:channel key | channel:Primary | key:key-1 | models:legacy-model.',
+	},
+	{
+		key: 'skipped-targets',
+		tone: 'warning',
+		title: 'Review which targets rollback keeps',
+		detail: 'This rollback will preserve or skip these targets: channel_key:101 empty credential. Confirm that this matches what you want before restoring.',
+	},
+	{
+		key: 'route-and-policy',
+		tone: 'warning',
+		title: 'Review post-rollback route and policy drift',
+		detail: 'The rollback preview also surfaced 1 route diffs, 1 route warnings, 1 skipped route previews, 1 model-policy diffs. Review the route and policy details below before restoring.',
+	},
+]);
+
 assert.equal(getApplySameImportGuardReason({ hasPendingApplyRequest: false, previewToken: 'token', requiresConfirm: false, confirmed: false }), 'missing_request');
 assert.equal(getApplySameImportGuardReason({ hasPendingApplyRequest: true, previewToken: '   ', requiresConfirm: false, confirmed: false }), 'missing_preview_token');
 assert.equal(getApplySameImportGuardReason({ hasPendingApplyRequest: true, previewToken: 'token', requiresConfirm: true, confirmed: false }), 'confirm_required');
@@ -221,56 +469,17 @@ assert.deepEqual(zhHansFullExportPresentation.scopeBadges, ['项目快照', '渠
 
 const zhHansRedactedExportPresentation = getExportSnapshotPresentation({ includeSecrets: false, includeLogs: true, includeStats: false, locale: 'zh-Hans' });
 assert.deepEqual(zhHansRedactedExportPresentation.scopeBadges, ['项目快照', '渠道 / 分组 / 路由', '脱敏凭证', '中继日志']);
-const remainingMigrationToolingItems = getRemainingMigrationToolingItems(locale);
-assert.deepEqual(remainingMigrationToolingItems, [
-	{ key: 'conflict-handling', label: 'Conflict handling', text: 'Guided conflict handling for richer replace/map edge cases beyond the current structured preview.' },
-	{ key: 'mapping-editor', label: 'Mapping editor', text: 'Richer model-mapping editor beyond the current line-based remap input.' },
-	{ key: 'compare-workflow', label: 'Compare workflow', text: 'Multi-snapshot compare workflow with richer diff navigation beyond the current snapshot history list and preview panel.' },
-	{ key: 'rollback-domains', label: 'Rollback domains', text: 'Granular rollback-domain editing beyond the current full snapshot restore and selective-scope override flow.' },
-	{ key: 'route-diff', label: 'Route diff', text: 'Side-by-side route diff tooling beyond the current compact summary cards and detail lists.' },
-]);
-assert.deepEqual(getRemainingMigrationToolingSections(locale), [
-	{
-		key: 'import-tooling',
-		title: 'Import tooling',
-		summary: 'These gaps still need guided import conflict resolution and remap editing.',
-		items: remainingMigrationToolingItems.slice(0, 2),
-	},
-	{
-		key: 'rollback-tooling',
-		title: 'Rollback tooling',
-		summary: 'These gaps still need richer snapshot recovery and compare navigation.',
-		items: remainingMigrationToolingItems.slice(2, 4),
-	},
-	{
-		key: 'route-analysis',
-		title: 'Route analysis',
-		summary: 'This gap still needs richer side-by-side route diff inspection.',
-		items: remainingMigrationToolingItems.slice(4),
-	},
-]);
-
-const zhHansRemainingMigrationToolingItems = getRemainingMigrationToolingItems('zh-Hans');
-assert.equal(zhHansRemainingMigrationToolingItems[0]?.label, '冲突处理');
-assert.match(zhHansRemainingMigrationToolingItems[0]?.text ?? '', /替换导入 \/ 映射导入/);
-assert.doesNotMatch(zhHansRemainingMigrationToolingItems[0]?.text ?? '', /replace\/map/i);
-assert.match(zhHansRemainingMigrationToolingItems[1]?.text ?? '', /快照模型=当前模型/);
-assert.doesNotMatch(zhHansRemainingMigrationToolingItems[1]?.text ?? '', /\bremap\b/i);
-
-const zhHantRemainingMigrationToolingItems = getRemainingMigrationToolingItems('zh-Hant');
-assert.equal(zhHantRemainingMigrationToolingItems[0]?.label, '衝突處理');
-assert.match(zhHantRemainingMigrationToolingItems[0]?.text ?? '', /替換導入 \/ 映射導入/);
-assert.doesNotMatch(zhHantRemainingMigrationToolingItems[0]?.text ?? '', /replace\/map/i);
-assert.match(zhHantRemainingMigrationToolingItems[1]?.text ?? '', /快照模型=目前模型/);
-assert.doesNotMatch(zhHantRemainingMigrationToolingItems[1]?.text ?? '', /\bremap\b/i);
-
-const zhHansRemainingMigrationToolingSections = getRemainingMigrationToolingSections('zh-Hans');
-assert.equal(zhHansRemainingMigrationToolingSections[0]?.title, '导入工具补强');
-assert.equal(zhHansRemainingMigrationToolingSections[0]?.summary, '这些缺口主要集中在导入时的冲突引导和模型映射编辑能力。');
-
-const zhHantRemainingMigrationToolingSections = getRemainingMigrationToolingSections('zh-Hant');
-assert.equal(zhHantRemainingMigrationToolingSections[0]?.title, '導入工具補強');
-assert.equal(zhHantRemainingMigrationToolingSections[0]?.summary, '這些缺口主要集中在導入時的衝突引導與模型映射編輯能力。');
+assert.deepEqual(getReplacePrunedBreakdownItems({
+	channels: ['legacy-channel'],
+	settings: ['setting:api_base_url existing row preserved by skip mode'],
+	apiKeys: ['client-key'],
+}, 'zh-Hans'), {
+	channels: ['legacy-channel'],
+	groups: [],
+	settings: ['系统设置:api_base_url 因跳过模式而保留当前记录'],
+	llmInfos: [],
+	apiKeys: ['client-key'],
+});
 assert.deepEqual(getAliasPreviewItems([{ snapshot_model: 'legacy-model', current_model: 'gpt-4o', canonical: 'gpt-4o', contexts: ['routing', 'fallback'] }], locale), [
 	'snapshot:legacy-model | current:gpt-4o | canonical:gpt-4o | contexts:routing, fallback',
 ]);
@@ -288,6 +497,34 @@ assert.deepEqual(getMissingModelMappingItems([{ source_model: 'legacy-model', ta
 ]);
 assert.deepEqual(getUnusedModelMappingItems([{ source_model: 'unused-model', target_model: 'gpt-4.1', used: false, contexts: ['api_keys'] }], locale), [
 	'snapshot:unused-model | current:gpt-4.1 | contexts:api_keys',
+]);
+assert.deepEqual(getCredentialRebindTargetItems([{ target_type: 'channel_key', channel_name: 'Primary', key_name: 'key-1', source_type: 'oauth', models: ['legacy-model'], affected_groups: ['group-a'], contexts: ['routing'] }], 'zh-Hans'), [
+	'目标类型:渠道密钥 | 渠道:Primary | 密钥:key-1 | 来源:oauth | 模型:legacy-model | 影响分组:group-a | 作用范围:路由',
+]);
+assert.deepEqual(getCompatibilityNameItems(['group-a', 'group-b'], 'en'), ['group-a', 'group-b']);
+assert.deepEqual(getCompatibilityDiagnosticItems(['channel_key:201 empty credential', 'setting:api_base_url existing row preserved by skip mode', 'snapshot schema:v2 differs'], 'zh-Hans'), [
+	'渠道密钥:201 缺少明文凭证',
+	'系统设置:api_base_url 因跳过模式而保留当前记录',
+	'快照结构版本 v2 与当前导入链路不一致',
+]);
+assert.deepEqual(getRouteTargetIssueItems([{ group_name: 'group-a', channel_name: 'Primary', model: 'gpt-4o', resolved_model: 'gpt-4.1', issue_type: 'missing_target', reason: 'channel key missing', action: 'rebind credential' }], 'zh-Hans'), [
+	'分组:group-a | 渠道:Primary | 模型:gpt-4o | 解析模型:gpt-4.1 | 问题类型:missing_target | 原因:channel key missing | 建议动作:rebind credential',
+]);
+assert.deepEqual(getRoutePreviewWarningItems(['route may degrade', 'route preview diffs: 2'], 'zh-Hans'), [
+	'路由候选链可能降级',
+	'路由预览发现 2 处差异',
+]);
+assert.deepEqual(getRoutePreviewDiffItems([{
+	group_name: 'group-a',
+	model: 'legacy-model',
+	before_candidates: [{ channel_name: 'Primary', model: 'legacy-model', resolved_model: 'gpt-4o', priority: 1, weight: 100 }],
+	after_candidates: [{ channel_name: 'Backup', model: 'legacy-model', resolved_model: 'gpt-4.1', priority: 2, weight: 50 }],
+	removed_candidates: [{ channel_name: 'Primary', model: 'legacy-model', resolved_model: 'gpt-4o', priority: 1, weight: 100 }],
+	added_candidates: [{ channel_name: 'Backup', model: 'legacy-model', resolved_model: 'gpt-4.1', priority: 2, weight: 50 }],
+	fallback_changed: true,
+	skip_reasons: ['missing candidate'],
+}], 'zh-Hans'), [
+	'分组:group-a | 模型:legacy-model | 当前候选:Primary:gpt-4o | 优先级:1 | 权重:100 | 快照候选:Backup:gpt-4.1 | 优先级:2 | 权重:50 | 将被移除:Primary:gpt-4o | 优先级:1 | 权重:100 | 将被新增:Backup:gpt-4.1 | 优先级:2 | 权重:50 | 回退链变化:是 | 跳过原因:缺少候选项',
 ]);
 assert.deepEqual(getModelPolicyDiffItems([{
 	model: 'legacy-model',

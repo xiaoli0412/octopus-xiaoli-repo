@@ -42,19 +42,33 @@
 直接运行
 
 ```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.16.4
+docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17
 ```
 
-或者使用安装脚本。脚本默认使用 `1088` 作为外部端口，启动前会先探测端口占用；如果 `1088` 已被占用，非交互场景会自动切换到可用端口并继续安装，且会直接拉取正式版 `v1.16.4` 镜像：
+或者使用安装脚本。脚本默认使用 `1088` 作为外部端口，启动前会先探测端口占用；如果 `1088` 已被占用，非交互场景会自动切换到可用端口并继续安装。脚本会先拉取 GHCR 官方镜像；如果你有可用的私有镜像或镜像代理，也可以显式指定回退镜像：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
+```
+
+如果你的 SSH 主机访问 `raw.githubusercontent.com` 不稳定，优先改成“两步执行”，这样能更清楚地区分是脚本下载卡住，还是镜像拉取卡住：
+
+```bash
+curl -fsSL -o install-octopus.sh https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh
+bash install-octopus.sh
 ```
 
 非交互自定义端口示例：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | OCTOPUS_PORT=1088 bash
+```
+
+如果所在网络对 GHCR 有限制，也可以显式指定镜像源，或者提供一个回退镜像：
+
+```bash
+OCTOPUS_IMAGE=ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17 bash install-octopus.sh
+OCTOPUS_IMAGE_FALLBACK=registry.example.com/octopus-xiaoli-repo:v1.17 bash install-octopus.sh
 ```
 
 如果你仍然希望手动安装，也可以继续使用仓库内 compose：
@@ -74,6 +88,8 @@ OCTOPUS_DATA_DIR=./build/compose-smoke-data \
 OCTOPUS_CONTAINER_NAME=octopus-smoke \
 docker compose up -d
 ```
+
+现在容器启动链默认不会在 `PUID` / `PGID` 指定非 root 运行、但挂载数据目录不可写时静默退回 root。正确做法是修复宿主机卷权限；如果必须临时兼容旧环境，可显式设置 `ALLOW_ROOT_FALLBACK_ON_DATA_DIR_ERROR=true`，但应在卷权限修复后尽快移除。
 
 
 ### 📦 从 Release 下载

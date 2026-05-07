@@ -40,24 +40,69 @@ module.exports = {
 							compatibility: { conflicts: ['channel conflict'] },
 						}
 						: payload.mode === 'map'
-						? {
-							rows_affected: { channels: 1, groups: 1 },
-							preview_token: mapPreviewToken,
-							dry_run: true,
-							mode: payload.mode,
-							compatibility: {
-								alias_preview_mappings: [
-									{
-										snapshot_model: 'legacy-vision',
-										current_model: 'gpt-4.1',
-										canonical: 'gpt-4.1',
-										contexts: ['routing'],
-									},
-								],
-								missing_providers: ['legacy-provider'],
-								model_mapping_previews: [
-									{
-										source_model: 'legacy-model',
+					? {
+						rows_affected: { channels: 1, groups: 1 },
+						preview_token: mapPreviewToken,
+						dry_run: true,
+						mode: payload.mode,
+					compatibility: {
+						conflicts: ['channel conflict'],
+						alias_conflicts: ['alias conflict: legacy-vision -> gpt-4.1'],
+						route_conflicts: ['route conflict: group-a -> legacy-model'],
+						affected_groups: ['group-a', 'group-b'],
+						affected_channels: ['Primary', 'Backup'],
+							alias_preview_mappings: [
+								{
+									snapshot_model: 'legacy-vision',
+									current_model: 'gpt-4.1',
+									canonical: 'gpt-4.1',
+									contexts: ['routing'],
+								},
+							],
+						missing_providers: ['legacy-provider'],
+						missing_models: ['legacy-text-preview'],
+						base_url_mismatches: ['preview-channel'],
+							schema_mismatches: ['snapshot schema:v2 differs'],
+							skipped_targets: ['channel_key:201 empty credential', 'setting:api_base_url existing row preserved by skip mode'],
+						invalid_route_targets: [
+							{
+								group_name: 'group-a',
+								channel_name: 'Primary',
+								model: 'legacy-model',
+								resolved_model: 'gpt-4o',
+								issue_type: 'missing_target',
+								reason: 'channel key missing',
+								action: 'rebind credential',
+							},
+						],
+						skipped_route_target_previews: [
+							{
+								group_name: 'group-b',
+								channel_name: 'Backup',
+								model: 'legacy-fallback',
+								resolved_model: 'gpt-4.1',
+								issue_type: 'skipped_preview',
+								reason: 'model not declared on current channel',
+								action: 'review mapping',
+							},
+						],
+						model_policy_diffs: [
+							{
+								model: 'legacy-model',
+								current_model: 'gpt-4o',
+									impact_level: 'high',
+									changed_fields: ['billing_mode'],
+									before: { billing_mode: 'paid' },
+									after: { billing_mode: 'free' },
+									contexts: ['routing'],
+									warnings: ['policy drift'],
+								},
+							],
+							route_preview_warnings: ['route may degrade'],
+							route_preview_diffs: [{ group_name: 'group-a', model: 'legacy-model' }],
+							model_mapping_previews: [
+								{
+									source_model: 'legacy-model',
 										target_model: legacyModelTarget,
 										contexts: ['routing'],
 										touched_fields: ['primary_model'],
@@ -102,11 +147,6 @@ module.exports = {
 								preview_token: 'preview-token-replace',
 								dry_run: true,
 								mode: payload.mode,
-								replace_prune_preview: {
-									pruned_channels: ['legacy-channel'],
-									pruned_api_keys: ['client-key'],
-									warnings: ['Current client keys remain unless the snapshot carries plaintext credentials.'],
-								},
 								compatibility: {
 									conflicts: ['replace conflict'],
 									credential_rebind_targets: [
@@ -119,6 +159,9 @@ module.exports = {
 										},
 									],
 									replace_pruned_channels: ['legacy-channel'],
+									replace_pruned_groups: ['legacy-group'],
+									replace_pruned_settings: ['proxy_url'],
+									replace_pruned_llm_infos: ['legacy-model'],
 									replace_pruned_api_keys: ['client-key'],
 								},
 							}
@@ -187,9 +230,11 @@ module.exports = {
 					applied_scopes: importScopes,
 					manifest: { contains_secrets: true, schema_version: '10' },
 					rows_summary: { channels: 2, groups: 1 },
-					preview_warnings: ['provider mismatch'],
+					preview_warnings: ['route preview needs manual review'],
 					compatibility: {
 						conflicts: ['channel conflict'],
+						alias_conflicts: ['alias conflict: rollback-vision -> gpt-4.1'],
+						route_conflicts: ['route conflict: group-a -> legacy-model'],
 						credential_rebind_targets: [{
 							target_type: 'channel_key',
 							channel_name: 'Primary',
@@ -197,9 +242,28 @@ module.exports = {
 							models: ['gpt-4o'],
 							affected_groups: ['group-a'],
 						}],
-						missing_providers: ['provider-x'],
+						missing_providers: ['rollback-provider'],
 						affected_groups: ['group-a'],
-						affected_channels: ['channel-a'],
+						affected_channels: ['Primary'],
+						missing_models: ['legacy-model'],
+						base_url_mismatches: ['rollback-channel'],
+						schema_mismatches: ['snapshot schema:v2 differs'],
+						skipped_targets: ['channel_key:101 empty credential'],
+						invalid_route_targets: [{ group_name: 'rollback-group', channel_name: 'Primary', model: 'legacy-model', issue_type: 'missing_target', reason: 'channel removed', action: 'rebind channel' }],
+						skipped_route_target_previews: [{ group_name: 'rollback-group', channel_name: 'Primary', model: 'legacy-model', issue_type: 'skipped_preview', reason: 'preview omitted', action: 'review mapping' }],
+						route_preview_warnings: ['rollback route may degrade'],
+						model_mapping_previews: [{ source_model: 'legacy-model', target_model: 'gpt-4o', contexts: ['routing'], touched_fields: ['model'], usage_count: 1, used: true, target_exists: true }],
+						alias_preview_mappings: [{ snapshot_model: 'rollback-vision', current_model: 'gpt-4.1', canonical: 'gpt-4.1', contexts: ['routing'] }],
+						model_policy_diffs: [{ model: 'legacy-model', current_model: 'gpt-4o', impact_level: 'high', changed_fields: ['billing_mode'], before: { billing_mode: 'paid' }, after: { billing_mode: 'free' }, contexts: ['routing'], warnings: ['policy drift'] }],
+						route_preview_diffs: [{
+							group_name: 'group-a',
+							model: 'gpt-4o',
+							before_candidates: [{ channel_name: 'current-primary', model: 'gpt-4o', priority: 1, weight: 100, enabled: true, declared: true, has_key: true }],
+							after_candidates: [{ channel_name: 'snapshot-primary', model: 'gpt-4o', priority: 1, weight: 100, enabled: true, declared: true, has_key: true }],
+							removed_candidates: [{ channel_name: 'current-primary', model: 'gpt-4o', priority: 1, weight: 100, enabled: true, declared: true, has_key: true }],
+							added_candidates: [{ channel_name: 'snapshot-primary', model: 'gpt-4o', priority: 1, weight: 100, enabled: true, declared: true, has_key: true }],
+							fallback_changed: true,
+						}],
 					},
 				};
 				if (state.previewRollbackDeferred) {

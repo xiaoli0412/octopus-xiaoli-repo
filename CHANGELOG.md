@@ -4,6 +4,26 @@
 
 ---
 
+## 1.17 - 2026-05-07
+
+### ✨ 核心更新
+
+- 备份 / 导入 / 回滚链路继续补强：设置页 Backup 工作台新增更完整的 scope 摘要、preview invalidation、route diff compare、风险提示与回滚元信息展示，导入与回滚流程更可解释。
+- 后端设置、分组、渠道、日志与路由目标相关操作补齐更严格的参数校验和测试覆盖，包含 AI automation base URL 校验、query param 处理、import preview 与任务初始化链路收口。
+- 前端与脚本验证同步扩展到 backup 相关 no-browser / browser smoke 守门，减少“页面有改动但验证链没有跟上”的漂移。
+
+### 🔧 发布与兼容性
+
+- 发布版本升级为 `1.17`，`VERSION`、后端版本常量、前端展示版本、Docker Debian 构建默认版本和安装脚本默认镜像统一同步。
+- README 与手工验收清单同步更新到 `v1.17` 正式发布口径。
+
+### Release Highlights (EN)
+
+- Backup / import / rollback flows were expanded with clearer scope summaries, preview invalidation, route diff compare views, risk hints, and richer rollback metadata in the Settings backup workspace.
+- Backend validation and test coverage were tightened across settings, groups, channels, logs, route targets, import preview, and AI automation base URL handling.
+- Frontend verification scripts were extended around backup-related no-browser and browser smoke checks so release coverage stays aligned with the shipped UI changes.
+- The formal release version is now `1.17`, with synchronized version sources across runtime constants, frontend display, Docker build defaults, installer defaults, and release-facing docs.
+
 ## 1.16.4 - 2026-05-03
 
 ### 🐛 安装与发布修复

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -413,16 +414,79 @@ func dumpContainsSecrets(dump *model.DBDump) bool {
 		}
 	}
 	for _, channel := range dump.Channels {
-		if channel.ChannelProxy != nil && strings.TrimSpace(*channel.ChannelProxy) != "" {
+		if channelProxyContainsSecret(channel.ChannelProxy) {
 			return true
 		}
 		for _, header := range channel.CustomHeader {
-			if strings.TrimSpace(header.HeaderValue) != "" {
+			if customHeaderContainsSecret(header) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+func customHeaderContainsSecret(header model.CustomHeader) bool {
+	if !isSensitiveCustomHeaderKey(header.HeaderKey) {
+		return false
+	}
+	return strings.TrimSpace(header.HeaderValue) != ""
+}
+
+func isSensitiveCustomHeaderKey(key string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(key))
+	if normalized == "" {
+		return false
+	}
+	switch normalized {
+	case "authorization", "proxy-authorization", "x-api-key", "api-key", "x-auth-token", "x-access-token", "x-openai-api-key", "anthropic-api-key", "cf-access-client-secret":
+		return true
+	}
+	if strings.Contains(normalized, "secret") || strings.Contains(normalized, "token") {
+		return true
+	}
+	if strings.HasSuffix(normalized, "api-key") || strings.HasSuffix(normalized, "apikey") {
+		return true
+	}
+	return false
+}
+
+func channelProxyContainsSecret(raw *string) bool {
+	if raw == nil {
+		return false
+	}
+	trimmed := strings.TrimSpace(*raw)
+	if trimmed == "" {
+		return false
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return true
+	}
+	return parsed.User != nil
+}
+
+func sanitizeChannelProxyForRedactedExport(raw *string) *string {
+	if raw == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*raw)
+	if trimmed == "" {
+		empty := ""
+		return &empty
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		empty := ""
+		return &empty
+	}
+	if parsed.User == nil {
+		clean := parsed.String()
+		return &clean
+	}
+	parsed.User = nil
+	clean := parsed.String()
+	return &clean
 }
 
 func redactDumpSecrets(dump *model.DBDump) {
@@ -439,12 +503,11 @@ func redactDumpSecrets(dump *model.DBDump) {
 		dump.APIKeys[i].APIKey = ""
 	}
 	for i := range dump.Channels {
-		if dump.Channels[i].ChannelProxy != nil {
-			empty := ""
-			dump.Channels[i].ChannelProxy = &empty
-		}
+		dump.Channels[i].ChannelProxy = sanitizeChannelProxyForRedactedExport(dump.Channels[i].ChannelProxy)
 		for j := range dump.Channels[i].CustomHeader {
-			dump.Channels[i].CustomHeader[j].HeaderValue = ""
+			if customHeaderContainsSecret(dump.Channels[i].CustomHeader[j]) {
+				dump.Channels[i].CustomHeader[j].HeaderValue = ""
+			}
 		}
 	}
 }
@@ -609,6 +672,25 @@ func isFullImportScopes(scopes *model.DBImportScopes) bool {
 		return true
 	}
 	return scopes.Routing && scopes.Models && scopes.APIKeys && scopes.Settings && scopes.Stats && scopes.Logs
+}
+
+func validateImportScopes(scopes *model.DBImportScopes) error {
+	if scopes == nil {
+		return nil
+	}
+	return scopes.Validate()
+}
+
+func validateImportModelMappings(input map[string]string) error {
+	if len(input) == 0 {
+		return nil
+	}
+	for source, target := range input {
+		if normalizeModelRef(source) == "" || normalizeModelRef(target) == "" {
+			return fmt.Errorf("invalid model_mappings")
+		}
+	}
+	return nil
 }
 
 func normalizeModelMappings(input map[string]string) map[string]string {
@@ -864,6 +946,10 @@ func importChannels(tx *gorm.DB, rows []model.Channel, mode model.DBImportMode, 
 		}
 		row.ID = 0
 		row.Name = name
+		row.ChannelProxy = model.NormalizeChannelProxy(row.ChannelProxy)
+		if err := model.ValidateChannelProxy(row.ChannelProxy); err != nil {
+			return nil, 0, fmt.Errorf("invalid channel %s proxy: %w", name, err)
+		}
 		row.KeyManagementMode = model.NormalizeKeyManagementMode(row.KeyManagementMode)
 		if !model.IsValidKeyManagementMode(row.KeyManagementMode) {
 			row.KeyManagementMode = model.KeyManagementModePooled

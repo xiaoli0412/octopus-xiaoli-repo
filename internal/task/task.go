@@ -1,6 +1,7 @@
 package task
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -27,9 +28,16 @@ var (
 	taskRunnerWG    sync.WaitGroup
 	taskRunStopCh   = make(chan struct{})
 	taskRunStopOnce sync.Once
+	taskRunStateMu  sync.RWMutex
+	taskRunCtx      context.Context
+	taskRunCancel   context.CancelFunc
 )
 
 const taskStopTimeout = 5 * time.Second
+
+func init() {
+	resetTaskRunContext()
+}
 
 // Register 注册一个定时任务
 // runOnStart: 是否在启动时立即执行一次
@@ -167,9 +175,41 @@ func startTaskExecution(entry *taskEntry) bool {
 	return true
 }
 
+func taskBaseContext() context.Context {
+	taskRunStateMu.RLock()
+	defer taskRunStateMu.RUnlock()
+	if taskRunCtx == nil {
+		return context.Background()
+	}
+	return taskRunCtx
+}
+
+func taskContext() (context.Context, context.CancelFunc) {
+	return context.WithCancel(taskBaseContext())
+}
+
+func taskContextWithTimeout(timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		return taskContext()
+	}
+	return context.WithTimeout(taskBaseContext(), timeout)
+}
+
+// DetachedContextWithTimeout returns a service-lifecycle context that is not
+// bound to any request but is canceled during task shutdown.
+func DetachedContextWithTimeout(timeout time.Duration) (context.Context, context.CancelFunc) {
+	return taskContextWithTimeout(timeout)
+}
+
 func StopAll() error {
 	taskRunStopOnce.Do(func() {
 		close(taskRunStopCh)
+		taskRunStateMu.RLock()
+		cancel := taskRunCancel
+		taskRunStateMu.RUnlock()
+		if cancel != nil {
+			cancel()
+		}
 	})
 
 	tasksMu.RLock()
@@ -207,4 +247,13 @@ func stopTask(entry *taskEntry) {
 	entry.stopOnce.Do(func() {
 		close(entry.stopCh)
 	})
+}
+
+func resetTaskRunContext() {
+	taskRunStateMu.Lock()
+	defer taskRunStateMu.Unlock()
+	if taskRunCancel != nil {
+		taskRunCancel()
+	}
+	taskRunCtx, taskRunCancel = context.WithCancel(context.Background())
 }

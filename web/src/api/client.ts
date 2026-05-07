@@ -51,6 +51,17 @@ function resolveAuthToken(): string | null {
     return getPersistedAuthToken();
 }
 
+export function getResolvedAuthToken(): string | null {
+	return resolveAuthToken();
+}
+
+export function buildApiUrl(path: string, params?: Record<string, string | number | boolean>): string {
+	const searchParams = params ? new URLSearchParams(
+		Object.entries(params).map(([k, v]) => [k, String(v)])
+	).toString() : '';
+	return joinApiUrl(API_BASE_URL, path, searchParams);
+}
+
 /**
  * 全局错误处理
  */

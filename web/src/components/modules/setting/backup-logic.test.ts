@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	buildCompatibilitySignalItems,
+	buildImportCompatibilityGuidanceItems,
+	getCompatibilityDiagnosticItems,
+	getCompatibilityNameItems,
+	getCredentialRebindTargetItems,
 	getAliasPreviewItems,
 	getApplySameImportGuardReason,
 	getCompatibilityCounts,
@@ -12,8 +16,9 @@ import {
 	getModelMappingPreviewItems,
 	getModelPolicyDiffItems,
 	getPostImportValidationSummary,
-	getRemainingMigrationToolingItems,
-	getRemainingMigrationToolingSections,
+	getRoutePreviewDiffItems,
+	getRoutePreviewWarningItems,
+	getRouteTargetIssueItems,
 	getUnusedModelMappingItems,
 } from './backup-logic';
 
@@ -128,6 +133,141 @@ describe('backup-logic', () => {
 		]);
 	});
 
+	it('builds finer-grained import guidance items from compatibility details', () => {
+		const guidance = buildImportCompatibilityGuidanceItems({
+			effectiveMode: 'map',
+			counts: {
+				conflicts: 1,
+				aliasConflicts: 0,
+				routeConflicts: 1,
+				credentialRebindTargets: 1,
+				channelKeyRebindTargets: 1,
+				apiKeyRebindTargets: 0,
+				invalidRouteTargets: 1,
+				skippedRouteTargetPreviews: 1,
+				routePreviewWarnings: 1,
+				routePreviewDiffs: 1,
+				missingProviders: 1,
+				missingModels: 0,
+				baseURLMismatches: 0,
+				schemaMismatches: 0,
+				skippedTargets: 2,
+				modelMappingPreviews: 2,
+				usedModelMappings: 1,
+				unusedModelMappings: 1,
+				missingMappingTargets: 1,
+				aliasPreviewMappings: 0,
+				modelPolicyDiffs: 1,
+				replacePrunedTargets: 0,
+			},
+			compatibility: {
+				missing_providers: ['legacy-provider'],
+				skipped_targets: ['channel_key:201 empty credential', 'setting:api_base_url existing row preserved by skip mode'],
+				credential_rebind_targets: [{ target_type: 'channel_key', channel_name: 'Primary', key_name: 'key-1', models: ['legacy-model'] }],
+				skipped_route_target_previews: [{ group_name: 'group-b', channel_name: 'Backup', model: 'legacy-fallback', resolved_model: 'gpt-4.1', issue_type: 'skipped_preview', reason: 'model not declared on current channel', action: 'review mapping' }],
+				model_mapping_previews: [
+					{ source_model: 'missing-model', target_model: 'gpt-4.1-mini', used: true, target_exists: false, contexts: ['routing'], warnings: ['current model not found'] },
+					{ source_model: 'unused-model', target_model: 'gpt-4.1', used: false, contexts: ['api_keys'] },
+				],
+			},
+		});
+
+		expect(guidance).toEqual([
+			{
+				key: 'blocking-risks',
+				tone: 'danger',
+				title: '先处理阻断风险',
+				detail: '当前预检里有 1 个兼容冲突、1 个路由冲突、1 个无效路由目标。建议先展开下方冲突和路由明细，修正后再应用。',
+			},
+			{
+				key: 'missing-targets',
+				tone: 'warning',
+				title: '补齐缺失的渠道或模型',
+				detail: '预检已标出缺失对象，优先处理这些名称：legacy-provider；快照模型:missing-model | 当前模型:gpt-4.1-mini | 作用范围:路由 | 警告:当前项目中未找到该模型。',
+			},
+			{
+				key: 'credential-rebind',
+				tone: 'warning',
+				title: '提前准备凭证重绑定',
+				detail: '这些目标在应用后需要重新绑定凭证：目标类型:渠道密钥 | 渠道:Primary | 密钥:key-1 | 模型:legacy-model。',
+			},
+			{
+				key: 'skipped-targets',
+				tone: 'warning',
+				title: '确认哪些对象会被跳过',
+				detail: '当前模式会保留或跳过这些对象：渠道密钥:201 缺少明文凭证；系统设置:api_base_url 因跳过模式而保留当前记录。建议先确认这是否符合本次导入预期。',
+			},
+			{
+				key: 'model-mappings',
+				tone: 'warning',
+				title: '修正模型映射后再应用',
+				detail: '当前映射里已经暴露出需要修正或清理的项目：快照模型:missing-model | 当前模型:gpt-4.1-mini | 作用范围:路由 | 警告:当前项目中未找到该模型；快照模型:unused-model | 当前模型:gpt-4.1 | 作用范围:API密钥。',
+			},
+			{
+				key: 'route-and-policy',
+				tone: 'warning',
+				title: '复核路由与策略差异',
+				detail: '当前预检还提示了 1 处路由差异、1 条路由预警、1 个跳过的路由预览、1 条模型策略差异。建议在应用前把下方路由与策略明细过一遍。',
+			},
+		]);
+	});
+
+	it('adds replace-prune guidance when structured replace deletions are present', () => {
+		const guidance = buildImportCompatibilityGuidanceItems({
+			effectiveMode: 'replace',
+			counts: {
+				conflicts: 1,
+				aliasConflicts: 0,
+				routeConflicts: 0,
+				credentialRebindTargets: 1,
+				channelKeyRebindTargets: 1,
+				apiKeyRebindTargets: 0,
+				invalidRouteTargets: 0,
+				skippedRouteTargetPreviews: 0,
+				routePreviewWarnings: 0,
+				routePreviewDiffs: 0,
+				missingProviders: 0,
+				missingModels: 0,
+				baseURLMismatches: 0,
+				schemaMismatches: 0,
+				skippedTargets: 0,
+				modelMappingPreviews: 0,
+				usedModelMappings: 0,
+				unusedModelMappings: 0,
+				missingMappingTargets: 0,
+				aliasPreviewMappings: 0,
+				modelPolicyDiffs: 0,
+				replacePrunedTargets: 2,
+			},
+			compatibility: {
+				credential_rebind_targets: [{ target_type: 'channel_key', channel_name: 'Primary' }],
+				replace_pruned_channels: ['legacy-channel'],
+				replace_pruned_api_keys: ['client-key'],
+			},
+		});
+
+		expect(guidance).toEqual([
+			{
+				key: 'blocking-risks',
+				tone: 'danger',
+				title: '先处理阻断风险',
+				detail: '当前预检里有 1 个兼容冲突。建议先展开下方冲突和路由明细，修正后再应用。',
+			},
+			{
+				key: 'credential-rebind',
+				tone: 'warning',
+				title: '提前准备凭证重绑定',
+				detail: '这些目标在应用后需要重新绑定凭证：目标类型:渠道密钥 | 渠道:Primary。',
+			},
+			{
+				key: 'replace-prune',
+				tone: 'warning',
+				title: '确认替换会清理哪些当前记录',
+				detail: '替换导入会清理这些当前记录：legacy-channel；client-key。建议先展开下方结构化清理明细，再决定是否应用。',
+			},
+		]);
+	});
+
 	it('uses import-report wording by default when import warnings are present', () => {
 		const items = buildCompatibilitySignalItems({
 			kind: 'import',
@@ -224,16 +364,6 @@ describe('backup-logic', () => {
 			toggleLabel: 'Include plaintext credentials in the snapshot',
 		});
 	});
-	it('shares the remaining migration tooling gaps through a single source', () => {
-		expect(getRemainingMigrationToolingItems()).toEqual([
-			{ key: 'conflict-handling', label: '冲突处理', text: '在当前结构化预览基础上，进一步补充更细致的 “替换导入 / 映射导入” 场景冲突引导。' },
-			{ key: 'mapping-editor', label: '映射编辑器', text: '在当前按行填写 “快照模型=当前模型” 的基础上，补充更完整的模型映射编辑能力。' },
-			{ key: 'compare-workflow', label: '对比工作流', text: '在当前快照历史与预览面板基础上，补充多快照对比和更顺畅的差异导航。' },
-			{ key: 'rollback-domains', label: '回滚域控制', text: '在当前整包快照恢复和选择性范围覆盖之外，补充更细粒度的回滚域编辑。' },
-			{ key: 'route-diff', label: '路由差异对比', text: '在当前摘要卡和详情列表基础上，补充并排式的路由差异查看能力。' },
-		]);
-	});
-
 	it('formats preview detail helpers through a shared source', () => {
 		expect(getAliasPreviewItems([{ snapshot_model: 'legacy-model', current_model: 'gpt-4o', canonical: 'gpt-4o', contexts: ['channel:preview-channel', 'group:preview-group'] }])).toEqual([
 			'\u5feb\u7167\u6a21\u578b:legacy-model | \u5f53\u524d\u6a21\u578b:gpt-4o | \u89c4\u8303\u540d:gpt-4o | \u4f5c\u7528\u8303\u56f4:\u6e20\u9053:preview-channel\u3001\u5206\u7ec4:preview-group',
@@ -255,6 +385,34 @@ describe('backup-logic', () => {
 		]);
 		expect(getModelPolicyDiffItems([{ model: 'legacy-model', current_model: 'gpt-4.1', impact_level: 'high', changed_fields: ['billing_mode', 'probe_policy'], before: { billing_mode: 'paid', probe_policy: 'manual', probe_interval: 30, probe_concurrency: 1 }, after: { billing_mode: 'free', probe_policy: 'auto', probe_interval: 60, probe_concurrency: 2 }, contexts: ['routing'], warnings: ['policy drift'], skip_reasons: ['missing candidate'] }])).toEqual([
 			'模型:legacy-model | 当前模型:gpt-4.1 | 影响级别:高 | 变更字段:计费模式、探测策略 | 变更前:计费:付费, 探测:手动, 间隔:30, 并发:1 | 变更后:计费:免费, 探测:自动, 间隔:60, 并发:2 | 作用范围:路由 | 警告:策略差异 | 跳过原因:缺少候选项',
+		]);
+		expect(getCredentialRebindTargetItems([{ target_type: 'channel_key', channel_name: 'Primary', key_name: 'key-1', source_type: 'oauth', models: ['legacy-model'], affected_groups: ['group-a'], contexts: ['routing'] }])).toEqual([
+			'目标类型:渠道密钥 | 渠道:Primary | 密钥:key-1 | 来源:oauth | 模型:legacy-model | 影响分组:group-a | 作用范围:路由',
+		]);
+		expect(getCompatibilityNameItems(['group-a', 'group-b'])).toEqual(['group-a', 'group-b']);
+		expect(getCompatibilityDiagnosticItems(['channel_key:201 empty credential', 'setting:api_base_url existing row preserved by skip mode', 'snapshot schema:v2 differs'])).toEqual([
+			'渠道密钥:201 缺少明文凭证',
+			'系统设置:api_base_url 因跳过模式而保留当前记录',
+			'快照结构版本 v2 与当前导入链路不一致',
+		]);
+		expect(getRouteTargetIssueItems([{ group_name: 'group-a', channel_name: 'Primary', model: 'gpt-4o', resolved_model: 'gpt-4.1', issue_type: 'missing_target', reason: 'channel key missing', action: 'rebind credential' }])).toEqual([
+			'分组:group-a | 渠道:Primary | 模型:gpt-4o | 解析模型:gpt-4.1 | 问题类型:missing_target | 原因:channel key missing | 建议动作:rebind credential',
+		]);
+		expect(getRoutePreviewWarningItems(['route may degrade', 'route preview diffs: 2'])).toEqual([
+			'路由候选链可能降级',
+			'路由预览发现 2 处差异',
+		]);
+		expect(getRoutePreviewDiffItems([{
+			group_name: 'group-a',
+			model: 'legacy-model',
+			before_candidates: [{ channel_name: 'Primary', model: 'legacy-model', resolved_model: 'gpt-4o', priority: 1, weight: 100 }],
+			after_candidates: [{ channel_name: 'Backup', model: 'legacy-model', resolved_model: 'gpt-4.1', priority: 2, weight: 50 }],
+			removed_candidates: [{ channel_name: 'Primary', model: 'legacy-model', resolved_model: 'gpt-4o', priority: 1, weight: 100 }],
+			added_candidates: [{ channel_name: 'Backup', model: 'legacy-model', resolved_model: 'gpt-4.1', priority: 2, weight: 50 }],
+			fallback_changed: true,
+			skip_reasons: ['missing candidate'],
+		}])).toEqual([
+			'分组:group-a | 模型:legacy-model | 当前候选:Primary:gpt-4o | 优先级:1 | 权重:100 | 快照候选:Backup:gpt-4.1 | 优先级:2 | 权重:50 | 将被移除:Primary:gpt-4o | 优先级:1 | 权重:100 | 将被新增:Backup:gpt-4.1 | 优先级:2 | 权重:50 | 回退链变化:是 | 跳过原因:缺少候选项',
 		]);
 	});
 

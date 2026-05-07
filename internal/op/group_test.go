@@ -203,6 +203,192 @@ func TestGroupCreateValidatesRuntimeConfig(t *testing.T) {
 	}
 }
 
+func TestGroupCreatePersistsInitialItems(t *testing.T) {
+	ctx := setupOpTestDB(t)
+	channel := createConfiguredTestChannel(t, ctx, "group-create-items-channel", "gpt-4o", "")
+
+	group := &model.Group{
+		Name: "group-create-with-items",
+		Mode: model.GroupModeRoundRobin,
+		Items: []model.GroupItem{{
+			ChannelID: channel.ID,
+			ModelName: "gpt-4o",
+			Priority:  1,
+			Weight:    2,
+		}},
+	}
+	if err := GroupCreate(group, ctx); err != nil {
+		t.Fatalf("GroupCreate() error = %v", err)
+	}
+	if group.ID <= 0 {
+		t.Fatalf("group.ID = %d, want > 0", group.ID)
+	}
+	if len(group.Items) != 1 {
+		t.Fatalf("group.Items = %#v, want one persisted item", group.Items)
+	}
+	if group.Items[0].ID <= 0 || group.Items[0].GroupID != group.ID {
+		t.Fatalf("group.Items[0] = %#v, want persisted item identity", group.Items[0])
+	}
+
+	stored, err := GroupGet(group.ID, ctx)
+	if err != nil {
+		t.Fatalf("GroupGet() error = %v", err)
+	}
+	if len(stored.Items) != 1 {
+		t.Fatalf("stored.Items = %#v, want one item", stored.Items)
+	}
+	if stored.Items[0].ChannelID != channel.ID || stored.Items[0].ModelName != "gpt-4o" {
+		t.Fatalf("stored.Items[0] = %#v, want persisted channel/model", stored.Items[0])
+	}
+
+	var count int64
+	if err := db.GetDB().WithContext(ctx).Model(&model.GroupItem{}).Where("group_id = ?", group.ID).Count(&count).Error; err != nil {
+		t.Fatalf("count group items error = %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("stored group item count = %d, want 1", count)
+	}
+}
+
+func TestGroupCreateRejectsInvalidInitialItems(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	group := &model.Group{
+		Name: "group-create-invalid-items",
+		Mode: model.GroupModeRoundRobin,
+		Items: []model.GroupItem{{
+			ChannelID: 99999,
+			ModelName: "gpt-4o",
+			Priority:  1,
+			Weight:    1,
+		}},
+	}
+	if err := GroupCreate(group, ctx); err == nil {
+		t.Fatal("GroupCreate() expected invalid channel id error")
+	}
+
+	var groups int64
+	if err := db.GetDB().WithContext(ctx).Model(&model.Group{}).Where("name = ?", group.Name).Count(&groups).Error; err != nil {
+		t.Fatalf("count groups error = %v", err)
+	}
+	if groups != 0 {
+		t.Fatalf("stored groups = %d, want 0 after rejected create", groups)
+	}
+}
+
+func TestGroupCreateNormalizesInitialItemModelNames(t *testing.T) {
+	ctx := setupOpTestDB(t)
+	channel := createConfiguredTestChannel(t, ctx, "group-create-normalize-items-channel", "gpt-4o", "")
+
+	group := &model.Group{
+		Name: "group-create-normalize-items",
+		Mode: model.GroupModeRoundRobin,
+		Items: []model.GroupItem{{
+			ChannelID: channel.ID,
+			ModelName: "  gpt-4o  ",
+			Priority:  1,
+			Weight:    1,
+		}},
+	}
+	if err := GroupCreate(group, ctx); err != nil {
+		t.Fatalf("GroupCreate() error = %v", err)
+	}
+	if got := group.Items[0].ModelName; got != "gpt-4o" {
+		t.Fatalf("group.Items[0].ModelName = %q, want %q", got, "gpt-4o")
+	}
+
+	stored, err := GroupGet(group.ID, ctx)
+	if err != nil {
+		t.Fatalf("GroupGet() error = %v", err)
+	}
+	if got := stored.Items[0].ModelName; got != "gpt-4o" {
+		t.Fatalf("stored.Items[0].ModelName = %q, want %q", got, "gpt-4o")
+	}
+	groupFromMap, err := GroupGetMap(group.Name, ctx)
+	if err != nil {
+		t.Fatalf("GroupGetMap() error = %v", err)
+	}
+	if got := groupFromMap.Items[0].ModelName; got != "gpt-4o" {
+		t.Fatalf("groupMap item model = %q, want %q", got, "gpt-4o")
+	}
+	if groupFromMap.Items[0].ModelName == "  gpt-4o  " {
+		t.Fatal("groupMap item model retained surrounding whitespace")
+	}
+	if err := db.GetDB().WithContext(ctx).First(&model.GroupItem{}, "group_id = ? AND model_name = ?", group.ID, "  gpt-4o  ").Error; err == nil {
+		t.Fatal("unexpected raw whitespace-preserved group item persisted")
+	}
+	var exact model.GroupItem
+	if err := db.GetDB().WithContext(ctx).First(&exact, "group_id = ? AND model_name = ?", group.ID, "gpt-4o").Error; err != nil {
+		t.Fatalf("query normalized group item error = %v", err)
+	}
+	if exact.ChannelID != channel.ID {
+		t.Fatalf("exact.ChannelID = %d, want %d", exact.ChannelID, channel.ID)
+	}
+	if exact.ModelName != "gpt-4o" {
+		t.Fatalf("exact.ModelName = %q, want %q", exact.ModelName, "gpt-4o")
+	}
+	if len(stored.Items) != 1 {
+		t.Fatalf("stored items len = %d, want 1", len(stored.Items))
+	}
+	if len(groupFromMap.Items) != 1 {
+		t.Fatalf("groupMap items len = %d, want 1", len(groupFromMap.Items))
+	}
+	if len(group.Items) != 1 {
+		t.Fatalf("group items len = %d, want 1", len(group.Items))
+	}
+	if exact.GroupID != group.ID {
+		t.Fatalf("exact.GroupID = %d, want %d", exact.GroupID, group.ID)
+	}
+	if exact.Priority != 1 || exact.Weight != 1 {
+		t.Fatalf("exact item = %#v, want priority 1 weight 1", exact)
+	}
+}
+
+func TestGroupItemUpdateNormalizesAndValidatesModelName(t *testing.T) {
+	ctx := setupOpTestDB(t)
+	channel := createConfiguredTestChannel(t, ctx, "group-item-update-normalize-channel", "gpt-4o", "")
+	group := &model.Group{Name: "group-item-update-normalize", Mode: model.GroupModeRoundRobin}
+	if err := GroupCreate(group, ctx); err != nil {
+		t.Fatalf("GroupCreate() error = %v", err)
+	}
+	item := &model.GroupItem{GroupID: group.ID, ChannelID: channel.ID, ModelName: "gpt-4o", Priority: 1, Weight: 1}
+	if err := GroupItemAdd(item, ctx); err != nil {
+		t.Fatalf("GroupItemAdd() error = %v", err)
+	}
+
+	update := &model.GroupItem{ID: item.ID, ModelName: "  gpt-4o  ", Priority: 4, Weight: 5}
+	if err := GroupItemUpdate(update, ctx); err != nil {
+		t.Fatalf("GroupItemUpdate() error = %v", err)
+	}
+
+	stored, err := GroupGet(group.ID, ctx)
+	if err != nil {
+		t.Fatalf("GroupGet() error = %v", err)
+	}
+	if got := stored.Items[0].ModelName; got != "gpt-4o" {
+		t.Fatalf("stored.Items[0].ModelName = %q, want %q", got, "gpt-4o")
+	}
+	if stored.Items[0].Priority != 4 || stored.Items[0].Weight != 5 {
+		t.Fatalf("stored.Items[0] = %#v, want priority 4 weight 5", stored.Items[0])
+	}
+
+	invalid := &model.GroupItem{ID: item.ID, ModelName: "  missing-model  ", Priority: 6, Weight: 7}
+	if err := GroupItemUpdate(invalid, ctx); err == nil {
+		t.Fatal("GroupItemUpdate() expected invalid model validation error")
+	}
+
+	storedAfterInvalid, err := GroupGet(group.ID, ctx)
+	if err != nil {
+		t.Fatalf("GroupGet() after invalid update error = %v", err)
+	}
+	if got := storedAfterInvalid.Items[0].ModelName; got != "gpt-4o" {
+		t.Fatalf("stored item model after invalid update = %q, want %q", got, "gpt-4o")
+	}
+	if storedAfterInvalid.Items[0].Priority != 4 || storedAfterInvalid.Items[0].Weight != 5 {
+		t.Fatalf("stored item after invalid update = %#v, want unchanged priority 4 weight 5", storedAfterInvalid.Items[0])
+	}
+}
+
 func TestGroupUpdateValidatesRuntimeConfig(t *testing.T) {
 	ctx := setupOpTestDB(t)
 

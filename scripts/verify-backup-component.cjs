@@ -129,9 +129,19 @@ function getFileInput(container) {
 }
 
 function getTextarea(container) {
-	const textarea = container.querySelector('textarea');
+	const textarea = container.querySelector('[data-testid="backup-model-mappings-textarea"]');
 	if (!(textarea instanceof HTMLTextAreaElement)) throw new Error('Model mappings textarea not found');
 	return textarea;
+}
+
+function setStructuredMappingRows(fireEvent, rows) {
+	rows.forEach((row, index) => {
+		if (index > 0) {
+			fireEvent.click(document.querySelector('[data-testid="backup-structured-mapping-add"]'));
+		}
+		fireEvent.change(document.querySelector(`[data-testid="backup-structured-mapping-source-${index}"]`), { target: { value: row.source } });
+		fireEvent.change(document.querySelector(`[data-testid="backup-structured-mapping-target-${index}"]`), { target: { value: row.target } });
+	});
 }
 
 function getSwitchForLabel(screen, within, label) {
@@ -345,16 +355,18 @@ async function verifyDryRunApplyAndRollback({ render, screen, fireEvent, waitFor
 	assert(document.querySelector('[data-testid="backup-history-item-snapshot-1"] [data-testid="backup-history-item-imported-at"]')?.getAttribute('data-raw-value') === '2026-04-21T05:00:00Z', 'Expected snapshot history imported-at raw-value attribute');
 	assert(document.querySelector('[data-testid="backup-history-item-snapshot-1"] [data-testid="backup-history-item-latest-badge"]').textContent.includes('Latest'), 'Expected snapshot history latest badge content');
 	assert(document.querySelector('[data-testid="backup-history-item-snapshot-1"] [data-testid="backup-history-item-latest-badge"]')?.getAttribute('data-is-latest') === 'true', 'Expected snapshot history latest-badge attribute');
-	assert(document.querySelector('[data-testid="backup-remaining-migration-trigger"]'), 'Expected remaining migration outer trigger');
-	clickAccordionByTestId('backup-remaining-migration-trigger', fireEvent);
-	assert(document.querySelector('[data-testid="backup-remaining-migration-panel"]'), 'Expected remaining migration panel selector after opening remaining migration section');
-	assert(document.querySelector('[data-testid="backup-remaining-migration-section-trigger-0"]'), 'Expected first remaining migration section trigger selector after opening remaining migration section');
-	clickAccordionByTestId('backup-remaining-migration-section-trigger-0', fireEvent);
-	assert(document.querySelector('[data-testid="backup-remaining-migration-section-panel-0"]'), 'Expected first remaining migration section panel selector after opening remaining migration section');
-	assert(document.querySelector('[data-testid="backup-remaining-migration-section-item-rollback-tooling-compare-workflow"]'), 'Expected first remaining migration item selector after opening remaining migration section');
-	assert(document.querySelector('[data-testid="backup-remaining-migration-section-item-rollback-tooling-compare-workflow-label"]'), 'Expected first remaining migration item label selector after opening remaining migration section');
-	assert(document.querySelector('[data-testid="backup-remaining-migration-section-item-rollback-tooling-compare-workflow-text"]'), 'Expected first remaining migration item text selector after opening remaining migration section');
+	assert(document.querySelector('[data-testid="backup-rollback-scope-editor"]'), 'Expected rollback scope editor selector after opening snapshot history');
+	assert(document.querySelector('[data-testid="backup-rollback-scope-editor-title"]')?.textContent?.includes('Rollback domains'), 'Expected rollback scope editor title selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-scope-current-summary"]')?.textContent?.includes('Rollback Scope：Full snapshot restore'), 'Expected full-restore rollback scope summary before enabling selective rollback');
+	assert(!document.querySelector('[data-testid="backup-remaining-migration-trigger"]'), 'Expected stale rollback pending trigger to stay hidden once rollback-domain editing is wired');
+	assert(!document.querySelector('[data-testid="backup-remaining-migration-panel"]'), 'Expected stale rollback pending panel to stay hidden once rollback-domain editing is wired');
 	assert(getHelpHintButtons().length >= 9, 'Expected rollback view to keep backup help-hint buttons visible');
+	fireEvent.click(document.querySelector('[data-testid="backup-rollback-selective-switch"]'));
+	assert(document.querySelector('[data-testid="backup-rollback-scope-grid"]'), 'Expected rollback scope grid selector after enabling selective rollback');
+	fireEvent.click(document.querySelector('[data-testid="backup-rollback-scope-routing"]'));
+	fireEvent.click(document.querySelector('[data-testid="backup-rollback-scope-stats"]'));
+	fireEvent.click(document.querySelector('[data-testid="backup-rollback-scope-logs"]'));
+	assert(document.querySelector('[data-testid="backup-rollback-scope-current-summary"]')?.textContent?.includes('Rollback Scope：Models, API keys, Settings'), 'Expected narrowed rollback scope summary after disabling routing/stats/logs');
 	fireEvent.click(document.querySelector('[data-testid="backup-history-item-snapshot-1"] [data-testid="backup-history-preview-button"]'));
 	await screen.findByText('Rollback preview');
 	assert(document.querySelector('[data-testid="backup-rollback-preview-panel"]'), 'Expected rollback preview panel selector after previewing a snapshot');
@@ -371,15 +383,64 @@ async function verifyDryRunApplyAndRollback({ render, screen, fireEvent, waitFor
 	assert(document.querySelector('[data-testid="backup-rollback-preview-summary-warnings"]')?.textContent?.includes('Preview Warnings：1'), 'Expected rollback preview warnings summary selector content');
 	assert(document.querySelector('[data-testid="backup-rollback-preview-summary-warnings"]')?.getAttribute('data-raw-value') === '1', 'Expected rollback preview warnings raw-value attribute');
 	assert(document.querySelector('[data-testid="backup-rollback-preview-meta-grid"]'), 'Expected rollback preview meta-grid selector after previewing a snapshot');
+	assert(document.querySelector('[data-testid="backup-rollback-route-diff-panel"]'), 'Expected rollback route-diff compare panel selector after previewing a snapshot');
+	assert(document.querySelector('[data-testid="backup-rollback-route-diff-row-title-0"]')?.textContent?.includes('group-a / gpt-4o'), 'Expected rollback route-diff row title selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-route-diff-current-0"]')?.textContent?.includes('current-primary:gpt-4o'), 'Expected rollback route-diff current state selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-route-diff-snapshot-0"]')?.textContent?.includes('snapshot-primary:gpt-4o'), 'Expected rollback route-diff snapshot state selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-route-diff-added-0"]')?.textContent?.includes('snapshot-primary:gpt-4o'), 'Expected rollback route-diff added selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-route-diff-removed-0"]')?.textContent?.includes('current-primary:gpt-4o'), 'Expected rollback route-diff removed selector content');
 	assert(previewRollbackCalls.length === 1, 'Expected one rollback preview call');
-	assert(document.querySelector('[data-testid="backup-rollback-preview-meta-scope"]')?.textContent?.includes('Rollback Scope：Unknown'), 'Expected rollback preview scope summary selector content');
-	assert(!document.querySelector('[data-testid="backup-rollback-preview-meta-scope"]')?.hasAttribute('data-raw-value'), 'Expected rollback preview scope raw-value attribute to stay absent when scopes are unknown');
+	assert(previewRollbackCalls[0]?.snapshotName === 'snapshot-1', 'Expected rollback preview payload to keep snapshot name');
+	assert(JSON.stringify(previewRollbackCalls[0]?.importScopes) === JSON.stringify({ routing: false, models: true, api_keys: true, settings: true, stats: false, logs: false }), 'Expected first rollback preview payload to carry narrowed rollback scopes');
+	assert(document.querySelector('[data-testid="backup-rollback-preview-meta-scope"]')?.textContent?.includes('Rollback Scope：Models, API keys, Settings'), 'Expected rollback preview scope summary selector content for narrowed scopes');
+	assert(document.querySelector('[data-testid="backup-rollback-preview-meta-scope"]')?.getAttribute('data-raw-value') === 'models,api_keys,settings', 'Expected rollback preview scope raw-value attribute for narrowed scopes');
 	assert(document.querySelector('[data-testid="backup-rollback-preview-meta-encrypted"]')?.textContent?.includes('Encryption：Unknown'), 'Expected rollback preview encrypted summary selector content');
 	assert(!document.querySelector('[data-testid="backup-rollback-preview-meta-encrypted"]')?.hasAttribute('data-raw-value'), 'Expected rollback preview encrypted raw-value attribute to stay absent when encryption is unknown');
 	assert(document.querySelector('[data-testid="backup-rollback-preview-meta-contains-secrets"]')?.textContent?.includes('Contains Credentials：Yes'), 'Expected rollback preview contains-secrets summary selector content');
 	assert(document.querySelector('[data-testid="backup-rollback-preview-meta-contains-secrets"]')?.getAttribute('data-raw-value') === 'true', 'Expected rollback preview contains-secrets raw-value attribute');
 	assert(document.querySelector('[data-testid="backup-rollback-preview-meta-schema-version"]')?.textContent?.includes('Schema Version：10'), 'Expected rollback preview schema-version summary selector content');
 	assert(document.querySelector('[data-testid="backup-rollback-preview-meta-schema-version"]')?.getAttribute('data-raw-value') === '10', 'Expected rollback preview schema-version raw-value attribute');
+	assert(document.querySelector('[data-testid="backup-rollback-signal-panel"]'), 'Expected rollback signal panel selector after previewing a snapshot');
+	assert(document.querySelector('[data-testid="backup-rollback-signal-title"]')?.textContent?.includes('Recommended Rollback Steps'), 'Expected rollback signal title selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-signal-summary"]')?.textContent?.includes('Start with the summary signals'), 'Expected rollback signal summary selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-signal-list"]')?.textContent?.includes('Rollback preview emitted 1 warnings.'), 'Expected rollback signal list to include preview warnings summary');
+	assert(document.querySelector('[data-testid="backup-rollback-signal-list"]')?.textContent?.includes('Rollback preview found 1 conflicts.'), 'Expected rollback signal list to include conflicts summary');
+	assert(document.querySelector('[data-testid="backup-rollback-signal-list"]')?.textContent?.includes('Channel-key credential rebind is required for 1 restored targets.'), 'Expected rollback signal list to include rebind summary');
+	assert(document.querySelector('[data-testid="backup-rollback-guidance"]'), 'Expected rollback guidance detail selector after previewing a snapshot');
+	assert(document.querySelector('[data-testid="backup-rollback-guidance-title"]')?.textContent?.includes('Recommended Rollback Steps'), 'Expected rollback guidance title selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-guidance-item-0"]')?.textContent?.includes('Resolve rollback risks first'), 'Expected rollback guidance blocking-risk item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-preview-warnings-panel"]'), 'Expected rollback preview warnings panel selector after previewing a snapshot');
+	assert(document.querySelector('[data-testid="backup-rollback-preview-warnings-title"]')?.textContent?.includes('Rollback Preview Warnings'), 'Expected rollback preview warnings title selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-preview-warnings-item-0"]')?.textContent?.includes('route preview needs manual review'), 'Expected rollback preview warnings detail selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-panel"]'), 'Expected rollback compatibility detail panel selector after previewing a snapshot');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-title"]')?.textContent?.includes('Rollback compatibility details'), 'Expected rollback compatibility detail title selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-conflicts-item-0"]')?.textContent?.includes('channel conflict'), 'Expected rollback compatibility conflicts item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-alias-conflicts-item-0"]')?.textContent?.includes('alias conflict: rollback-vision -> gpt-4.1'), 'Expected rollback compatibility alias-conflict item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-route-conflicts-item-0"]')?.textContent?.includes('route conflict: group-a -> legacy-model'), 'Expected rollback compatibility route-conflict item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-affected-groups-item-0"]')?.textContent?.includes('group-a'), 'Expected rollback compatibility affected-groups item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-affected-channels-item-0"]')?.textContent?.includes('Primary'), 'Expected rollback compatibility affected-channels item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-missing-providers-item-0"]')?.textContent?.includes('rollback-provider'), 'Expected rollback compatibility missing-provider item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-missing-models-item-0"]')?.textContent?.includes('legacy-model'), 'Expected rollback compatibility missing-model item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-base-url-mismatches-item-0"]')?.textContent?.includes('rollback-channel'), 'Expected rollback compatibility base-url mismatch item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-schema-mismatches-item-0"]')?.textContent?.includes('snapshot schema:v2 differs'), 'Expected rollback compatibility schema-mismatch item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-skipped-targets-item-0"]')?.textContent?.includes('channel_key:101 empty credential'), 'Expected rollback compatibility skipped-target item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-credential-rebind-item-0"]')?.textContent?.includes('Primary'), 'Expected rollback compatibility credential-rebind item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-invalid-route-targets-item-0"]')?.textContent?.includes('missing_target'), 'Expected rollback compatibility invalid-route-target item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-skipped-route-targets-item-0"]')?.textContent?.includes('review mapping'), 'Expected rollback compatibility skipped-route-target item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-route-preview-warnings-item-0"]')?.textContent?.includes('rollback route may degrade'), 'Expected rollback compatibility route-preview-warning item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-mapping-preview-item-0"]')?.textContent?.includes('legacy-model'), 'Expected rollback compatibility mapping-preview item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-alias-preview-item-0"]')?.textContent?.includes('rollback-vision'), 'Expected rollback compatibility alias-preview item selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-compatibility-model-policy-diffs-item-0"]')?.textContent?.includes('legacy-model'), 'Expected rollback compatibility model-policy item selector content');
+	fireEvent.click(document.querySelector('[data-testid="backup-rollback-scope-settings"]'));
+	assert(!document.querySelector('[data-testid="backup-rollback-preview-panel"]'), 'Expected rollback preview panel to clear after rollback scope change');
+	assert(previewRollbackCalls.length === 1, 'Expected rollback scope change to invalidate preview without issuing another preview call');
+	assert(document.querySelector('[data-testid="backup-rollback-scope-current-summary"]')?.textContent?.includes('Rollback Scope：Models, API keys'), 'Expected rollback scope summary after narrowing settings away');
+	fireEvent.click(document.querySelector('[data-testid="backup-history-item-snapshot-1"] [data-testid="backup-history-preview-button"]'));
+	await screen.findByText('Rollback preview');
+	assert(previewRollbackCalls.length === 2, 'Expected second rollback preview call after scope change');
+	assert(JSON.stringify(previewRollbackCalls[1]?.importScopes) === JSON.stringify({ routing: false, models: true, api_keys: true, settings: false, stats: false, logs: false }), 'Expected second rollback preview payload to carry updated rollback scopes');
+	assert(document.querySelector('[data-testid="backup-rollback-preview-meta-scope"]')?.textContent?.includes('Rollback Scope：Models, API keys'), 'Expected rollback preview scope summary selector content after scope narrowing');
+	assert(document.querySelector('[data-testid="backup-rollback-preview-meta-scope"]')?.getAttribute('data-raw-value') === 'models,api_keys', 'Expected rollback preview scope raw-value attribute after scope narrowing');
 
 	const previousConfirm = global.window.confirm;
 	global.window.confirm = () => true;
@@ -388,9 +449,21 @@ async function verifyDryRunApplyAndRollback({ render, screen, fireEvent, waitFor
 		if (rollbackImportCalls.length !== 1) throw new Error('Expected one rollback apply call');
 	});
 	global.window.confirm = previousConfirm;
+	assert(JSON.stringify(rollbackImportCalls[0]?.importScopes) === JSON.stringify({ routing: false, models: true, api_keys: true, settings: false, stats: false, logs: false }), 'Expected rollback apply payload to carry the latest rollback scopes');
 	assert(toastSuccessCalls.some((message) => String(message).includes('snapshot-1')), 'Expected rollback success toast containing snapshot name');
-	assert(document.querySelector('[data-testid="backup-advanced-pending-title"]')?.textContent?.includes('Advanced migration tooling still pending'), 'Expected advanced-pending title selector content after opening snapshot history');
-	assert(document.querySelector('[data-testid="backup-advanced-pending-summary"]')?.textContent?.includes('Collapsed by default. Open only when you need the still-manual migration gaps.'), 'Expected advanced-pending summary selector content after opening snapshot history');
+	assert(!document.querySelector('[data-testid="backup-advanced-pending-title"]'), 'Expected stale advanced-pending title to stay hidden after rollback-domain editing closure');
+	assert(!document.querySelector('[data-testid="backup-advanced-pending-summary"]'), 'Expected stale advanced-pending summary to stay hidden after rollback-domain editing closure');
+	for (const scopeKey of ['models', 'api_keys'] ) {
+		fireEvent.click(document.querySelector(`[data-testid="backup-rollback-scope-${scopeKey}"]`));
+	}
+	assert(document.querySelector('[data-testid="backup-rollback-scope-current-summary"]')?.textContent?.includes('Rollback Scope：Full snapshot restore'), 'Expected empty selective rollback scopes to fall back to full restore summary');
+	assert(document.querySelector('[data-testid="backup-rollback-scope-mode-note"]')?.textContent?.includes('No rollback domains are selected. Preview and rollback will fall back to a full snapshot restore.'), 'Expected fallback note for empty selective rollback scopes');
+	fireEvent.click(document.querySelector('[data-testid="backup-history-item-snapshot-1"] [data-testid="backup-history-preview-button"]'));
+	await screen.findByText('Rollback preview');
+	assert(previewRollbackCalls.length === 3, 'Expected third rollback preview call for full-restore fallback');
+	assert(previewRollbackCalls[2]?.importScopes === undefined, 'Expected empty selective rollback scopes to omit importScopes in preview payload');
+	assert(document.querySelector('[data-testid="backup-rollback-preview-meta-scope"]')?.textContent?.includes('Rollback Scope：Unknown'), 'Expected fallback rollback preview scope summary selector content');
+	assert(!document.querySelector('[data-testid="backup-rollback-preview-meta-scope"]')?.hasAttribute('data-raw-value'), 'Expected fallback rollback preview scope raw-value attribute to stay absent when scopes are omitted');
 
 	cleanup();
 }
@@ -419,21 +492,10 @@ async function verifyMapAndReplaceFlows({ render, screen, fireEvent, waitFor, cl
 	const zhView = render(React.createElement(SettingBackup));
 	assert(document.querySelector('[data-testid="backup-page"]'), 'Expected backup page root test id');
 	await selectImportMode(screen, fireEvent, waitFor, 'map');
-	assert(getTextarea(zhView.container).placeholder !== 'legacy-model=gpt-4o\nvision-model=gpt-4.1', 'Expected zh-Hans map placeholder without English visible sample text');
+	assert(document.querySelector('[data-testid="backup-structured-mapping-source-0"]')?.getAttribute('placeholder') === '旧模型=gpt-4o', 'Expected zh-Hans source placeholder');
+	assert(document.querySelector('[data-testid="backup-structured-mapping-target-0"]')?.getAttribute('placeholder') === '视觉模型=gpt-4.1', 'Expected zh-Hans target placeholder');
 	fireEvent.click(getByRoleName(screen, 'button', ['展开']));
-	assert(document.querySelector('[data-testid="backup-import-remaining-migration-trigger"]'), 'Expected import remaining migration outer trigger');
-	assert(document.querySelector('[data-testid="backup-import-remaining-migration-title"]')?.textContent?.includes('导入补强项'), 'Expected import remaining migration title selector content');
-	assert(document.querySelector('[data-testid="backup-import-remaining-migration-summary"]')?.textContent?.includes('默认收起，按需查看仍需手动处理的迁移能力。'), 'Expected import remaining migration summary selector content');
-	assert(!getVisibleText(zhView.container).includes('导入工具补强'), 'Expected remaining migration section titles to stay collapsed by default');
-	clickAccordionByTestId('backup-import-remaining-migration-trigger', fireEvent);
-	assert(Array.from(document.querySelectorAll('[data-slot="accordion-trigger"]')).some((node) => node.textContent?.includes('导入工具补强')), 'Expected remaining migration tooling summary section title after expanding outer section');
-	assert(!getVisibleText(zhView.container).includes('替换导入 / 映射导入'), 'Expected zh-Hans detailed pending copy to stay collapsed by default');
-	clickAccordionByText(screen, fireEvent, '导入工具补强');
-	const zhHansVisibleText = getVisibleText(zhView.container);
-	assert(zhHansVisibleText.includes('替换导入 / 映射导入'), 'Expected zh-Hans remaining migration tooling copy to use localized replace/map wording');
-	assert(zhHansVisibleText.includes('快照模型=当前模型'), 'Expected zh-Hans remaining migration tooling copy to use localized mapping example wording');
-	assert(!/replace\/map/i.test(zhHansVisibleText), 'Expected zh-Hans visible backup copy to avoid raw replace/map text');
-	assert(!/\bremap\b/i.test(zhHansVisibleText), 'Expected zh-Hans visible backup copy to avoid raw remap text');
+	assert(!document.querySelector('[data-testid="backup-import-remaining-migration-trigger"]'), 'Expected stale import remaining-migration entry to stay hidden after compatibility closure');
 	cleanup();
 
 	resetState();
@@ -443,8 +505,16 @@ async function verifyMapAndReplaceFlows({ render, screen, fireEvent, waitFor, cl
 	const view = render(React.createElement(MapBackup));
 	await selectImportMode(screen, fireEvent, waitFor, 'map');
 	assert(document.querySelector('[data-testid="backup-map-preview-root"]'), 'Expected map-preview root selector in map mode');
+	assert(document.querySelector('[data-testid="backup-structured-mapping-panel"]'), 'Expected structured mapping panel selector in map mode');
+	assert(document.querySelector('[data-testid="backup-structured-mapping-empty"]'), 'Expected structured mapping empty hint before rows are filled');
 	assert(getHelpHintButtons().length >= 9, 'Expected map mode to keep backup help-hint buttons visible');
-	fireEvent.change(getTextarea(view.container), { target: { value: 'legacy-model=gpt-4o\nmissing-model=gpt-4.1-mini\nunused-model=gpt-4.1' } });
+	setStructuredMappingRows(fireEvent, [
+		{ source: 'legacy-model', target: 'gpt-4o' },
+		{ source: 'missing-model', target: 'gpt-4.1-mini' },
+		{ source: 'unused-model', target: 'gpt-4.1' },
+	]);
+	assert(document.querySelector('[data-testid="backup-structured-mapping-count"]')?.textContent?.includes('Active Mappings：3'), 'Expected structured mapping count after row edits');
+	assert(getTextarea(view.container).value === 'legacy-model=gpt-4o\nmissing-model=gpt-4.1-mini\nunused-model=gpt-4.1', 'Expected hidden model-mappings payload to stay line-based');
 	fireEvent.change(getFileInput(view.container), { target: { files: [mapFile] } });
 	fireEvent.click(getImportButton(screen));
 	await screen.findByTestId('backup-pending-apply-ready');
@@ -465,11 +535,64 @@ async function verifyMapAndReplaceFlows({ render, screen, fireEvent, waitFor, cl
 	assert(document.querySelector('[data-testid="backup-compatibility-signal-list"]'), 'Expected compatibility signal list selector in map mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-signal-list"]')?.textContent?.includes('Compatibility report found 1 missing providers.'), 'Expected missing-provider signal selector content in map mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-signal-list"]')?.textContent?.includes('Channel-key credential rebind is required for 1 imported targets.'), 'Expected channel-key rebind signal selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-signal-list"]')?.textContent?.includes('Compatibility report skipped 1 route-target previews.'), 'Expected skipped-route-preview signal selector content in map mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-signal-list"]')?.textContent?.includes('Compatibility report found 1 missing mapping targets.'), 'Expected missing-mapping signal selector content in map mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-signal-list"]')?.textContent?.includes('Compatibility report found 1 unused model mappings.'), 'Expected unused-mapping signal selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-guidance"]'), 'Expected compatibility guidance selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-guidance-title"]')?.textContent?.includes('Recommended Next Steps'), 'Expected compatibility guidance title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-guidance-item-0"]')?.textContent?.includes('Resolve blocking risks first'), 'Expected blocking-risk guidance selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-guidance-item-1"]')?.textContent?.includes('Restore missing providers or models'), 'Expected missing-target guidance selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-guidance-item-2"]')?.textContent?.includes('Prepare credential rebinds'), 'Expected credential-rebind guidance selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-guidance-item-3"]')?.textContent?.includes('Review which targets are skipped'), 'Expected skipped-target guidance selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-guidance-item-4"]')?.textContent?.includes('Fix model mappings before apply'), 'Expected model-mapping guidance selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-guidance-item-5"]')?.textContent?.includes('Review route and policy drift'), 'Expected route/policy guidance selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-conflicts"]'), 'Expected compatibility-conflicts detail selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-conflicts-title"]')?.textContent?.includes('Compatibility Conflicts'), 'Expected compatibility-conflicts detail title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-conflicts-item-0"]')?.textContent?.includes('channel conflict'), 'Expected compatibility-conflicts detail item selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-alias-conflicts"]'), 'Expected alias-conflicts detail selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-alias-conflicts-title"]')?.textContent?.includes('Alias Conflicts'), 'Expected alias-conflicts detail title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-alias-conflicts-item-0"]')?.textContent?.includes('alias conflict: legacy-vision -> gpt-4.1'), 'Expected alias-conflicts detail item selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-route-conflicts"]'), 'Expected route-conflicts detail selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-route-conflicts-title"]')?.textContent?.includes('Route Conflicts'), 'Expected route-conflicts detail title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-route-conflicts-item-0"]')?.textContent?.includes('route conflict: group-a -> legacy-model'), 'Expected route-conflicts detail item selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-affected-groups"]'), 'Expected affected-groups detail selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-affected-groups-title"]')?.textContent?.includes('Affected Groups'), 'Expected affected-groups detail title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-affected-groups-item-0"]')?.textContent?.includes('group-a'), 'Expected affected-groups detail item selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-affected-channels"]'), 'Expected affected-channels detail selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-affected-channels-title"]')?.textContent?.includes('Affected Channels'), 'Expected affected-channels detail title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-affected-channels-item-0"]')?.textContent?.includes('Primary'), 'Expected affected-channels detail item selector content in map mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-missing-providers"]'), 'Expected missing-providers detail selector in map mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-missing-providers-title"]')?.textContent?.includes('Missing Providers / Channels'), 'Expected missing-providers detail title selector content in map mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-missing-providers-item-0"]')?.textContent?.includes('legacy-provider'), 'Expected missing-providers detail item selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-missing-models"]'), 'Expected missing-models detail selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-missing-models-title"]')?.textContent?.includes('Missing Models'), 'Expected missing-models detail title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-missing-models-item-0"]')?.textContent?.includes('legacy-text-preview'), 'Expected missing-models detail item selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-base-url-mismatches"]'), 'Expected base-url-mismatches detail selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-base-url-mismatches-title"]')?.textContent?.includes('Base-URL Mismatches'), 'Expected base-url-mismatches detail title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-base-url-mismatches-item-0"]')?.textContent?.includes('preview-channel'), 'Expected base-url-mismatches detail item selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-schema-mismatches"]'), 'Expected schema-mismatches detail selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-schema-mismatches-title"]')?.textContent?.includes('Schema Mismatches'), 'Expected schema-mismatches detail title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-schema-mismatches-item-0"]')?.textContent?.includes('snapshot schema:v2 differs'), 'Expected schema-mismatches detail item selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-skipped-targets"]'), 'Expected skipped-targets detail selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-skipped-targets-title"]')?.textContent?.includes('Preserved / Skipped Targets'), 'Expected skipped-targets detail title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-skipped-targets-item-0"]')?.textContent?.includes('channel_key:201 empty credential'), 'Expected skipped-targets credential detail selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-skipped-targets-item-1"]')?.textContent?.includes('setting:api_base_url existing row preserved by skip mode'), 'Expected skipped-targets skip-mode detail selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-credential-rebind"]'), 'Expected credential-rebind detail selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-credential-rebind-title"]')?.textContent?.includes('Credential Rebind Targets'), 'Expected credential-rebind detail title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-credential-rebind-item-0"]')?.textContent?.includes('Primary'), 'Expected credential-rebind detail item selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-invalid-route-targets"]'), 'Expected invalid-route-target detail selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-invalid-route-targets-title"]')?.textContent?.includes('Route Target Risks'), 'Expected invalid-route-target detail title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-invalid-route-targets-item-0"]')?.textContent?.includes('missing_target'), 'Expected invalid-route-target detail item selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-skipped-route-targets"]'), 'Expected skipped-route-target detail selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-skipped-route-targets-title"]')?.textContent?.includes('Skipped Route Previews'), 'Expected skipped-route-target detail title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-skipped-route-targets-item-0"]')?.textContent?.includes('skipped_preview'), 'Expected skipped-route-target detail issue selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-skipped-route-targets-item-0"]')?.textContent?.includes('review mapping'), 'Expected skipped-route-target detail action selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-route-preview-warnings"]'), 'Expected route-preview-warning detail selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-route-preview-warnings-title"]')?.textContent?.includes('Route Preview Warnings'), 'Expected route-preview-warning detail title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-route-preview-warnings-item-0"]')?.textContent?.includes('route may degrade'), 'Expected route-preview-warning detail item selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-route-preview-diffs"]'), 'Expected route-preview-diff detail selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-route-preview-diffs-title"]')?.textContent?.includes('Route Preview Diffs'), 'Expected route-preview-diff detail title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-route-preview-diffs-item-0"]')?.textContent?.includes('group-a'), 'Expected route-preview-diff detail item selector content in map mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-mapping-preview"]'), 'Expected mapping-preview detail selector in map mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-mapping-preview-title"]')?.textContent?.includes('Model Mapping Previews'), 'Expected mapping-preview detail title selector content in map mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-mapping-preview-item-0"]')?.textContent?.includes('legacy-model'), 'Expected first mapping-preview detail item selector content in map mode');
@@ -481,6 +604,12 @@ async function verifyMapAndReplaceFlows({ render, screen, fireEvent, waitFor, cl
 	assert(document.querySelector('[data-testid="backup-compatibility-unused-mapping"]'), 'Expected unused-mapping detail selector in map mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-unused-mapping-title"]')?.textContent?.includes('Unused Model Mappings'), 'Expected unused-mapping detail title selector content in map mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-unused-mapping-item-0"]')?.textContent?.includes('unused-model'), 'Expected unused-mapping detail item selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-alias-preview"]'), 'Expected alias-preview detail selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-alias-preview-title"]')?.textContent?.includes('Alias Preview Mappings'), 'Expected alias-preview detail title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-alias-preview-item-0"]')?.textContent?.includes('legacy-vision'), 'Expected alias-preview detail item selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-model-policy-diffs"]'), 'Expected model-policy-diffs detail selector in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-model-policy-diffs-title"]')?.textContent?.includes('Model Policy Diffs'), 'Expected model-policy-diffs detail title selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-model-policy-diffs-item-0"]')?.textContent?.includes('legacy-model'), 'Expected model-policy-diffs detail item selector content in map mode');
 
 	cleanup();
 	resetState();
@@ -506,28 +635,38 @@ async function verifyMapAndReplaceFlows({ render, screen, fireEvent, waitFor, cl
 	assert(document.querySelector('[data-testid="backup-compatibility-signal-list"]')?.textContent?.includes('Replace mode can remove current project records that are not kept by the snapshot.'), 'Expected replace-mode risk signal selector content in replace mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-signal-list"]')?.textContent?.includes('Compatibility report found 1 conflicts.'), 'Expected replace-mode conflict signal selector content in replace mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-signal-list"]')?.textContent?.includes('Channel-key credential rebind is required for 1 imported targets.'), 'Expected replace-mode channel-key rebind signal selector content in replace mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-signal-list"]')?.textContent?.includes('Structured prune preview found 5 additional records.'), 'Expected replace-mode structured-prune signal selector content in replace mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-guidance-item-2"]')?.textContent?.includes('Review which current records replace mode removes'), 'Expected replace-prune guidance selector content in replace mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-replace-pruned-channels"]'), 'Expected replace-pruned channels detail selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-replace-pruned-channels-title"]')?.textContent?.includes('Channels removed by replace mode'), 'Expected replace-pruned channels title selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-replace-pruned-channels-item-0"]')?.textContent?.includes('legacy-channel'), 'Expected replace-pruned channels item selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-replace-pruned-api-keys"]'), 'Expected replace-pruned api-keys detail selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-replace-pruned-api-keys-title"]')?.textContent?.includes('API keys removed by replace mode'), 'Expected replace-pruned api-keys title selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-compatibility-replace-pruned-api-keys-item-0"]')?.textContent?.includes('client-key'), 'Expected replace-pruned api-keys item selector in replace mode');
 	assert(document.querySelector('[data-testid="backup-replace-prune-panel"]'), 'Expected replace-prune panel selector in replace mode');
-	assert(document.querySelector('[data-testid="backup-import-remaining-migration-trigger"]'), 'Expected import remaining-migration outer trigger selector in replace mode');
-	assert(document.querySelector('[data-testid="backup-import-remaining-migration-title"]')?.textContent?.includes('Import migration tooling'), 'Expected import remaining migration title selector content in replace mode');
-	assert(document.querySelector('[data-testid="backup-import-remaining-migration-summary"]')?.textContent?.includes('Collapsed by default. Open only when you need the still-manual migration gaps.'), 'Expected import remaining migration summary selector content in replace mode');
-	clickAccordionByTestId('backup-import-remaining-migration-trigger', fireEvent);
-	assert(document.querySelector('[data-testid="backup-import-remaining-migration-panel"]'), 'Expected import remaining-migration panel selector in replace mode');
-	assert(document.querySelector('[data-testid="backup-import-remaining-migration-section-trigger-0"]'), 'Expected import remaining-migration section trigger selector in replace mode');
-	clickAccordionByTestId('backup-import-remaining-migration-section-trigger-0', fireEvent);
-	assert(document.querySelector('[data-testid="backup-import-remaining-migration-section-panel-0"]'), 'Expected import remaining-migration section panel selector in replace mode');
-	assert(document.querySelector('[data-testid="backup-import-remaining-migration-section-item-import-tooling-conflict-handling"]'), 'Expected import remaining-migration item selector in replace mode');
-	assert(document.querySelector('[data-testid="backup-import-remaining-migration-section-item-import-tooling-conflict-handling-label"]'), 'Expected import remaining-migration item label selector in replace mode');
-	assert(document.querySelector('[data-testid="backup-import-remaining-migration-section-item-import-tooling-conflict-handling-text"]'), 'Expected import remaining-migration item text selector in replace mode');
+	assert(!document.querySelector('[data-testid="backup-import-remaining-migration-trigger"]'), 'Expected import remaining-migration entry to stay removed in replace mode');
 	assert(document.querySelector('[data-testid="backup-replace-prune-title"]')?.textContent?.includes('Replace-prune preview'), 'Expected replace-prune preview section selector');
 	assert(document.querySelector('[data-testid="backup-replace-prune-summary"]')?.textContent?.includes('records are hidden by default'), 'Expected replace-prune summary selector to stay collapsed before expanding');
 	clickAccordionByTestId('backup-replace-prune-trigger', fireEvent);
 	assert(document.querySelector('[data-testid="backup-replace-prune-section-channels"]'), 'Expected replace-prune channels section selector in replace mode');
 	assert(document.querySelector('[data-testid="backup-replace-prune-section-title-channels"]'), 'Expected replace-prune channels title selector in replace mode');
 	assert(document.querySelector('[data-testid="backup-replace-prune-section-item-channels-0"]'), 'Expected replace-prune channels item selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-replace-prune-section-groups"]'), 'Expected replace-prune groups section selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-replace-prune-section-title-groups"]'), 'Expected replace-prune groups title selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-replace-prune-section-item-groups-0"]'), 'Expected replace-prune groups item selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-replace-prune-section-settings"]'), 'Expected replace-prune settings section selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-replace-prune-section-title-settings"]'), 'Expected replace-prune settings title selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-replace-prune-section-item-settings-0"]'), 'Expected replace-prune settings item selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-replace-prune-section-models"]'), 'Expected replace-prune models section selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-replace-prune-section-title-models"]'), 'Expected replace-prune models title selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-replace-prune-section-item-models-0"]'), 'Expected replace-prune models item selector in replace mode');
 	assert(document.querySelector('[data-testid="backup-replace-prune-section-apiKeys"]'), 'Expected replace-prune api-keys section selector in replace mode');
 	assert(document.querySelector('[data-testid="backup-replace-prune-section-title-apiKeys"]'), 'Expected replace-prune api-keys title selector in replace mode');
 	assert(document.querySelector('[data-testid="backup-replace-prune-section-item-apiKeys-0"]'), 'Expected replace-prune api-keys item selector in replace mode');
 	assert(document.querySelector('[data-testid="backup-replace-prune-section-title-channels"]')?.textContent?.includes('Channels to delete'), 'Expected replace-prune channels section');
+	assert(document.querySelector('[data-testid="backup-replace-prune-section-title-groups"]')?.textContent?.includes('Groups to delete'), 'Expected replace-prune groups section');
+	assert(document.querySelector('[data-testid="backup-replace-prune-section-title-settings"]')?.textContent?.includes('Settings to reset'), 'Expected replace-prune settings section');
+	assert(document.querySelector('[data-testid="backup-replace-prune-section-title-models"]')?.textContent?.includes('Models to delete'), 'Expected replace-prune models section');
 	assert(screen.getByTestId('backup-replace-prune-section-title-apiKeys').textContent?.includes('API keys to delete'), 'Expected replace-prune api-keys section');
 	const applyButton = screen.getByTestId('backup-apply-same-import-button');
 	assert(applyButton.disabled, 'Replace apply should require confirmation');

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/xurl"
 )
 
 type AutoGroupType int
@@ -308,6 +309,25 @@ type ChannelFetchModelRequest struct {
 	ChannelProxy *string               `json:"channel_proxy,omitempty"`
 	MatchRegex   *string               `json:"match_regex,omitempty"`
 	CustomHeader []CustomHeader        `json:"custom_header,omitempty"`
+}
+
+func NormalizeChannelProxy(raw *string) *string {
+	if raw == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*raw)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+func ValidateChannelProxy(raw *string) error {
+	normalized := NormalizeChannelProxy(raw)
+	if normalized == nil {
+		return nil
+	}
+	return xurl.ValidateProxyURL(*normalized, "channel_proxy")
 }
 
 func (c *Channel) GetBaseUrl() string {

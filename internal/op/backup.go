@@ -178,6 +178,12 @@ func DBImportIncrementalWithOptions(ctx context.Context, dump *model.DBDump, mod
 	if dump == nil {
 		return nil, fmt.Errorf("empty dump")
 	}
+	if err := validateImportScopes(options.ImportScopes); err != nil {
+		return nil, err
+	}
+	if err := validateImportModelMappings(options.ModelMappings); err != nil {
+		return nil, err
+	}
 
 	originalDump := cloneDumpForImport(dump)
 	NormalizeLegacyDump(originalDump)
@@ -187,6 +193,9 @@ func DBImportIncrementalWithOptions(ctx context.Context, dump *model.DBDump, mod
 
 	if dump.Version != 0 && dump.Version != dbDumpVersion {
 		return nil, fmt.Errorf("unsupported dump version: %d", dump.Version)
+	}
+	if err := validateImportChannels(dump.Channels); err != nil {
+		return nil, err
 	}
 	if err := validateImportSettings(dump.Settings); err != nil {
 		return nil, err
@@ -397,16 +406,21 @@ func DBImportIncrementalWithOptions(ctx context.Context, dump *model.DBDump, mod
 		}
 		res.RowsAffected["settings"] = n
 
-		if mode == model.DBImportModeReplace {
+		migrationRecordsAffected := int64(0)
+		if mode == model.DBImportModeReplace && options.ImportScopes == nil {
 			if n, err = replaceMigrationRecords(tx, dump.MigrationRecords); err != nil {
 				return fmt.Errorf("replace migration_records: %w", err)
 			}
 			res.RowsAffected["replaced_migration_records"] = n
+			migrationRecordsAffected = n
 		}
-		if n, err = importMigrationRecords(tx, dump.MigrationRecords, mode); err != nil {
-			return fmt.Errorf("import migration_records: %w", err)
+		if options.ImportScopes == nil {
+			if n, err = importMigrationRecords(tx, dump.MigrationRecords, mode); err != nil {
+				return fmt.Errorf("import migration_records: %w", err)
+			}
+			migrationRecordsAffected = n
 		}
-		res.RowsAffected["migration_records"] = n
+		res.RowsAffected["migration_records"] = migrationRecordsAffected
 
 		if dump.IncludeStats {
 			remappedStatsModel, statsModelWarnings := remapStatsModelsForImport(dump.StatsModel, channelIDMap)
@@ -517,6 +531,19 @@ func validateImportSettings(rows []model.Setting) error {
 	return nil
 }
 
+func validateImportChannels(rows []model.Channel) error {
+	for _, row := range rows {
+		if err := model.ValidateChannelProxy(row.ChannelProxy); err != nil {
+			name := strings.TrimSpace(row.Name)
+			if name == "" {
+				name = fmt.Sprintf("id:%d", row.ID)
+			}
+			return fmt.Errorf("invalid channel %s proxy: %w", name, err)
+		}
+	}
+	return nil
+}
+
 func DBRollbackLatestImportSnapshot(ctx context.Context) (*model.DBRollbackResult, error) {
 	metadata, dump, err := loadLatestImportSnapshot()
 	if err != nil {
@@ -581,6 +608,9 @@ func DBListImportSnapshots() ([]model.DBImportSnapshotInfo, error) {
 }
 
 func DBRollbackImportSnapshot(ctx context.Context, snapshotName string, scopes *model.DBImportScopes) (*model.DBRollbackResult, error) {
+	if err := validateImportScopes(scopes); err != nil {
+		return nil, err
+	}
 	metadata, dump, err := loadImportSnapshotByName(snapshotName)
 	if err != nil {
 		return nil, err
@@ -589,6 +619,9 @@ func DBRollbackImportSnapshot(ctx context.Context, snapshotName string, scopes *
 }
 
 func DBPreviewRollbackImportSnapshot(ctx context.Context, snapshotName string, scopes *model.DBImportScopes) (*model.DBRollbackPreviewResult, error) {
+	if err := validateImportScopes(scopes); err != nil {
+		return nil, err
+	}
 	metadata, dump, err := loadImportSnapshotByName(snapshotName)
 	if err != nil {
 		return nil, err

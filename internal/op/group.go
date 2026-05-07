@@ -47,7 +47,7 @@ func validateGroupChannelModelTarget(channelID int, modelName string) error {
 	if channelID <= 0 {
 		return fmt.Errorf("invalid channel id")
 	}
-	normalizedModelName := strings.TrimSpace(modelName)
+	normalizedModelName := normalizeGroupModelName(modelName)
 	if normalizedModelName == "" {
 		return fmt.Errorf("model name is required")
 	}
@@ -62,6 +62,10 @@ func validateGroupChannelModelTarget(channelID int, modelName string) error {
 		return fmt.Errorf("channel %d has no configured key for model %s", channelID, normalizedModelName)
 	}
 	return nil
+}
+
+func normalizeGroupModelName(modelName string) string {
+	return strings.TrimSpace(modelName)
 }
 
 func GroupList(ctx context.Context) ([]model.Group, error) {
@@ -97,11 +101,55 @@ func GroupCreate(group *model.Group, ctx context.Context) error {
 	if err := validateGroupRuntimeConfig(*group); err != nil {
 		return err
 	}
-	if err := db.GetDB().WithContext(ctx).Create(group).Error; err != nil {
+	tx := db.GetDB().WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	if err := tx.Omit("Items").Create(group).Error; err != nil {
+		tx.Rollback()
 		return err
 	}
-	groupCache.Set(group.ID, *group)
-	groupMap.Set(group.Name, *group)
+
+	if len(group.Items) > 0 {
+		newItems := make([]model.GroupItem, len(group.Items))
+		for i, item := range group.Items {
+			if err := validateGroupChannelModelTarget(item.ChannelID, item.ModelName); err != nil {
+				tx.Rollback()
+				return err
+			}
+			normalizedModelName := normalizeGroupModelName(item.ModelName)
+			newItems[i] = model.GroupItem{
+				GroupID:   group.ID,
+				ChannelID: item.ChannelID,
+				ModelName: normalizedModelName,
+				Priority:  item.Priority,
+				Weight:    item.Weight,
+			}
+		}
+		if err := tx.Create(&newItems).Error; err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to create group items: %w", err)
+		}
+		group.Items = newItems
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	if err := groupRefreshCacheByID(group.ID, ctx); err != nil {
+		return err
+	}
+	refreshed, ok := groupCache.Get(group.ID)
+	if ok {
+		*group = refreshed
+	}
 	return nil
 }
 
@@ -192,6 +240,9 @@ func GroupUpdate(req *model.GroupUpdateRequest, ctx context.Context) (*model.Gro
 	}
 
 	tx := db.GetDB().WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
@@ -245,10 +296,11 @@ func GroupUpdate(req *model.GroupUpdateRequest, ctx context.Context) (*model.Gro
 				tx.Rollback()
 				return nil, err
 			}
+			normalizedModelName := normalizeGroupModelName(item.ModelName)
 			newItems[i] = model.GroupItem{
 				GroupID:   req.ID,
 				ChannelID: item.ChannelID,
-				ModelName: item.ModelName,
+				ModelName: normalizedModelName,
 				Priority:  item.Priority,
 				Weight:    item.Weight,
 			}
@@ -282,6 +334,9 @@ func GroupDel(id int, ctx context.Context) error {
 	}
 
 	tx := db.GetDB().WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
@@ -314,6 +369,7 @@ func GroupItemAdd(item *model.GroupItem, ctx context.Context) error {
 	if err := validateGroupChannelModelTarget(item.ChannelID, item.ModelName); err != nil {
 		return err
 	}
+	item.ModelName = normalizeGroupModelName(item.ModelName)
 
 	if err := db.GetDB().WithContext(ctx).Create(item).Error; err != nil {
 		return err
@@ -335,18 +391,19 @@ func GroupItemBatchAdd(groupID int, items []model.GroupIDAndLLMName, ctx context
 	seen := make(map[string]struct{}, len(items))
 	uniq := make([]model.GroupIDAndLLMName, 0, len(items))
 	for _, it := range items {
-		if it.ChannelID == 0 || it.ModelName == "" {
+		normalizedModelName := normalizeGroupModelName(it.ModelName)
+		if it.ChannelID == 0 || normalizedModelName == "" {
 			continue
 		}
-		if err := validateGroupChannelModelTarget(it.ChannelID, it.ModelName); err != nil {
+		if err := validateGroupChannelModelTarget(it.ChannelID, normalizedModelName); err != nil {
 			return err
 		}
-		k := fmt.Sprintf("%d|%s", it.ChannelID, it.ModelName)
+		k := fmt.Sprintf("%d|%s", it.ChannelID, normalizedModelName)
 		if _, exists := seen[k]; exists {
 			continue
 		}
 		seen[k] = struct{}{}
-		uniq = append(uniq, it)
+		uniq = append(uniq, model.GroupIDAndLLMName{ChannelID: it.ChannelID, ModelName: normalizedModelName})
 	}
 	if len(uniq) == 0 {
 		return nil
@@ -384,6 +441,20 @@ func GroupItemBatchAdd(groupID int, items []model.GroupIDAndLLMName, ctx context
 }
 
 func GroupItemUpdate(item *model.GroupItem, ctx context.Context) error {
+	var current model.GroupItem
+	if err := db.GetDB().WithContext(ctx).First(&current, item.ID).Error; err != nil {
+		return fmt.Errorf("group item not found")
+	}
+	normalizedModelName := normalizeGroupModelName(item.ModelName)
+	if normalizedModelName == "" {
+		normalizedModelName = current.ModelName
+	}
+	if err := validateGroupChannelModelTarget(current.ChannelID, normalizedModelName); err != nil {
+		return err
+	}
+	item.GroupID = current.GroupID
+	item.ModelName = normalizedModelName
+
 	if err := db.GetDB().WithContext(ctx).Model(item).
 		Select("ModelName", "Priority", "Weight").
 		Updates(item).Error; err != nil {

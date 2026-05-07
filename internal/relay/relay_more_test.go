@@ -224,11 +224,8 @@ func insertRelayGroupItemDirect(t *testing.T, ctx context.Context, item *dbmodel
 	if err := db.GetDB().WithContext(ctx).Create(item).Error; err != nil {
 		t.Fatalf("direct Create(group item) error = %v", err)
 	}
-	if _, err := op.GroupGet(item.GroupID, ctx); err != nil {
-		t.Fatalf("GroupGet() before refresh error = %v", err)
-	}
-	if err := op.GroupItemUpdate(item, ctx); err != nil {
-		t.Fatalf("GroupItemUpdate(refresh) error = %v", err)
+	if _, err := op.GroupUpdate(&dbmodel.GroupUpdateRequest{ID: item.GroupID}, ctx); err != nil {
+		t.Fatalf("GroupUpdate(refresh) error = %v", err)
 	}
 }
 

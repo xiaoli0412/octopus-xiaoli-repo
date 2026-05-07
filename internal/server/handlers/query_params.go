@@ -2,20 +2,26 @@ package handlers
 
 import (
 	"fmt"
-	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/xurl"
 )
 
 func parseOptionalBoolQuery(c *gin.Context, key string, defaultValue bool) (bool, error) {
 	if c == nil {
 		return defaultValue, nil
 	}
-	raw := strings.TrimSpace(c.Query(key))
-	if raw == "" {
+	raw, exists := c.GetQuery(key)
+	if !exists {
 		return defaultValue, nil
+	}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return false, fmt.Errorf("invalid %s", key)
 	}
 	value, err := strconv.ParseBool(raw)
 	if err != nil {
@@ -24,19 +30,72 @@ func parseOptionalBoolQuery(c *gin.Context, key string, defaultValue bool) (bool
 	return value, nil
 }
 
-func parseOptionalIntQuery(c *gin.Context, key string, defaultValue int) (int, error) {
+func parseOptionalTrimmedStringQuery(c *gin.Context, key string) (string, bool) {
 	if c == nil {
-		return defaultValue, nil
+		return "", false
 	}
-	raw := strings.TrimSpace(c.Query(key))
+	raw, exists := c.GetQuery(key)
+	if !exists {
+		return "", false
+	}
+	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return defaultValue, nil
+		return "", false
 	}
-	value, err := strconv.Atoi(raw)
-	if err != nil {
-		return 0, fmt.Errorf("invalid %s", key)
+	return raw, true
+}
+
+func parseRequiredTrimmedStringQuery(c *gin.Context, key string) (string, error) {
+	value, ok := parseOptionalTrimmedStringQuery(c, key)
+	if !ok {
+		return "", fmt.Errorf("missing %s", key)
 	}
 	return value, nil
+}
+
+func parseOptionalNonEmptyTrimmedStringQuery(c *gin.Context, key string) (string, bool, error) {
+	if c == nil {
+		return "", false, nil
+	}
+	raw, exists := c.GetQuery(key)
+	if !exists {
+		return "", false, nil
+	}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", false, fmt.Errorf("invalid %s", key)
+	}
+	return raw, true, nil
+}
+
+func parseOptionalNonEmptyTrimmedPostForm(c *gin.Context, key string) (string, bool, error) {
+	if c == nil {
+		return "", false, nil
+	}
+	raw, exists := c.GetPostForm(key)
+	if !exists {
+		return "", false, nil
+	}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", false, fmt.Errorf("invalid %s", key)
+	}
+	return raw, true, nil
+}
+
+func parseOptionalNonEmptyTrimmedHeader(c *gin.Context, key string) (string, bool, error) {
+	if c == nil || c.Request == nil {
+		return "", false, nil
+	}
+	values := c.Request.Header.Values(key)
+	if len(values) == 0 {
+		return "", false, nil
+	}
+	raw := strings.TrimSpace(values[0])
+	if raw == "" {
+		return "", false, fmt.Errorf("invalid %s", key)
+	}
+	return raw, true, nil
 }
 
 func parseOptionalIntRangeQuery(c *gin.Context, startKey, endKey string) (*int, *int, error) {
@@ -44,13 +103,19 @@ func parseOptionalIntRangeQuery(c *gin.Context, startKey, endKey string) (*int, 
 		return nil, nil, nil
 	}
 
-	startRaw := strings.TrimSpace(c.Query(startKey))
-	endRaw := strings.TrimSpace(c.Query(endKey))
-	if (startRaw == "") != (endRaw == "") {
+	startRaw, startExists := c.GetQuery(startKey)
+	endRaw, endExists := c.GetQuery(endKey)
+	if startExists != endExists {
 		return nil, nil, fmt.Errorf("%s and %s must be provided together", startKey, endKey)
 	}
-	if startRaw == "" {
+	if !startExists {
 		return nil, nil, nil
+	}
+
+	startRaw = strings.TrimSpace(startRaw)
+	endRaw = strings.TrimSpace(endRaw)
+	if startRaw == "" || endRaw == "" {
+		return nil, nil, fmt.Errorf("invalid %s", startKey)
 	}
 
 	startValue, err := strconv.Atoi(startRaw)
@@ -61,20 +126,136 @@ func parseOptionalIntRangeQuery(c *gin.Context, startKey, endKey string) (*int, 
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid %s", endKey)
 	}
+	if startValue > endValue {
+		return nil, nil, fmt.Errorf("%s must be less than or equal to %s", startKey, endKey)
+	}
 	return &startValue, &endValue, nil
 }
 
-func parseOptionalPositiveIntQuery(c *gin.Context, key string) (int, bool, error) {
+func parseOptionalBoundedIntQuery(c *gin.Context, key string, defaultValue, minValue, maxValue int) (int, bool, error) {
 	if c == nil {
-		return 0, false, nil
+		return defaultValue, false, nil
 	}
-	raw := strings.TrimSpace(c.Query(key))
+	raw, exists := c.GetQuery(key)
+	if !exists {
+		return defaultValue, false, nil
+	}
+	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return 0, false, nil
+		return 0, false, fmt.Errorf("invalid %s", key)
 	}
 	value, err := strconv.Atoi(raw)
-	if err != nil || value <= 0 {
+	if err != nil || value < minValue || (maxValue > 0 && value > maxValue) {
 		return 0, false, fmt.Errorf("invalid %s", key)
+	}
+	return value, true, nil
+}
+
+func parseOptionalDBImportModeQuery(c *gin.Context, key string, defaultValue model.DBImportMode) (model.DBImportMode, bool, error) {
+	if c == nil {
+		return defaultValue, false, nil
+	}
+	raw, exists := c.GetQuery(key)
+	if !exists {
+		return defaultValue, false, nil
+	}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", false, fmt.Errorf("unsupported import mode")
+	}
+	mode := model.NormalizeDBImportMode(raw)
+	if !model.IsValidDBImportMode(mode) {
+		return "", false, fmt.Errorf("unsupported import mode")
+	}
+	return mode, true, nil
+}
+
+func normalizeDBExportFormat(input string) dbExportFormat {
+	switch strings.ToLower(strings.TrimSpace(input)) {
+	case string(dbExportFormatStandard):
+		return dbExportFormatStandard
+	case string(dbExportFormatLegacy):
+		return dbExportFormatLegacy
+	default:
+		return ""
+	}
+}
+
+func parseOptionalDBExportFormat(c *gin.Context, key string, defaultValue dbExportFormat) (dbExportFormat, error) {
+	if c == nil {
+		return defaultValue, nil
+	}
+	raw, exists := c.GetQuery(key)
+	if !exists {
+		return defaultValue, nil
+	}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", fmt.Errorf("unsupported export format")
+	}
+	format := normalizeDBExportFormat(raw)
+	if format == "" {
+		return "", fmt.Errorf("unsupported export format")
+	}
+	return format, nil
+}
+
+func normalizeRelayLogExportFormat(input string) relayLogExportFormat {
+	switch strings.TrimSpace(input) {
+	case string(relayLogExportFormatJSON):
+		return relayLogExportFormatJSON
+	case string(relayLogExportFormatJSONL):
+		return relayLogExportFormatJSONL
+	default:
+		return ""
+	}
+}
+
+func parseOptionalRelayLogExportFormat(c *gin.Context, key string, defaultValue relayLogExportFormat) (relayLogExportFormat, error) {
+	if c == nil {
+		return defaultValue, nil
+	}
+	raw, exists := c.GetQuery(key)
+	if !exists {
+		return defaultValue, nil
+	}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", fmt.Errorf("unsupported format")
+	}
+	format := normalizeRelayLogExportFormat(raw)
+	if format == "" {
+		return "", fmt.Errorf("unsupported format")
+	}
+	return format, nil
+}
+
+func parseOptionalRFC3339TimeQuery(c *gin.Context, key string) (*time.Time, error) {
+	if c == nil {
+		return nil, nil
+	}
+	raw, exists := c.GetQuery(key)
+	if !exists {
+		return nil, nil
+	}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, fmt.Errorf("invalid %s", key)
+	}
+	parsed, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid %s", key)
+	}
+	return &parsed, nil
+}
+
+func parseOptionalPositiveIntQuery(c *gin.Context, key string) (int, bool, error) {
+	value, ok, err := parseOptionalBoundedIntQuery(c, key, 0, 1, 0)
+	if err != nil {
+		return 0, false, err
+	}
+	if !ok {
+		return 0, false, nil
 	}
 	return value, true, nil
 }
@@ -88,17 +269,19 @@ func parsePositivePathIDValue(c *gin.Context, name string) (int, bool) {
 }
 
 func validateAbsoluteHTTPURL(raw, fieldName string) error {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return fmt.Errorf("%s is required", fieldName)
+	return xurl.ValidateAbsoluteHTTPURL(raw, fieldName)
+}
+
+func normalizeOptionalProxyURL(raw *string, fieldName string) (*string, error) {
+	if raw == nil {
+		return nil, nil
 	}
-	parsed, err := url.Parse(trimmed)
-	if err != nil {
-		return fmt.Errorf("%s is invalid: %w", fieldName, err)
+	normalized := strings.TrimSpace(*raw)
+	if normalized == "" {
+		return nil, nil
 	}
-	scheme := strings.ToLower(strings.TrimSpace(parsed.Scheme))
-	if !parsed.IsAbs() || (scheme != "http" && scheme != "https") || strings.TrimSpace(parsed.Host) == "" {
-		return fmt.Errorf("%s must be absolute http or https URL", fieldName)
+	if err := xurl.ValidateProxyURL(normalized, fieldName); err != nil {
+		return nil, err
 	}
-	return nil
+	return &normalized, nil
 }

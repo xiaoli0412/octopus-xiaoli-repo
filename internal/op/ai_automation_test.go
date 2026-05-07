@@ -487,6 +487,26 @@ func TestRedactAIProfileForResponseRedactsVersionAndDomainPayloadSecrets(t *test
 	}
 }
 
+func TestAITaskListRejectsOversizedPageSize(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	if _, err := AITaskList(model.AITaskListRequest{Page: 1, PageSize: 101}, ctx); err == nil {
+		t.Fatal("AITaskList() expected invalid page_size error")
+	} else if err.Error() != "invalid page_size" {
+		t.Fatalf("AITaskList() error = %v, want invalid page_size", err)
+	}
+}
+
+func TestAITaskListRejectsOversizedOffset(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	if _, err := AITaskList(model.AITaskListRequest{Page: 1001, PageSize: 10}, ctx); err == nil {
+		t.Fatal("AITaskList() expected invalid page error")
+	} else if err.Error() != "invalid page" {
+		t.Fatalf("AITaskList() error = %v, want invalid page", err)
+	}
+}
+
 func TestAIAutomationFetchModelsPrefersRemoteFreeCandidate(t *testing.T) {
 	ctx := setupOpTestDB(t)
 	if err := InitCache(); err != nil {

@@ -14,6 +14,12 @@ func TestGetHTTPClientCustomProxyAllowsSocksScheme(t *testing.T) {
 	}
 }
 
+func TestGetHTTPClientCustomProxyRejectsCredentials(t *testing.T) {
+	if _, err := GetHTTPClientCustomProxy("http://user:pass@127.0.0.1:8080"); err == nil {
+		t.Fatal("GetHTTPClientCustomProxy() error = nil, want credential rejection")
+	}
+}
+
 type stubContextDialer struct {
 	called bool
 	err    error

@@ -42,19 +42,33 @@
 Run directly:
 
 ```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.16.4
+docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17
 ```
 
-Or use the install script. It keeps `1088` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, and pulls the official `v1.16.4` Docker image directly:
+Or use the install script. It keeps `1088` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, and first pulls the official GHCR image. If you already have a reachable mirror or private registry, you can also provide an explicit fallback image:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
+```
+
+If your SSH host has unstable access to `raw.githubusercontent.com`, prefer the two-step flow below so you can tell whether the failure is in script download or image pulling:
+
+```bash
+curl -fsSL -o install-octopus.sh https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh
+bash install-octopus.sh
 ```
 
 Non-interactive custom port example:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | OCTOPUS_PORT=1088 bash
+```
+
+If your network restricts GHCR, you can pin the image source explicitly or provide a fallback image:
+
+```bash
+OCTOPUS_IMAGE=ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17 bash install-octopus.sh
+OCTOPUS_IMAGE_FALLBACK=registry.example.com/octopus-xiaoli-repo:v1.17 bash install-octopus.sh
 ```
 
 If you prefer the manual path, you can still clone the repository and run compose directly:
@@ -75,6 +89,8 @@ OCTOPUS_DATA_DIR=./build/compose-smoke-data \
 OCTOPUS_CONTAINER_NAME=octopus-smoke \
 docker compose up -d
 ```
+
+The container startup path now refuses to silently fall back to a root runtime when `PUID` / `PGID` requests an unprivileged user but the mounted data directory is not writable. Fix the host volume ownership instead. If you need a temporary compatibility escape hatch for an existing deployment, set `ALLOW_ROOT_FALLBACK_ON_DATA_DIR_ERROR=true` explicitly and remove it after repairing the mount permissions.
 
 
 ### 📦 Download from Release

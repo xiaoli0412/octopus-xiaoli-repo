@@ -6,6 +6,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -17,7 +19,16 @@ import (
 func TestExportDBDefaultsToFullSnapshotAndCanExplicitlyRedactSecrets(t *testing.T) {
 	setupHandlerTest(t)
 
-	channel := model.Channel{Name: `export-channel`, Enabled: true}
+	proxyURL := `https://octopus:secret@example.com:8443`
+	channel := model.Channel{
+		Name:    `export-channel`,
+		Enabled: true,
+		CustomHeader: []model.CustomHeader{
+			{HeaderKey: `Authorization`, HeaderValue: `Bearer upstream-secret`},
+			{HeaderKey: `X-Workspace-ID`, HeaderValue: `workspace-1`},
+		},
+		ChannelProxy: &proxyURL,
+	}
 	if err := db.GetDB().Create(&channel).Error; err != nil {
 		t.Fatalf(`create channel error = %v`, err)
 	}
@@ -50,6 +61,15 @@ func TestExportDBDefaultsToFullSnapshotAndCanExplicitlyRedactSecrets(t *testing.
 	if len(defaultDump.APIKeys) == 0 || defaultDump.APIKeys[0].APIKey != `sk-api-secret` {
 		t.Fatalf(`default api key = %#v, want exported credential`, defaultDump.APIKeys)
 	}
+	if got := defaultDump.Channels[0].CustomHeader[0].HeaderValue; got != `Bearer upstream-secret` {
+		t.Fatalf(`default auth header value = %q, want exported credential`, got)
+	}
+	if got := defaultDump.Channels[0].CustomHeader[1].HeaderValue; got != `workspace-1` {
+		t.Fatalf(`default workspace header value = %q, want preserved`, got)
+	}
+	if defaultDump.Channels[0].ChannelProxy == nil || *defaultDump.Channels[0].ChannelProxy != proxyURL {
+		t.Fatalf(`default channel proxy = %#v, want preserved proxy URL`, defaultDump.Channels[0].ChannelProxy)
+	}
 
 	redactedRecorder := httptest.NewRecorder()
 	redactedCtx, _ := gin.CreateTestContext(redactedRecorder)
@@ -76,6 +96,15 @@ func TestExportDBDefaultsToFullSnapshotAndCanExplicitlyRedactSecrets(t *testing.
 	}
 	if len(redactedDump.APIKeys) == 0 || redactedDump.APIKeys[0].APIKey != `` {
 		t.Fatalf(`redacted api key = %#v, want empty credential`, redactedDump.APIKeys)
+	}
+	if got := redactedDump.Channels[0].CustomHeader[0].HeaderValue; got != `` {
+		t.Fatalf(`redacted auth header value = %q, want empty credential`, got)
+	}
+	if got := redactedDump.Channels[0].CustomHeader[1].HeaderValue; got != `workspace-1` {
+		t.Fatalf(`redacted workspace header value = %q, want preserved non-secret value`, got)
+	}
+	if redactedDump.Channels[0].ChannelProxy == nil || *redactedDump.Channels[0].ChannelProxy != `https://example.com:8443` {
+		t.Fatalf(`redacted channel proxy = %#v, want credentials stripped and endpoint preserved`, redactedDump.Channels[0].ChannelProxy)
 	}
 }
 
@@ -149,8 +178,14 @@ func TestExportDBRejectsInvalidBooleanQueryValues(t *testing.T) {
 
 	for _, target := range []string{
 		`/api/v1/setting/export?include_logs=maybe`,
+		`/api/v1/setting/export?include_logs=`,
+		`/api/v1/setting/export?include_logs=%20`,
 		`/api/v1/setting/export?include_stats=definitely-not`,
+		`/api/v1/setting/export?include_stats=`,
+		`/api/v1/setting/export?include_stats=%20`,
 		`/api/v1/setting/export?include_secrets=redacted-please`,
+		`/api/v1/setting/export?include_secrets=`,
+		`/api/v1/setting/export?include_secrets=%20`,
 	} {
 		recorder := httptest.NewRecorder()
 		ctx, _ := gin.CreateTestContext(recorder)
@@ -177,6 +212,27 @@ func TestExportDBRejectsInvalidFormatQueryValue(t *testing.T) {
 	response := decodeHandlerResponse(t, recorder)
 	if !strings.Contains(response.Message, `unsupported export format`) {
 		t.Fatalf(`message = %q, want unsupported export format`, response.Message)
+	}
+}
+
+func TestExportDBRejectsBlankFormatQueryValue(t *testing.T) {
+	setupHandlerTest(t)
+
+	for _, target := range []string{
+		`/api/v1/setting/export?format=`,
+		`/api/v1/setting/export?format=%20`,
+	} {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, target, nil)
+		exportDB(ctx)
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf(`target %s status = %d, want %d, body = %s`, target, recorder.Code, http.StatusBadRequest, recorder.Body.String())
+		}
+		response := decodeHandlerResponse(t, recorder)
+		if !strings.Contains(response.Message, `unsupported export format`) {
+			t.Fatalf(`target %s message = %q, want unsupported export format`, target, response.Message)
+		}
 	}
 }
 
@@ -260,9 +316,29 @@ func TestImportDBRejectsInvalidDryRunAndModeQueryValues(t *testing.T) {
 		t.Fatalf(`invalid dry_run status = %d, want %d, body = %s`, invalidDryRun.Code, http.StatusBadRequest, invalidDryRun.Body.String())
 	}
 
+	blankDryRun := performImportMultipartHandlerRequest(t, `/api/v1/setting/import?dry_run=&mode=incremental`, dump, nil)
+	if blankDryRun.Code != http.StatusBadRequest {
+		t.Fatalf(`blank dry_run status = %d, want %d, body = %s`, blankDryRun.Code, http.StatusBadRequest, blankDryRun.Body.String())
+	}
+
+	whitespaceDryRun := performImportMultipartHandlerRequest(t, `/api/v1/setting/import?dry_run=%20&mode=incremental`, dump, nil)
+	if whitespaceDryRun.Code != http.StatusBadRequest {
+		t.Fatalf(`whitespace dry_run status = %d, want %d, body = %s`, whitespaceDryRun.Code, http.StatusBadRequest, whitespaceDryRun.Body.String())
+	}
+
 	invalidMode := performImportMultipartHandlerRequest(t, `/api/v1/setting/import?dry_run=true&mode=surprise`, dump, nil)
 	if invalidMode.Code != http.StatusBadRequest {
 		t.Fatalf(`invalid mode status = %d, want %d, body = %s`, invalidMode.Code, http.StatusBadRequest, invalidMode.Body.String())
+	}
+
+	blankMode := performImportMultipartHandlerRequest(t, `/api/v1/setting/import?dry_run=true&mode=`, dump, nil)
+	if blankMode.Code != http.StatusBadRequest {
+		t.Fatalf(`blank mode status = %d, want %d, body = %s`, blankMode.Code, http.StatusBadRequest, blankMode.Body.String())
+	}
+
+	whitespaceMode := performImportMultipartHandlerRequest(t, `/api/v1/setting/import?dry_run=true&mode=%20`, dump, nil)
+	if whitespaceMode.Code != http.StatusBadRequest {
+		t.Fatalf(`whitespace mode status = %d, want %d, body = %s`, whitespaceMode.Code, http.StatusBadRequest, whitespaceMode.Body.String())
 	}
 }
 
@@ -397,6 +473,94 @@ func TestImportDBReplaceApplyRejectsPreviewTokenInQuery(t *testing.T) {
 	applyResponse := decodeHandlerResponse(t, applyRecorder)
 	if !strings.Contains(applyResponse.Message, `preview_token is required`) {
 		t.Fatalf(`message = %q, want preview_token required`, applyResponse.Message)
+	}
+}
+
+func TestImportDBRejectsBlankPreviewTokenFromHeader(t *testing.T) {
+	setupHandlerTest(t)
+	dump := testImportPreviewDump(`https://blank-preview-token-header.example.com`)
+
+	payload, err := json.Marshal(dump)
+	if err != nil {
+		t.Fatalf(`json.Marshal(dump) error = %v`, err)
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, `/api/v1/setting/import?dry_run=false&mode=replace`, bytes.NewReader(payload))
+	ctx.Request.Header.Set(`Content-Type`, `application/json`)
+	ctx.Request.Header.Set(`X-Octopus-Import-Preview-Token`, `   `)
+
+	importDB(ctx)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf(`status = %d, want %d, body = %s`, recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+	response := decodeHandlerResponse(t, recorder)
+	if !strings.Contains(response.Message, `invalid preview_token`) {
+		t.Fatalf(`message = %q, want invalid preview_token`, response.Message)
+	}
+}
+
+func TestImportDBRejectsBlankOptionalFormJSONFields(t *testing.T) {
+	setupHandlerTest(t)
+	dump := testImportPreviewDump(`https://blank-form-fields.example.com`)
+
+	tests := []struct {
+		name        string
+		fieldName   string
+		fieldValue  string
+		wantMessage string
+	}{
+		{name: `blank model_mappings`, fieldName: `model_mappings`, fieldValue: ``, wantMessage: `invalid model_mappings`},
+		{name: `whitespace model_mappings`, fieldName: `model_mappings`, fieldValue: `   `, wantMessage: `invalid model_mappings`},
+		{name: `blank import_scopes`, fieldName: `import_scopes`, fieldValue: ``, wantMessage: `invalid import_scopes`},
+		{name: `whitespace import_scopes`, fieldName: `import_scopes`, fieldValue: `   `, wantMessage: `invalid import_scopes`},
+	}
+
+	for _, tt := range tests {
+		caseData := tt
+		t.Run(caseData.name, func(t *testing.T) {
+			recorder := performImportMultipartHandlerRequest(t, `/api/v1/setting/import?dry_run=true&mode=incremental`, dump, map[string]string{
+				caseData.fieldName: caseData.fieldValue,
+			})
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf(`status = %d, want %d, body = %s`, recorder.Code, http.StatusBadRequest, recorder.Body.String())
+			}
+			response := decodeHandlerResponse(t, recorder)
+			if !strings.Contains(response.Message, caseData.wantMessage) {
+				t.Fatalf(`message = %q, want %q`, response.Message, caseData.wantMessage)
+			}
+		})
+	}
+}
+
+func TestImportDBRejectsBlankModelMappingsEntries(t *testing.T) {
+	setupHandlerTest(t)
+	dump := testImportPreviewDump(`https://blank-model-mappings.example.com`)
+
+	tests := []struct {
+		name    string
+		mapping map[string]string
+	}{
+		{name: `blank source`, mapping: map[string]string{`   `: `gpt-4o`}},
+		{name: `blank target`, mapping: map[string]string{`legacy-model`: `   `}},
+	}
+
+	for _, tt := range tests {
+		caseData := tt
+		t.Run(caseData.name, func(t *testing.T) {
+			recorder := performImportMultipartHandlerRequest(t, `/api/v1/setting/import?dry_run=true&mode=map`, dump, map[string]string{
+				`model_mappings`: marshalHandlerJSONField(t, caseData.mapping),
+			})
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf(`status = %d, want %d, body = %s`, recorder.Code, http.StatusBadRequest, recorder.Body.String())
+			}
+			response := decodeHandlerResponse(t, recorder)
+			if !strings.Contains(response.Message, `invalid model_mappings`) {
+				t.Fatalf(`message = %q, want invalid model_mappings`, response.Message)
+			}
+		})
 	}
 }
 
@@ -900,6 +1064,163 @@ func TestPreviewRollbackImportSnapshotHonorsImportScopes(t *testing.T) {
 	}
 	if preview.RowsSummary[`channels`] != 0 {
 		t.Fatalf(`rows_summary = %#v, want channels summary removed by settings-only scope`, preview.RowsSummary)
+	}
+}
+
+func TestPreviewRollbackImportSnapshotRejectsEmptyImportScopesObject(t *testing.T) {
+	setupHandlerTest(t)
+
+	snapshotDir := filepath.Join(filepath.Dir(filepath.Clean(db.GetCurrentDSN())), `import-snapshots`)
+	if err := os.MkdirAll(snapshotDir, 0o755); err != nil {
+		t.Fatalf(`MkdirAll(snapshotDir) error = %v`, err)
+	}
+	snapshotName := `empty-scope-preview.json`
+	snapshotPath := filepath.Join(snapshotDir, snapshotName)
+	dump := &model.DBDump{
+		Version: 1,
+		Manifest: model.DBDumpManifest{
+			SchemaVersion:   `v1`,
+			ExportSource:    `octopus`,
+			ContainsSecrets: false,
+		},
+		Settings: []model.Setting{{Key: model.SettingKeyAPIBaseURL, Value: `https://empty-scope.example.com`}},
+	}
+	payload, err := json.MarshalIndent(dump, ``, `  `)
+	if err != nil {
+		t.Fatalf(`json.MarshalIndent(dump) error = %v`, err)
+	}
+	if err := os.WriteFile(snapshotPath, payload, 0o644); err != nil {
+		t.Fatalf(`WriteFile(snapshotPath) error = %v`, err)
+	}
+
+	recorder := performJSONHandlerRequest(t, http.MethodPost, `/api/v1/setting/preview-rollback-import-snapshot`, map[string]any{
+		`snapshot_name`: snapshotName,
+		`import_scopes`: model.DBImportScopes{},
+	}, previewRollbackImportSnapshot)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf(`status = %d, want %d, body = %s`, recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+	response := decodeHandlerResponse(t, recorder)
+	if !strings.Contains(response.Message, `at least one import scope must be enabled`) {
+		t.Fatalf(`message = %q, want at least one import scope must be enabled`, response.Message)
+	}
+}
+
+func TestImportDBRejectsEmptyImportScopesObject(t *testing.T) {
+	setupHandlerTest(t)
+	dump := testImportPreviewDump(`https://empty-import-scope.example.com`)
+
+	recorder := performImportMultipartHandlerRequest(t, `/api/v1/setting/import?dry_run=true&mode=incremental`, dump, map[string]string{
+		`import_scopes`: marshalHandlerJSONField(t, model.DBImportScopes{}),
+	})
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf(`status = %d, want %d, body = %s`, recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+	response := decodeHandlerResponse(t, recorder)
+	if !strings.Contains(response.Message, `at least one import scope must be enabled`) {
+		t.Fatalf(`message = %q, want at least one import scope must be enabled`, response.Message)
+	}
+}
+
+func TestImportDBDryRunWithoutImportScopesStillDefaultsToFullScope(t *testing.T) {
+	setupHandlerTest(t)
+	dump := testImportPreviewDump(`https://empty-import-scope.example.com`)
+
+	recorder := performImportMultipartHandlerRequest(t, `/api/v1/setting/import?dry_run=true&mode=incremental`, dump, nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf(`status = %d, want %d, body = %s`, recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	response := decodeHandlerResponse(t, recorder)
+	var result model.DBImportResult
+	if err := json.Unmarshal(response.Data, &result); err != nil {
+		t.Fatalf(`json.Unmarshal(result) error = %v`, err)
+	}
+	if result.Compatibility == nil || result.Compatibility.Summary == nil {
+		t.Fatalf(`compatibility = %#v, want populated summary`, result.Compatibility)
+	}
+	if result.PreviewToken == `` {
+		t.Fatal(`preview_token = empty, want dry-run preview token`)
+	}
+}
+
+func TestRollbackImportSnapshotRejectsEmptyImportScopesObject(t *testing.T) {
+	setupHandlerTest(t)
+
+	snapshotDir := filepath.Join(filepath.Dir(filepath.Clean(db.GetCurrentDSN())), `import-snapshots`)
+	if err := os.MkdirAll(snapshotDir, 0o755); err != nil {
+		t.Fatalf(`MkdirAll(snapshotDir) error = %v`, err)
+	}
+	snapshotName := `empty-rollback-scope.json`
+	snapshotPath := filepath.Join(snapshotDir, snapshotName)
+	dump := &model.DBDump{
+		Version: 1,
+		Manifest: model.DBDumpManifest{
+			SchemaVersion:   `v1`,
+			ExportSource:    `octopus`,
+			ContainsSecrets: false,
+		},
+		Settings: []model.Setting{{Key: model.SettingKeyAPIBaseURL, Value: `https://empty-rollback.example.com`}},
+	}
+	payload, err := json.MarshalIndent(dump, ``, `  `)
+	if err != nil {
+		t.Fatalf(`json.MarshalIndent(dump) error = %v`, err)
+	}
+	if err := os.WriteFile(snapshotPath, payload, 0o644); err != nil {
+		t.Fatalf(`WriteFile(snapshotPath) error = %v`, err)
+	}
+
+	recorder := performJSONHandlerRequest(t, http.MethodPost, `/api/v1/setting/rollback-import-snapshot`, map[string]any{
+		`snapshot_name`: snapshotName,
+		`import_scopes`: model.DBImportScopes{},
+	}, rollbackImportSnapshot)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf(`status = %d, want %d, body = %s`, recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+	response := decodeHandlerResponse(t, recorder)
+	if !strings.Contains(response.Message, `at least one import scope must be enabled`) {
+		t.Fatalf(`message = %q, want at least one import scope must be enabled`, response.Message)
+	}
+}
+
+func TestRollbackImportSnapshotWithoutImportScopesStillDefaultsToFullScope(t *testing.T) {
+	setupHandlerTest(t)
+
+	snapshotDir := filepath.Join(filepath.Dir(filepath.Clean(db.GetCurrentDSN())), `import-snapshots`)
+	if err := os.MkdirAll(snapshotDir, 0o755); err != nil {
+		t.Fatalf(`MkdirAll(snapshotDir) error = %v`, err)
+	}
+	snapshotName := `empty-rollback-scope-full.json`
+	snapshotPath := filepath.Join(snapshotDir, snapshotName)
+	dump := &model.DBDump{
+		Version: 1,
+		Manifest: model.DBDumpManifest{
+			SchemaVersion:   `v1`,
+			ExportSource:    `octopus`,
+			ContainsSecrets: false,
+		},
+		Settings: []model.Setting{{Key: model.SettingKeyAPIBaseURL, Value: `https://empty-rollback.example.com`}},
+	}
+	payload, err := json.MarshalIndent(dump, ``, `  `)
+	if err != nil {
+		t.Fatalf(`json.MarshalIndent(dump) error = %v`, err)
+	}
+	if err := os.WriteFile(snapshotPath, payload, 0o644); err != nil {
+		t.Fatalf(`WriteFile(snapshotPath) error = %v`, err)
+	}
+
+	recorder := performJSONHandlerRequest(t, http.MethodPost, `/api/v1/setting/rollback-import-snapshot`, map[string]any{
+		`snapshot_name`: snapshotName,
+	}, rollbackImportSnapshot)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf(`status = %d, want %d, body = %s`, recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	response := decodeHandlerResponse(t, recorder)
+	var result map[string]any
+	if err := json.Unmarshal(response.Data, &result); err != nil {
+		t.Fatalf(`json.Unmarshal(result) error = %v`, err)
+	}
+	if _, ok := result[`applied_scopes`]; ok {
+		t.Fatalf(`applied_scopes = %#v, want omitted full-scope default`, result[`applied_scopes`])
 	}
 }
 

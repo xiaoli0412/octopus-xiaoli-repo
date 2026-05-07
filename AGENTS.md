@@ -287,6 +287,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify-go-env.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-go-env.ps1 -GoFmt
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-go-env.ps1 -GoTest
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-go-env.ps1 -GoBuild
+powershell -ExecutionPolicy Bypass -File .\scripts\verify-go-env.ps1 -PhaseA
 
 # Windows：本地后端最小冒烟（含 mock upstream、登录、建 channel/group/apikey、网关转发）
 powershell -ExecutionPolicy Bypass -File .\scripts\smoke-win-backend.ps1
@@ -301,9 +302,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\runtime-win.ps1 -Action healt
 
 # Windows：前端 no-browser 统一验证入口与 TypeScript 校验
 . .\scripts\use-node-env.ps1
+pnpm --dir web run test
 pnpm --dir web run test:settings-no-browser
 pnpm --dir web run test:screenshot-no-browser
 & $env:NODEEXE .\web\node_modules\typescript\bin\tsc --noEmit -p .\web\tsconfig.json
+
+# Windows：前端静态导出与 static/out 同步
+pnpm --dir web run build:static
 
 # Windows：browser smoke 静态守门与统一 screenshot 入口
 node .\scripts\verify-browser-smoke-wrapper-alignment.mjs
@@ -353,6 +358,9 @@ export OCTOPUS_LOG_LEVEL=info
 | [scripts/use-go-env.ps1](scripts/use-go-env.ps1) | Windows PowerShell 会话级 Go 工具链入口 |
 | [scripts/use-node-env.ps1](scripts/use-node-env.ps1) | Windows PowerShell 会话级 Node / pnpm / corepack 环境入口 |
 | [scripts/verify-go-env.ps1](scripts/verify-go-env.ps1) | Windows Go 环境与工作区缓存校验 |
+| [scripts/phase-a-check.ps1](scripts/phase-a-check.ps1) | Windows Phase A 聚合校验入口（`verify-go-env.ps1 -PhaseA` 调用） |
+| [scripts/build-web-static.mjs](scripts/build-web-static.mjs) | 前端静态导出与 `web/out -> static/out` 同步入口 |
+| [scripts/install.sh](scripts/install.sh) | Linux 服务器一键安装入口（默认拉取官方发布镜像并处理端口探测） |
 | [scripts/run-frontend-verification-suite.mjs](scripts/run-frontend-verification-suite.mjs) | 前端 no-browser 聚合验证入口 |
 | [scripts/verify-browser-smoke-wrapper-alignment.mjs](scripts/verify-browser-smoke-wrapper-alignment.mjs) | browser smoke wrapper 静态守门 |
 | [scripts/verify-ai-automation-learning-focus.mjs](scripts/verify-ai-automation-learning-focus.mjs) | AI 自动化 learning 断言守门 |
@@ -360,6 +368,7 @@ export OCTOPUS_LOG_LEVEL=info
 | [scripts/smoke-linux-backend.sh](scripts/smoke-linux-backend.sh) | Linux / WSL 本地后端冒烟脚本 |
 | [scripts/smoke-docker-compose.sh](scripts/smoke-docker-compose.sh) | Docker Compose 运行时冒烟脚本 |
 | [scripts/runtime-win.ps1](scripts/runtime-win.ps1) | Windows 本地运行时状态/停止/healthcheck 工具 |
+| [.github/workflows/validation.yaml](.github/workflows/validation.yaml) | 仓库 CI 验证链入口（前端/后端/运行态 smoke） |
 
 ## Docker 部署
 
@@ -367,11 +376,20 @@ export OCTOPUS_LOG_LEVEL=info
 # 使用 docker-compose
 docker compose up -d
 
+# 可选：覆盖默认外部端口/数据目录/容器名
+OCTOPUS_PORT=1088 \
+OCTOPUS_DATA_DIR=./data \
+OCTOPUS_CONTAINER_NAME=octopus \
+docker compose up -d
+
 # 或直接运行
 docker run -d \
   -v /path/to/data:/app/data \
-  -p 8080:8080 \
-  ghcr.io/xiaoli0412/octopus-xiaoli-repo:latest
+  -p 1088:1088 \
+  ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.16.4
+
+# Linux 服务器可直接使用仓库内安装脚本
+curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
 ```
 
 ## 贡献指南

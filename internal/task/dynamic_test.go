@@ -23,6 +23,7 @@ func resetTasksForTest() {
 	taskRunnerWG = sync.WaitGroup{}
 	taskRunStopCh = make(chan struct{})
 	taskRunStopOnce = sync.Once{}
+	resetTaskRunContext()
 }
 
 func taskIntervalForTest(name string) (time.Duration, bool) {
@@ -367,6 +368,60 @@ func TestStopAllStopsRunningTaskLoopAndWaitsForExecution(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("StopAll() did not return after task release")
+	}
+
+	select {
+	case <-runDone:
+	case <-time.After(time.Second):
+		t.Fatal("RUN() did not exit after StopAll()")
+	}
+}
+
+func TestStopAllCancelsTaskDerivedContexts(t *testing.T) {
+	resetTasksForTest()
+	t.Cleanup(resetTasksForTest)
+
+	started := make(chan struct{}, 1)
+	finished := make(chan struct{}, 1)
+
+	Register("stop-all-cancel-context", time.Hour, true, func() {
+		ctx, cancel := taskContextWithTimeout(30 * time.Minute)
+		defer cancel()
+		started <- struct{}{}
+		<-ctx.Done()
+		finished <- struct{}{}
+	})
+
+	runDone := make(chan struct{})
+	go func() {
+		defer close(runDone)
+		RUN()
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("task execution did not start in time")
+	}
+
+	stopDone := make(chan error, 1)
+	go func() {
+		stopDone <- StopAll()
+	}()
+
+	select {
+	case err := <-stopDone:
+		if err != nil {
+			t.Fatalf("StopAll() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("StopAll() did not return after canceling task context")
+	}
+
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("task derived context was not canceled on StopAll()")
 	}
 
 	select {

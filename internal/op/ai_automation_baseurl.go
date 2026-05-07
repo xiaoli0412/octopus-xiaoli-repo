@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/xurl"
 )
 
 func resolveAIAutomationBaseURL(raw string, useLocalDefault bool) (string, error) {
@@ -28,13 +29,12 @@ func validateAIAutomationBaseURL(raw string) error {
 	if trimmed == "" {
 		return nil
 	}
+	if err := xurl.ValidateAbsoluteHTTPURL(trimmed, "ai automation base URL"); err != nil {
+		return err
+	}
 	parsed, err := url.Parse(trimmed)
 	if err != nil {
 		return fmt.Errorf("ai automation base URL is invalid: %w", err)
-	}
-	scheme := strings.ToLower(strings.TrimSpace(parsed.Scheme))
-	if !parsed.IsAbs() || (scheme != "http" && scheme != "https") || strings.TrimSpace(parsed.Host) == "" {
-		return fmt.Errorf("ai automation base URL must be absolute http or https URL")
 	}
 	if strings.TrimSpace(parsed.RawQuery) != "" || strings.TrimSpace(parsed.Fragment) != "" {
 		return fmt.Errorf("ai automation base URL must not contain query or fragment")

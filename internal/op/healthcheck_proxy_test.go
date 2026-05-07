@@ -44,6 +44,12 @@ func TestHealthDialProxyContextUsesContextDialerWhenAvailable(t *testing.T) {
 	}
 }
 
+func TestNewHealthHTTPClientCustomProxyRejectsCredentials(t *testing.T) {
+	if _, err := newHealthHTTPClientCustomProxy("http://user:pass@127.0.0.1:8080"); err == nil {
+		t.Fatal("newHealthHTTPClientCustomProxy() error = nil, want credential rejection")
+	}
+}
+
 func TestHealthDialProxyContextCancelsFallbackDial(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

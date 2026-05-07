@@ -3,6 +3,7 @@ package op
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db"
@@ -11,12 +12,27 @@ import (
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/diff"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/log"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/xstrings"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/xurl"
 )
 
 var channelCache = cache.New[int, model.Channel](16)
 var channelKeyCache = cache.New[int, model.ChannelKey](16)
 var channelKeyCacheNeedUpdate = make(map[int]struct{})
 var channelKeyCacheNeedUpdateLock sync.Mutex
+
+func normalizeAndValidateBaseURLs(baseURLs []model.BaseUrl) ([]model.BaseUrl, error) {
+	if len(baseURLs) == 0 {
+		return nil, nil
+	}
+	validated := make([]model.BaseUrl, len(baseURLs))
+	for i, baseURL := range baseURLs {
+		if err := xurl.ValidateAbsoluteHTTPURL(baseURL.URL, "base_url"); err != nil {
+			return nil, err
+		}
+		validated[i] = model.BaseUrl{URL: strings.TrimSpace(baseURL.URL), Delay: baseURL.Delay}
+	}
+	return validated, nil
+}
 
 func ChannelList(ctx context.Context) ([]model.Channel, error) {
 	channels := channelCache.Values()
@@ -39,6 +55,15 @@ func ChannelCreate(channel *model.Channel, ctx context.Context) error {
 		}
 		channel.Keys[i].SourceType = normalizedSourceType
 		channel.Keys[i].AllowedModels = model.NormalizeChannelKeyAllowedModels(channel.Keys[i].AllowedModels)
+	}
+	validatedBaseURLs, err := normalizeAndValidateBaseURLs(channel.BaseUrls)
+	if err != nil {
+		return err
+	}
+	channel.BaseUrls = validatedBaseURLs
+	channel.ChannelProxy = model.NormalizeChannelProxy(channel.ChannelProxy)
+	if err := model.ValidateChannelProxy(channel.ChannelProxy); err != nil {
+		return err
 	}
 	if err := db.GetDB().WithContext(ctx).Create(channel).Error; err != nil {
 		return err
@@ -84,13 +109,11 @@ func ChannelBaseUrlUpdate(channelID int, baseUrl []model.BaseUrl) error {
 	if !ok {
 		return fmt.Errorf("channel not found")
 	}
-	if baseUrl == nil {
-		ch.BaseUrls = nil
-	} else {
-		cp := make([]model.BaseUrl, len(baseUrl))
-		copy(cp, baseUrl)
-		ch.BaseUrls = cp
+	validatedBaseURLs, err := normalizeAndValidateBaseURLs(baseUrl)
+	if err != nil {
+		return err
 	}
+	ch.BaseUrls = validatedBaseURLs
 	channelCache.Set(channelID, ch)
 	return nil
 }
@@ -147,6 +170,9 @@ func ChannelUpdate(req *model.ChannelUpdateRequest, ctx context.Context) (*model
 	modelsChanged := req.Model != nil || req.CustomModel != nil
 
 	tx := db.GetDB().WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
@@ -187,8 +213,13 @@ func ChannelUpdate(req *model.ChannelUpdateRequest, ctx context.Context) (*model
 		updates.KeyRoutingPolicy = normalizedPolicy
 	}
 	if req.BaseUrls != nil {
+		validatedBaseURLs, err := normalizeAndValidateBaseURLs(*req.BaseUrls)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
 		selectFields = append(selectFields, "base_urls")
-		updates.BaseUrls = *req.BaseUrls
+		updates.BaseUrls = validatedBaseURLs
 	}
 	if req.Model != nil {
 		selectFields = append(selectFields, "model")
@@ -215,8 +246,13 @@ func ChannelUpdate(req *model.ChannelUpdateRequest, ctx context.Context) (*model
 		updates.CustomHeader = *req.CustomHeader
 	}
 	if req.ChannelProxy != nil {
+		normalizedProxy := model.NormalizeChannelProxy(req.ChannelProxy)
+		if err := model.ValidateChannelProxy(normalizedProxy); err != nil {
+			tx.Rollback()
+			return nil, err
+		}
 		selectFields = append(selectFields, "channel_proxy")
-		updates.ChannelProxy = req.ChannelProxy
+		updates.ChannelProxy = normalizedProxy
 	}
 	if req.ParamOverride != nil {
 		selectFields = append(selectFields, "param_override")
@@ -402,6 +438,9 @@ func ChannelDel(id int, ctx context.Context) error {
 	}
 
 	tx := db.GetDB().WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
@@ -128,51 +127,63 @@ func createAITask(c *gin.Context) {
 }
 
 func listAITasks(c *gin.Context) {
-	page, err := parseOptionalIntQuery(c, "page", 1)
+	page, _, err := parseOptionalBoundedIntQuery(c, "page", 1, 1, 0)
 	if err != nil {
-		resp.Error(c, http.StatusBadRequest, err.Error())
-		return
-	}
-	if page <= 0 {
 		resp.Error(c, http.StatusBadRequest, "invalid page")
 		return
 	}
-	pageSize, err := parseOptionalIntQuery(c, "page_size", 20)
+	pageSize, _, err := parseOptionalBoundedIntQuery(c, "page_size", 20, 1, 100)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, "invalid page_size")
+		return
+	}
+	if int64(page-1)*int64(pageSize) >= 10000 {
+		resp.Error(c, http.StatusBadRequest, "invalid page")
+		return
+	}
+	status, _, err := parseOptionalNonEmptyTrimmedStringQuery(c, "status")
 	if err != nil {
 		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	if pageSize <= 0 {
-		resp.Error(c, http.StatusBadRequest, "invalid page_size")
+	taskType, _, err := parseOptionalNonEmptyTrimmedStringQuery(c, "type")
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	if pageSize > 100 {
-		resp.Error(c, http.StatusBadRequest, "invalid page_size")
+	profileDomain, _, err := parseOptionalNonEmptyTrimmedStringQuery(c, "profile_domain")
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	keyword, _, err := parseOptionalNonEmptyTrimmedStringQuery(c, "keyword")
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	req := model.AITaskListRequest{
 		Page:          page,
 		PageSize:      pageSize,
-		Status:        strings.TrimSpace(c.Query("status")),
-		Type:          strings.TrimSpace(c.Query("type")),
-		ProfileDomain: strings.TrimSpace(c.Query("profile_domain")),
-		Keyword:       strings.TrimSpace(c.Query("keyword")),
+		Status:        status,
+		Type:          taskType,
+		ProfileDomain: profileDomain,
+		Keyword:       keyword,
 	}
-	if value := strings.TrimSpace(c.Query("created_from")); value != "" {
-		if parsed, err := time.Parse(time.RFC3339, value); err == nil {
-			req.CreatedFrom = parsed
-		} else {
-			resp.Error(c, http.StatusBadRequest, "invalid created_from")
-			return
-		}
+	createdFrom, err := parseOptionalRFC3339TimeQuery(c, "created_from")
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
 	}
-	if value := strings.TrimSpace(c.Query("created_to")); value != "" {
-		if parsed, err := time.Parse(time.RFC3339, value); err == nil {
-			req.CreatedTo = parsed
-		} else {
-			resp.Error(c, http.StatusBadRequest, "invalid created_to")
-			return
-		}
+	if createdFrom != nil {
+		req.CreatedFrom = *createdFrom
+	}
+	createdTo, err := parseOptionalRFC3339TimeQuery(c, "created_to")
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if createdTo != nil {
+		req.CreatedTo = *createdTo
 	}
 	result, err := op.AITaskList(req, c.Request.Context())
 	if err != nil {

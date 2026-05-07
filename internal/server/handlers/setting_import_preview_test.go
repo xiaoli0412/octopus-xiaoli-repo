@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/conf"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/conf"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 )
 
 func TestVerifyImportPreviewTokenAcceptsSignedToken(t *testing.T) {
@@ -74,6 +75,48 @@ func TestVerifyImportPreviewTokenRejectsUnexpectedSigningMethod(t *testing.T) {
 	err := verifyImportPreviewToken(token, "digest-method")
 	if err == nil || !strings.Contains(err.Error(), "preview_token is invalid or expired") {
 		t.Fatalf("verifyImportPreviewToken() error = %v, want invalid or expired", err)
+	}
+}
+
+func TestBuildImportPreviewDigestRejectsInvalidMode(t *testing.T) {
+	setupHandlerTest(t)
+
+	_, err := buildImportPreviewDigest(&model.DBDump{Version: 1}, model.DBImportMode("surprise"), model.DBImportOptions{})
+	if err == nil {
+		t.Fatal("buildImportPreviewDigest() expected unsupported import mode error")
+	}
+	if !strings.Contains(err.Error(), "unsupported import mode") {
+		t.Fatalf("buildImportPreviewDigest() error = %v, want unsupported import mode", err)
+	}
+}
+
+func TestBuildImportPreviewDigestAcceptsValidMode(t *testing.T) {
+	setupHandlerTest(t)
+
+	if _, err := buildImportPreviewDigest(&model.DBDump{Version: 1}, model.DBImportModeIncremental, model.DBImportOptions{}); err != nil {
+		t.Fatalf("buildImportPreviewDigest() error = %v, want nil", err)
+	}
+}
+
+func TestBuildImportPreviewDigestRejectsBlankModelMappings(t *testing.T) {
+	setupHandlerTest(t)
+
+	tests := []struct {
+		name    string
+		mapping map[string]string
+	}{
+		{name: "blank source", mapping: map[string]string{"   ": "gpt-4o"}},
+		{name: "blank target", mapping: map[string]string{"legacy-model": "   "}},
+	}
+
+	for _, tt := range tests {
+		tc := tt
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := buildImportPreviewDigest(&model.DBDump{Version: 1}, model.DBImportModeMap, model.DBImportOptions{ModelMappings: tc.mapping})
+			if err == nil || !strings.Contains(err.Error(), "invalid model_mappings") {
+				t.Fatalf("buildImportPreviewDigest() error = %v, want invalid model_mappings", err)
+			}
+		})
 	}
 }
 

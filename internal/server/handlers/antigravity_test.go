@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
-	"github.com/gin-gonic/gin"
 )
 
 func TestAntigravityHTTPClientHasTimeout(t *testing.T) {
@@ -167,6 +167,93 @@ func TestAntigravityOAuthCallbackRejectsOversizedTokenResponse(t *testing.T) {
 	}
 	if !strings.Contains(session.Error, "antigravity token response too large") {
 		t.Fatalf("session.Error = %q, want oversized response message", session.Error)
+	}
+}
+
+func TestAntigravityOAuthCallbackRejectsBlankState(t *testing.T) {
+	setupHandlerTest(t)
+	defer resetLoginThrottleState()
+
+	ctxRecorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(ctxRecorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/channel/antigravity/oauth/callback?state=%20", nil)
+
+	antigravityOAuthCallback(ctx)
+
+	if ctxRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("callback status = %d, want %d", ctxRecorder.Code, http.StatusBadRequest)
+	}
+	if body := strings.TrimSpace(ctxRecorder.Body.String()); body != "missing state" {
+		t.Fatalf("callback body = %q, want %q", body, "missing state")
+	}
+}
+
+func TestAntigravityOAuthCallbackRejectsBlankCode(t *testing.T) {
+	setupHandlerTest(t)
+	defer resetLoginThrottleState()
+
+	state := "blank-code-state"
+	antigravityOAuthLock.Lock()
+	antigravityOAuthSessions = map[string]*antigravityOAuthSession{
+		state: {Status: "pending", CreatedAt: time.Now()},
+	}
+	antigravityOAuthLock.Unlock()
+
+	ctxRecorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(ctxRecorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/channel/antigravity/oauth/callback?state="+state+"&code=%20", nil)
+
+	antigravityOAuthCallback(ctx)
+
+	if ctxRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("callback status = %d, want %d", ctxRecorder.Code, http.StatusBadRequest)
+	}
+	if body := strings.TrimSpace(ctxRecorder.Body.String()); body != "missing code" {
+		t.Fatalf("callback body = %q, want %q", body, "missing code")
+	}
+
+	antigravityOAuthLock.Lock()
+	defer antigravityOAuthLock.Unlock()
+	if session := antigravityOAuthSessions[state]; session == nil || session.Status != "pending" {
+		t.Fatalf("session = %#v, want pending session preserved", session)
+	}
+}
+
+func TestAntigravityOAuthCallbackTrimsOAuthErrorFields(t *testing.T) {
+	setupHandlerTest(t)
+	defer resetLoginThrottleState()
+
+	state := "trimmed-error-state"
+	antigravityOAuthLock.Lock()
+	antigravityOAuthSessions = map[string]*antigravityOAuthSession{
+		state: {Status: "pending", CreatedAt: time.Now()},
+	}
+	antigravityOAuthLock.Unlock()
+
+	ctxRecorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(ctxRecorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/channel/antigravity/oauth/callback?state=%20"+state+"%20&error=%20access_denied%20&error_description=%20user%20cancelled%20", nil)
+
+	antigravityOAuthCallback(ctx)
+
+	if ctxRecorder.Code != http.StatusOK {
+		t.Fatalf("callback status = %d, want %d", ctxRecorder.Code, http.StatusOK)
+	}
+	if !strings.Contains(ctxRecorder.Body.String(), "Authorization failed") {
+		t.Fatalf("callback body = %q, want Authorization failed page", ctxRecorder.Body.String())
+	}
+
+	antigravityOAuthLock.Lock()
+	defer antigravityOAuthLock.Unlock()
+	session := antigravityOAuthSessions[state]
+	if session == nil {
+		t.Fatalf("session = nil, want stored failed session")
+	}
+	if session.Status != "failed" {
+		t.Fatalf("session.Status = %q, want failed", session.Status)
+	}
+	if session.Error != "user cancelled" {
+		t.Fatalf("session.Error = %q, want %q", session.Error, "user cancelled")
 	}
 }
 

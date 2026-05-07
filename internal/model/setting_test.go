@@ -60,6 +60,33 @@ func TestSettingValidateRejectsUnsupportedProxyScheme(t *testing.T) {
 	}
 }
 
+func TestSettingValidateRejectsProxyURLWithCredentials(t *testing.T) {
+	s := Setting{Key: SettingKeyProxyURL, Value: "http://user:pass@127.0.0.1:8080"}
+	err := s.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want credential rejection")
+	}
+	if got, want := err.Error(), "proxy URL must not include credentials"; got != want {
+		t.Fatalf("Validate() error = %q, want %q", got, want)
+	}
+}
+
+func TestSettingValidateRejectsBaseURLWithCredentials(t *testing.T) {
+	cases := []SettingKey{SettingKeyAPIBaseURL, SettingKeyAIAutomationBaseURL}
+	for _, key := range cases {
+		t.Run(string(key), func(t *testing.T) {
+			s := Setting{Key: key, Value: "https://user:pass@example.com/v1"}
+			err := s.Validate()
+			if err == nil {
+				t.Fatal("Validate() error = nil, want credential rejection")
+			}
+			if got := err.Error(); got != "api base URL must not include credentials" {
+				t.Fatalf("Validate() error = %q, want %q", got, "api base URL must not include credentials")
+			}
+		})
+	}
+}
+
 func TestSettingValidateAllowsDynamicRoutingModes(t *testing.T) {
 	modes := []string{"shadow-ai", "hybrid", "metrics-only", "strict-mechanism", "incident-safe"}
 
@@ -113,7 +140,7 @@ func TestSettingValidateRejectsInvalidAIAutomationSettings(t *testing.T) {
 		{setting: Setting{Key: SettingKeyAIAutomationEnabled, Value: "yes"}, want: "setting value must be true or false"},
 		{setting: Setting{Key: SettingKeyConfigSourceMode, Value: "overwrite"}, want: "setting value must be manual or ai_profile"},
 		{setting: Setting{Key: SettingKeyActiveAIProfileID, Value: "-1"}, want: "setting value must be a non-negative integer"},
-		{setting: Setting{Key: SettingKeyAIAutomationBaseURL, Value: "ftp://127.0.0.1"}, want: "api base URL scheme must be http or https"},
+		{setting: Setting{Key: SettingKeyAIAutomationBaseURL, Value: "ftp://127.0.0.1"}, want: "api base URL must be absolute http or https URL"},
 		{setting: Setting{Key: SettingKeyAIAutomationChannelType, Value: "unknown"}, want: "setting value must be openai-compatible, openai, anthropic, or gemini"},
 	}
 

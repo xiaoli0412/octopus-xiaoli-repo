@@ -1,6 +1,7 @@
 package op
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -91,6 +92,29 @@ func TestDBExportAllRedactsUserPasswordsWhenSecretsExcluded(t *testing.T) {
 	ctx := setupOpTestDB(t)
 	exportedUser := createTestUser(t, ctx, "backup-admin", "backup-secret")
 
+	proxyURL := "https://octopus:secret@example.com:8443"
+	channel := model.Channel{
+		Name:    "redacted-export-channel",
+		Enabled: true,
+		CustomHeader: []model.CustomHeader{
+			{HeaderKey: "Authorization", HeaderValue: "Bearer upstream-secret"},
+			{HeaderKey: "X-Workspace-ID", HeaderValue: "workspace-1"},
+			{HeaderKey: "X-Trace-Label", HeaderValue: "blue"},
+		},
+		ChannelProxy: &proxyURL,
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&channel).Error; err != nil {
+		t.Fatalf("create channel error = %v", err)
+	}
+	channelKey := model.ChannelKey{ChannelID: channel.ID, Enabled: true, ChannelKey: "upstream-key"}
+	if err := db.GetDB().WithContext(ctx).Create(&channelKey).Error; err != nil {
+		t.Fatalf("create channel key error = %v", err)
+	}
+	apiKey := model.APIKey{Name: "client", APIKey: "sk-octopus-client-secret", Enabled: true}
+	if err := db.GetDB().WithContext(ctx).Create(&apiKey).Error; err != nil {
+		t.Fatalf("create api key error = %v", err)
+	}
+
 	dump, err := DBExportAll(ctx, false, false, false)
 	if err != nil {
 		t.Fatalf("DBExportAll() error = %v", err)
@@ -110,6 +134,27 @@ func TestDBExportAllRedactsUserPasswordsWhenSecretsExcluded(t *testing.T) {
 	}
 	if exportedBackupAdmin.Password != "" {
 		t.Fatalf("exported user password = %q, want empty after redaction", exportedBackupAdmin.Password)
+	}
+	if len(dump.ChannelKeys) != 1 || dump.ChannelKeys[0].ChannelKey != "" {
+		t.Fatalf("redacted channel keys = %#v, want empty credential", dump.ChannelKeys)
+	}
+	if len(dump.APIKeys) != 1 || dump.APIKeys[0].APIKey != "" {
+		t.Fatalf("redacted api keys = %#v, want empty credential", dump.APIKeys)
+	}
+	if len(dump.Channels) != 1 {
+		t.Fatalf("redacted channels len = %d, want 1", len(dump.Channels))
+	}
+	if got := dump.Channels[0].CustomHeader[0].HeaderValue; got != "" {
+		t.Fatalf("authorization header value = %q, want empty after redaction", got)
+	}
+	if got := dump.Channels[0].CustomHeader[1].HeaderValue; got != "workspace-1" {
+		t.Fatalf("workspace header value = %q, want preserved non-secret value", got)
+	}
+	if got := dump.Channels[0].CustomHeader[2].HeaderValue; got != "blue" {
+		t.Fatalf("trace header value = %q, want preserved non-secret value", got)
+	}
+	if dump.Channels[0].ChannelProxy == nil || *dump.Channels[0].ChannelProxy != "https://example.com:8443" {
+		t.Fatalf("redacted channel proxy = %#v, want credentials stripped and endpoint preserved", dump.Channels[0].ChannelProxy)
 	}
 }
 
@@ -419,6 +464,28 @@ func TestDBImportIncrementalRejectsUnknownSettingKey(t *testing.T) {
 	_, err := DBImportIncremental(ctx, dump, model.DBImportModeIncremental, true)
 	if err == nil || !strings.Contains(err.Error(), "unknown setting key: unknown_setting_key") {
 		t.Fatalf("DBImportIncremental() error = %v, want unknown setting key error", err)
+	}
+}
+
+func TestDBImportIncrementalRejectsChannelProxyWithCredentials(t *testing.T) {
+	ctx := setupOpTestDB(t)
+	proxyURL := "https://user:pass@example.com:8443"
+
+	_, err := DBImportIncremental(ctx, &model.DBDump{
+		Version: dbDumpVersion,
+		Channels: []model.Channel{{
+			ID:           1,
+			Name:         "import-channel-proxy-creds",
+			Enabled:      true,
+			Model:        "gpt-4o",
+			ChannelProxy: &proxyURL,
+		}},
+	}, model.DBImportModeIncremental, true)
+	if err == nil {
+		t.Fatalf("DBImportIncremental() expected invalid channel proxy error")
+	}
+	if got, want := err.Error(), "invalid channel import-channel-proxy-creds proxy: channel_proxy must not include credentials"; got != want {
+		t.Fatalf("DBImportIncremental() error = %q, want %q", got, want)
 	}
 }
 
@@ -1593,6 +1660,52 @@ func TestDBImportIncrementalDryRunReplacePreviewShowsAPIKeyPruneWhenSecretsComeF
 	}
 }
 
+func TestDBPreviewRollbackImportSnapshotRejectsEmptyImportScopes(t *testing.T) {
+	ctx := setupOpTestDB(t)
+	snapshotName := createImportSnapshotForRollbackScopeTest(t, ctx)
+
+	preview, err := DBPreviewRollbackImportSnapshot(ctx, snapshotName, &model.DBImportScopes{})
+	if err == nil {
+		t.Fatalf("DBPreviewRollbackImportSnapshot() preview = %#v, want validation error", preview)
+	}
+	if err.Error() != "at least one import scope must be enabled" {
+		t.Fatalf("DBPreviewRollbackImportSnapshot() error = %v, want at least one import scope must be enabled", err)
+	}
+}
+
+func TestDBRollbackImportSnapshotRejectsEmptyImportScopes(t *testing.T) {
+	ctx := setupOpTestDB(t)
+	snapshotName := createImportSnapshotForRollbackScopeTest(t, ctx)
+
+	result, err := DBRollbackImportSnapshot(ctx, snapshotName, &model.DBImportScopes{})
+	if err == nil {
+		t.Fatalf("DBRollbackImportSnapshot() result = %#v, want validation error", result)
+	}
+	if err.Error() != "at least one import scope must be enabled" {
+		t.Fatalf("DBRollbackImportSnapshot() error = %v, want at least one import scope must be enabled", err)
+	}
+}
+
+func createImportSnapshotForRollbackScopeTest(t *testing.T, ctx context.Context) string {
+	t.Helper()
+
+	if _, err := DBImportIncremental(ctx, &model.DBDump{
+		Version:  dbDumpVersion,
+		Manifest: model.DBDumpManifest{SchemaVersion: "v1", ExportSource: "octopus", ContainsSecrets: true},
+		Settings: []model.Setting{{Key: model.SettingKeyAPIBaseURL, Value: "https://rollback-scope.example.com"}},
+	}, model.DBImportModeIncremental, false); err != nil {
+		t.Fatalf("DBImportIncremental() error = %v", err)
+	}
+	snapshots, err := DBListImportSnapshots()
+	if err != nil {
+		t.Fatalf("DBListImportSnapshots() error = %v", err)
+	}
+	if len(snapshots) == 0 {
+		t.Fatal("DBListImportSnapshots() returned no snapshots")
+	}
+	return snapshots[0].SnapshotName
+}
+
 func TestDBImportIncrementalMapModeAppliesModelMappingsToRoutePreviewAndImport(t *testing.T) {
 	ctx := setupOpTestDB(t)
 
@@ -1742,6 +1855,36 @@ func TestDBImportIncrementalMapModeAppliesModelMappingsToRoutePreviewAndImport(t
 	}
 	if storedItems[0].ModelName != "gpt-4o" {
 		t.Fatalf("stored group item model = %q, want gpt-4o after map", storedItems[0].ModelName)
+	}
+}
+
+func TestDBImportIncrementalWithOptionsRejectsBlankModelMappings(t *testing.T) {
+	ctx := setupOpTestDB(t)
+	dump := &model.DBDump{
+		Version: dbDumpVersion,
+		Manifest: model.DBDumpManifest{
+			SchemaVersion:   "v1",
+			ExportSource:    "octopus",
+			ContainsSecrets: true,
+		},
+	}
+
+	tests := []struct {
+		name     string
+		mappings map[string]string
+	}{
+		{name: "blank source", mappings: map[string]string{"   ": "gpt-4o"}},
+		{name: "blank target", mappings: map[string]string{"legacy-model": "   "}},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := DBImportIncrementalWithOptions(ctx, dump, model.DBImportModeMap, true, model.DBImportOptions{ModelMappings: tt.mappings})
+			if err == nil || err.Error() != "invalid model_mappings" {
+				t.Fatalf("DBImportIncrementalWithOptions() error = %v, want invalid model_mappings", err)
+			}
+		})
 	}
 }
 
@@ -2425,6 +2568,52 @@ func TestDBImportIncrementalSelectiveImportScopesOnlyApplyChosenDomains(t *testi
 	}
 	if len(relayLogs) != 1 || relayLogs[0].ID != existingRelayLog.ID {
 		t.Fatalf("stored relay logs = %#v, want existing logs untouched", relayLogs)
+	}
+}
+
+func TestDBImportIncrementalSelectiveReplaceDoesNotTouchMigrationRecords(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	if err := db.GetDB().WithContext(ctx).Create(&migrate.MigrationRecord{Version: 101, Status: migrate.MigrationRecordStatusSuccess}).Error; err != nil {
+		t.Fatalf("create existing migration record error = %v", err)
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&migrate.MigrationRecord{Version: 202, Status: migrate.MigrationRecordStatusFailed}).Error; err != nil {
+		t.Fatalf("create stale migration record error = %v", err)
+	}
+
+	dump := &model.DBDump{
+		Version: dbDumpVersion,
+		Manifest: model.DBDumpManifest{
+			SchemaVersion:   "v1",
+			ExportSource:    "octopus",
+			ContainsSecrets: false,
+		},
+		Settings:         []model.Setting{{Key: model.SettingKeyAPIBaseURL, Value: "https://incoming.example.com"}},
+		MigrationRecords: []model.DBDumpMigrationRecord{{Version: 303, Status: int(migrate.MigrationRecordStatusSuccess)}},
+	}
+
+	res, err := DBImportIncrementalWithOptions(ctx, dump, model.DBImportModeReplace, false, model.DBImportOptions{
+		ImportScopes: &model.DBImportScopes{Settings: true},
+	})
+	if err != nil {
+		t.Fatalf("DBImportIncrementalWithOptions(..., mode=replace, import_scopes=settings) error = %v", err)
+	}
+	if got := res.RowsAffected["replaced_migration_records"]; got != 0 {
+		t.Fatalf("rows_affected[replaced_migration_records] = %d, want 0 when migration scope disabled", got)
+	}
+	if got := res.RowsAffected["migration_records"]; got != 0 {
+		t.Fatalf("rows_affected[migration_records] = %d, want 0 when migration scope disabled", got)
+	}
+
+	var migrationRecords []migrate.MigrationRecord
+	if err := db.GetDB().WithContext(ctx).Order("version asc").Find(&migrationRecords).Error; err != nil {
+		t.Fatalf("query migration records error = %v", err)
+	}
+	if len(migrationRecords) != 2 {
+		t.Fatalf("migration_records = %#v, want existing records preserved", migrationRecords)
+	}
+	if migrationRecords[0].Version != 101 || migrationRecords[1].Version != 202 {
+		t.Fatalf("migration_records = %#v, want preserved versions 101 and 202", migrationRecords)
 	}
 }
 

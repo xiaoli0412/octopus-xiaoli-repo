@@ -1,6 +1,6 @@
 'use client';
 
-import { type ChangeEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	CheckCircle2,
 	Database,
@@ -24,6 +24,7 @@ import {
 	type DBImportResult,
 	type DBImportScopes,
 	type DBImportSnapshotInfo,
+	type DBRoutePreviewDiff,
 	type DBReplacePrunePreview,
 	type DBRollbackPreviewResult,
 	useExportDB,
@@ -34,14 +35,23 @@ import {
 	useRollbackLatestImportSnapshot,
 } from '@/api/endpoints/setting';
 import {
+	buildImportCompatibilityGuidanceItems,
 	buildCompatibilitySignalItems,
+	getAliasPreviewItems,
+	getCompatibilityDiagnosticItems,
+	getCompatibilityNameItems,
+	getCredentialRebindTargetItems,
+	getReplacePrunedBreakdownItems,
 	getCompatibilityCounts,
 	getCompatibilityOverview,
 	getExportSnapshotPresentation,
 	getMissingModelMappingItems,
 	getModelMappingPreviewItems,
+	getModelPolicyDiffItems,
 	getPostImportValidationSummary,
-	getRemainingMigrationToolingSections,
+	getRoutePreviewDiffItems,
+	getRoutePreviewWarningItems,
+	getRouteTargetIssueItems,
 	getUnusedModelMappingItems,
 	type SummaryTone,
 } from './backup-logic';
@@ -61,6 +71,12 @@ type ReplacePruneSection = {
 	items: string[];
 };
 
+type MappingRow = {
+	id: string;
+	source: string;
+	target: string;
+};
+
 type PendingApplyRequest = {
 	file: File;
 	mode: DBImportMode;
@@ -70,6 +86,16 @@ type PendingApplyRequest = {
 	fileName: string;
 	mappingCount: number;
 	scopeLabels: string[];
+};
+
+type RouteDiffRow = {
+	groupName: string;
+	model: string;
+	before: string;
+	after: string;
+	removed: string;
+	added: string;
+	fallbackChanged: boolean;
 };
 
 const defaultImportScopes: DBImportScopes = {
@@ -154,6 +180,68 @@ function getLocalizedModelMappingsPlaceholder(locale: Locale) {
 	return '旧模型=gpt-4o\n视觉模型=gpt-4.1';
 }
 
+function createMappingRow(source = '', target = ''): MappingRow {
+	return {
+		id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+		source,
+		target,
+	};
+}
+
+function parseMappingRows(text: string): MappingRow[] {
+	const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+	const rows: MappingRow[] = [];
+	for (const line of lines) {
+		const eqIndex = line.indexOf('=');
+		if (eqIndex <= 0 || eqIndex === line.length - 1) continue;
+		const source = line.slice(0, eqIndex).trim();
+		const target = line.slice(eqIndex + 1).trim();
+		if (!source || !target) continue;
+		rows.push(createMappingRow(source, target));
+	}
+	return rows;
+}
+
+function serializeMappingRows(rows: MappingRow[]): string {
+	return rows
+		.map((row) => `${row.source.trim()}=${row.target.trim()}`)
+		.filter((line) => !line.startsWith('=') && !line.endsWith('='))
+		.join('\n');
+}
+
+function mappingRowCount(rows: MappingRow[]) {
+	return rows.filter((row) => row.source.trim() && row.target.trim()).length;
+}
+
+function hasAnyEnabledImportScope(scopes: DBImportScopes | undefined) {
+	if (!scopes) return false;
+	return Object.values(scopes).some(Boolean);
+}
+
+function summarizeRoutePreviewDiff(diff: DBRoutePreviewDiff, locale: Locale) {
+
+	const before = (diff.before_candidates ?? []).map((item) => `${item.channel_name}:${item.resolved_model ?? item.model}`).join(' | ') || localize(locale, { 'zh-Hans': '无', en: 'none' });
+	const after = (diff.after_candidates ?? []).map((item) => `${item.channel_name}:${item.resolved_model ?? item.model}`).join(' | ') || localize(locale, { 'zh-Hans': '无', en: 'none' });
+	const removed = (diff.removed_candidates ?? []).map((item) => `${item.channel_name}:${item.resolved_model ?? item.model}`).join(' | ') || localize(locale, { 'zh-Hans': '无', en: 'none' });
+	const added = (diff.added_candidates ?? []).map((item) => `${item.channel_name}:${item.resolved_model ?? item.model}`).join(' | ') || localize(locale, { 'zh-Hans': '无', en: 'none' });
+	return { before, after, removed, added, fallbackChanged: !!diff.fallback_changed };
+}
+
+function buildRouteDiffRows(diffs: DBRoutePreviewDiff[] | undefined, locale: Locale): RouteDiffRow[] {
+	return (diffs ?? []).map((diff) => {
+		const summary = summarizeRoutePreviewDiff(diff, locale);
+		return {
+			groupName: diff.group_name,
+			model: diff.model,
+			before: summary.before,
+			after: summary.after,
+			removed: summary.removed,
+			added: summary.added,
+			fallbackChanged: summary.fallbackChanged,
+		};
+	});
+}
+
 function buildReplacePruneSections(preview: DBReplacePrunePreview | undefined, locale: Locale): ReplacePruneSection[] {
 	if (!preview) return [];
 	const labels = {
@@ -169,6 +257,29 @@ function buildReplacePruneSections(preview: DBReplacePrunePreview | undefined, l
 		{ key: 'settings', title: labels.settings, items: (preview.pruned_settings ?? preview.deleted_settings ?? preview.settings ?? preview.setting_keys ?? []).map(formatReplacePruneValue).filter(Boolean) },
 		{ key: 'models', title: labels.models, items: (preview.pruned_llm_infos ?? preview.deleted_llm_infos ?? preview.llm_infos ?? preview.models ?? preview.model_names ?? []).map(formatReplacePruneValue).filter(Boolean) },
 		{ key: 'apiKeys', title: labels.apiKeys, items: (preview.pruned_api_keys ?? preview.deleted_api_keys ?? preview.api_keys ?? preview.api_key_names ?? []).map(formatReplacePruneValue).filter(Boolean) },
+	].filter((section) => section.items.length > 0);
+}
+
+function buildReplacePruneSectionsFromBreakdown(input: {
+	channels?: string[];
+	groups?: string[];
+	settings?: string[];
+	llmInfos?: string[];
+	apiKeys?: string[];
+}, locale: Locale): ReplacePruneSection[] {
+	const labels = {
+		channels: localize(locale, { 'zh-Hans': '待删除渠道', en: 'Channels to delete' }),
+		groups: localize(locale, { 'zh-Hans': '待删除分组', en: 'Groups to delete' }),
+		settings: localize(locale, { 'zh-Hans': '待重置设置', en: 'Settings to reset' }),
+		models: localize(locale, { 'zh-Hans': '待移除模型条目', en: 'Models to delete' }),
+		apiKeys: localize(locale, { 'zh-Hans': '待删除 API 密钥', en: 'API keys to delete' }),
+	};
+	return [
+		{ key: 'channels', title: labels.channels, items: input.channels ?? [] },
+		{ key: 'groups', title: labels.groups, items: input.groups ?? [] },
+		{ key: 'settings', title: labels.settings, items: input.settings ?? [] },
+		{ key: 'models', title: labels.models, items: input.llmInfos ?? [] },
+		{ key: 'apiKeys', title: labels.apiKeys, items: input.apiKeys ?? [] },
 	].filter((section) => section.items.length > 0);
 }
 
@@ -244,6 +355,7 @@ const backupTextByLocale = (locale: Locale) => ({
 	selectedFile: localize(locale, { 'zh-Hans': '已选择文件', en: 'Selected File' }),
 	dryRun: localize(locale, { 'zh-Hans': '先做预检', en: 'Dry-Run First' }),
 	selectiveImport: localize(locale, { 'zh-Hans': '按范围导入', en: 'Selective import' }),
+	selectiveRollback: localize(locale, { 'zh-Hans': '按范围回滚', en: 'Selective rollback' }),
 	importMode: localize(locale, { 'zh-Hans': '导入模式', en: 'Import mode' }),
 	importButton: localize(locale, { 'zh-Hans': '执行导入', en: 'Run Import' }),
 	importing: localize(locale, { 'zh-Hans': '处理中...', en: 'Processing...' }),
@@ -251,7 +363,13 @@ const backupTextByLocale = (locale: Locale) => ({
 	applying: localize(locale, { 'zh-Hans': '应用中...', en: 'Applying...' }),
 	modelMappings: localize(locale, { 'zh-Hans': '模型映射', en: 'Model Mappings' }),
 	structuredMappings: localize(locale, { 'zh-Hans': '结构化映射预览', en: 'Structured Mapping Preview' }),
+	structuredMappingsSummary: localize(locale, { 'zh-Hans': '直接编辑快照模型与当前模型的对应关系，提交时仍会按原有 line payload 发送。', en: 'Edit snapshot-to-current mappings directly. Submission still keeps the legacy line payload.' }),
 	activeMappings: localize(locale, { 'zh-Hans': '已配置映射', en: 'Active Mappings' }),
+	mappingSource: localize(locale, { 'zh-Hans': '快照模型', en: 'Snapshot model' }),
+	mappingTarget: localize(locale, { 'zh-Hans': '当前模型', en: 'Current model' }),
+	addMappingRow: localize(locale, { 'zh-Hans': '添加映射', en: 'Add mapping' }),
+	removeMappingRow: localize(locale, { 'zh-Hans': '删除', en: 'Remove' }),
+	mappingEmptyHint: localize(locale, { 'zh-Hans': '还没有映射规则。至少补一条“快照模型 -> 当前模型”后再执行映射导入。', en: 'No mapping rows yet. Add at least one snapshot-to-current rule before running map mode.' }),
 	compatibility: localize(locale, { 'zh-Hans': '兼容性报告', en: 'Compatibility Report' }),
 	postImportValidation: localize(locale, { 'zh-Hans': '导入后检查', en: 'Post-import validation' }),
 	postImportHealth: localize(locale, { 'zh-Hans': '导入后健康检查', en: 'Post-import health check' }),
@@ -264,12 +382,22 @@ const backupTextByLocale = (locale: Locale) => ({
 	rollingBack: localize(locale, { 'zh-Hans': '回滚中...', en: 'Rolling Back...' }),
 	rollbackLatest: localize(locale, { 'zh-Hans': '回滚最近一次导入', en: 'Rollback Latest Import' }),
 	rollbackLatestRunning: localize(locale, { 'zh-Hans': '正在回滚最近一次导入...', en: 'Rolling Back Latest Import...' }),
+	rollbackScopeEditorTitle: localize(locale, { 'zh-Hans': '回滚域选择', en: 'Rollback domains' }),
+	rollbackScopeEditorSummary: localize(locale, { 'zh-Hans': '先决定这份快照要恢复哪些域；若没有选中任何域，预览与回滚都会回退为整包快照恢复。', en: 'Choose which domains this snapshot should restore. If nothing is selected, preview and rollback fall back to a full snapshot restore.' }),
+	rollbackScopeFullRestore: localize(locale, { 'zh-Hans': '整包快照恢复', en: 'Full snapshot restore' }),
+	rollbackScopeScopedNote: localize(locale, { 'zh-Hans': '当前只会恢复所选域。变更选择后，需要重新执行一次回滚预览。', en: 'Only the selected domains will be restored. Run rollback preview again after changing the selection.' }),
+	rollbackScopeFallbackNote: localize(locale, { 'zh-Hans': '当前没有选中任何回滚域，预览与回滚都会回退为整包快照恢复。', en: 'No rollback domains are selected. Preview and rollback will fall back to a full snapshot restore.' }),
 	refresh: localize(locale, { 'zh-Hans': '刷新', en: 'Refresh' }),
 	rollbackPreview: localize(locale, { 'zh-Hans': '回滚预览', en: 'Rollback preview' }),
+	routeDiffCompareTitle: localize(locale, { 'zh-Hans': '路由差异对比', en: 'Route diff compare' }),
+	routeDiffCompareSummary: localize(locale, { 'zh-Hans': '并排查看当前项目与快照恢复后的候选链路，帮助判断回滚影响。', en: 'Compare current candidates with the snapshot-restored candidates side by side before rolling back.' }),
+	routeDiffCurrentState: localize(locale, { 'zh-Hans': '当前状态', en: 'Current state' }),
+	routeDiffSnapshotState: localize(locale, { 'zh-Hans': '快照状态', en: 'Snapshot state' }),
+	routeDiffRemoved: localize(locale, { 'zh-Hans': '将被移除', en: 'Removed' }),
+	routeDiffAdded: localize(locale, { 'zh-Hans': '将被新增', en: 'Added' }),
+	routeDiffNone: localize(locale, { 'zh-Hans': '当前没有可比对的路由差异。', en: 'No route diffs are available for this preview.' }),
 	latest: localize(locale, { 'zh-Hans': '最新', en: 'Latest' }),
 	historyItemSize: localize(locale, { 'zh-Hans': '大小', en: 'Size' }),
-	importAdvancedPending: localize(locale, { 'zh-Hans': '导入补强项', en: 'Import migration tooling' }),
-	advancedPending: localize(locale, { 'zh-Hans': '高级迁移能力仍在持续补齐', en: 'Advanced migration tooling still pending' }),
 	empty: localize(locale, { 'zh-Hans': '无', en: 'None' }),
 	unknown: localize(locale, { 'zh-Hans': '未知', en: 'Unknown' }),
 	yes: localize(locale, { 'zh-Hans': '是', en: 'Yes' }),
@@ -294,11 +422,16 @@ const backupTextByLocale = (locale: Locale) => ({
 	rollbackSummaryConflicts: localize(locale, { 'zh-Hans': '兼容冲突', en: 'Compatibility Conflicts' }),
 	rollbackSummaryRebinds: localize(locale, { 'zh-Hans': '凭证重绑定', en: 'Credential Rebinds' }),
 	rollbackSummaryWarnings: localize(locale, { 'zh-Hans': '预览预警', en: 'Preview Warnings' }),
+	rollbackCompatibilityDetailsTitle: localize(locale, { 'zh-Hans': '回滚兼容性明细', en: 'Rollback compatibility details' }),
+	rollbackCompatibilityDetailsSummary: localize(locale, { 'zh-Hans': '这些明细来自当前回滚预览，帮助你在恢复前复核冲突、缺失对象和凭证重绑定工作。', en: 'These details come from the current rollback preview so you can review conflicts, missing objects, and credential rebind work before restoring.' }),
+	rollbackGuidanceTitle: localize(locale, { 'zh-Hans': '回滚前处理建议', en: 'Recommended Rollback Steps' }),
+	rollbackSignalsSummary: localize(locale, { 'zh-Hans': '先看摘要，再决定是否展开下方回滚兼容性明细。', en: 'Start with the summary signals, then expand the rollback diagnostics only when needed.' }),
+	rollbackPreviewWarningsTitle: localize(locale, { 'zh-Hans': '回滚预览警告', en: 'Rollback Preview Warnings' }),
+	rollbackPreviewWarningsSummary: localize(locale, { 'zh-Hans': '这些提示来自回滚预览本身，不一定等同于兼容性冲突。', en: 'These warnings come from the rollback preview itself and do not always mean a compatibility conflict.' }),
 	compatibilityHeadlineSafe: localize(locale, { 'zh-Hans': '当前没有明显阻塞风险', en: 'No obvious blocking risks' }),
 	compatibilityHeadlineWarning: localize(locale, { 'zh-Hans': '建议先再看一遍', en: 'Review the differences first' }),
 	compatibilityHeadlineDanger: localize(locale, { 'zh-Hans': '需要先处理风险', en: 'Resolve the risks first' }),
 	diagnosticsCollapsed: localize(locale, { 'zh-Hans': '详细诊断默认折叠，按需展开查看。', en: 'Detailed diagnostics stay collapsed until you need them.' }),
-	remainingMigrationSummary: localize(locale, { 'zh-Hans': '默认收起，按需查看仍需手动处理的迁移能力。', en: 'Collapsed by default. Open only when you need the still-manual migration gaps.' }),
 	toastExportSuccess: localize(locale, { 'zh-Hans': '已开始导出', en: 'Export started' }),
 	toastDryRunSuccess: localize(locale, { 'zh-Hans': '预检完成', en: 'Preview completed' }),
 	toastImportSuccess: localize(locale, { 'zh-Hans': '导入已应用', en: 'Import applied' }),
@@ -312,10 +445,27 @@ const backupTextByLocale = (locale: Locale) => ({
 	importSummaryMode: localize(locale, { 'zh-Hans': '当前模式', en: 'Current Mode' }),
 	importSummaryConflicts: localize(locale, { 'zh-Hans': '冲突', en: 'Conflicts' }),
 	importSummaryRebinds: localize(locale, { 'zh-Hans': '凭证重绑定', en: 'Credential Rebinds' }),
+	compatibilityConflictTitle: localize(locale, { 'zh-Hans': '兼容冲突明细', en: 'Compatibility Conflicts' }),
+	aliasConflictTitle: localize(locale, { 'zh-Hans': '别名冲突', en: 'Alias Conflicts' }),
+	routeConflictTitle: localize(locale, { 'zh-Hans': '路由冲突', en: 'Route Conflicts' }),
 	mappingPreviewTitle: localize(locale, { 'zh-Hans': '模型映射预览', en: 'Model Mapping Previews' }),
 	missingMappingTitle: localize(locale, { 'zh-Hans': '缺失的映射目标', en: 'Missing Mapping Targets' }),
 	unusedMappingTitle: localize(locale, { 'zh-Hans': '未使用的映射', en: 'Unused Model Mappings' }),
 	missingProvidersTitle: localize(locale, { 'zh-Hans': '缺失渠道 / 供应商', en: 'Missing Providers / Channels' }),
+	missingModelsTitle: localize(locale, { 'zh-Hans': '缺失模型', en: 'Missing Models' }),
+	compatibilityGuidanceTitle: localize(locale, { 'zh-Hans': '下一步处理建议', en: 'Recommended Next Steps' }),
+	credentialRebindTitle: localize(locale, { 'zh-Hans': '凭证重绑定目标', en: 'Credential Rebind Targets' }),
+	routeIssueTitle: localize(locale, { 'zh-Hans': '路由目标风险', en: 'Route Target Risks' }),
+	skippedRouteIssueTitle: localize(locale, { 'zh-Hans': '被跳过的路由预览', en: 'Skipped Route Previews' }),
+	routePreviewWarningTitle: localize(locale, { 'zh-Hans': '路由预警', en: 'Route Preview Warnings' }),
+	routePreviewDiffTitle: localize(locale, { 'zh-Hans': '路由差异预览', en: 'Route Preview Diffs' }),
+	aliasPreviewTitle: localize(locale, { 'zh-Hans': '别名映射预览', en: 'Alias Preview Mappings' }),
+	modelPolicyDiffTitle: localize(locale, { 'zh-Hans': '模型策略差异', en: 'Model Policy Diffs' }),
+	affectedGroupsTitle: localize(locale, { 'zh-Hans': '受影响分组', en: 'Affected Groups' }),
+	affectedChannelsTitle: localize(locale, { 'zh-Hans': '受影响渠道', en: 'Affected Channels' }),
+	baseURLMismatchTitle: localize(locale, { 'zh-Hans': '基础地址不匹配', en: 'Base-URL Mismatches' }),
+	schemaMismatchTitle: localize(locale, { 'zh-Hans': '结构版本不匹配', en: 'Schema Mismatches' }),
+	skippedTargetsTitle: localize(locale, { 'zh-Hans': '被保留或跳过的对象', en: 'Preserved / Skipped Targets' }),
 	postValidationDegradedGroups: localize(locale, { 'zh-Hans': '降级分组', en: 'Degraded groups' }),
 	postValidationEmptyGroups: localize(locale, { 'zh-Hans': '空分组', en: 'Empty groups' }),
 	postValidationDisabledChannels: localize(locale, { 'zh-Hans': '已禁用渠道', en: 'Disabled channels' }),
@@ -328,7 +478,6 @@ const backupTextByLocale = (locale: Locale) => ({
 	postValidationHealthTargets: localize(locale, { 'zh-Hans': '健康检测目标', en: 'Health-check targets' }),
 	postValidationHealthPassed: localize(locale, { 'zh-Hans': '通过数量', en: 'Passed' }),
 	historyToggle: localize(locale, { 'zh-Hans': '查看历史', en: 'History' }),
-	remainingToggle: localize(locale, { 'zh-Hans': '查看补强', en: 'Tooling' }),
 	replaceToggle: localize(locale, { 'zh-Hans': '查看清单', en: 'View details' }),
 	help: {
 		exportTitle: localize(locale, { 'zh-Hans': '这里导出的是项目快照。保留明文凭证时，适合直接迁移到另一套环境。', en: 'This exports a project snapshot. Keep plaintext credentials only when you need a direct restore in another environment.' }),
@@ -339,7 +488,7 @@ const backupTextByLocale = (locale: Locale) => ({
 		importMode: localize(locale, { 'zh-Hans': '增量、映射、合并、替换和跳过，对应不同的导入处理方式。', en: 'Incremental, map, merge, replace, and skip control how snapshot data is written.' }),
 		modelMappings: localize(locale, { 'zh-Hans': '只有映射导入才需要填写；每行一条，格式为“快照模型=当前模型”。', en: 'Only map mode needs this field. Use one rule per line: snapshot-model=current-model.' }),
 		rollbackTitle: localize(locale, { 'zh-Hans': '这里可以先预览最近导入的快照，再决定是否回滚。', en: 'Preview recent import snapshots here before rolling back.' }),
-		advancedPending: localize(locale, { 'zh-Hans': '这里列出仍需手动处理的迁移能力缺口，先优先使用现有快照恢复与映射预检。', en: 'These are still-manual migration gaps. Prefer the current snapshot restore and map-preview flow first.' }),
+		rollbackSelective: localize(locale, { 'zh-Hans': '选择性回滚只会恢复你勾选的域；若没有选中任何域，就会回退为整包快照恢复。', en: 'Selective rollback restores only the domains you check. When nothing is selected, it falls back to a full snapshot restore.' }),
 		includeSecretsOn: localize(locale, { 'zh-Hans': '开启后会保留明文凭证，适合直接恢复到另一套环境。', en: 'Plaintext credentials stay in the snapshot, so it can be restored directly elsewhere.' }),
 		includeSecretsOff: localize(locale, { 'zh-Hans': '关闭后会做脱敏处理，更适合共享或审阅。', en: 'Credentials are redacted, which is better for sharing or review.' }),
 	},
@@ -434,39 +583,77 @@ export function SettingBackup() {
 	const [selectiveImport, setSelectiveImport] = useState(false);
 	const [importMode, setImportMode] = useState<DBImportMode>('incremental');
 	const [importScopes, setImportScopes] = useState<DBImportScopes>(defaultImportScopes);
-	const [modelMappingsText, setModelMappingsText] = useState('');
+	const [mappingRows, setMappingRows] = useState<MappingRow[]>([createMappingRow()]);
 	const [pendingApplyRequest, setPendingApplyRequest] = useState<PendingApplyRequest | null>(null);
 	const [confirmedApply, setConfirmedApply] = useState(false);
 	const [showCompatibilityDetails, setShowCompatibilityDetails] = useState(false);
 	const [showHistory, setShowHistory] = useState(false);
-	const [showImportRemainingMigration, setShowImportRemainingMigration] = useState(false);
-	const [openedImportMigrationSection, setOpenedImportMigrationSection] = useState<number | null>(null);
-	const [showHistoryRemainingMigration, setShowHistoryRemainingMigration] = useState(false);
-	const [openedHistoryMigrationSection, setOpenedHistoryMigrationSection] = useState<number | null>(null);
 	const [showReplacePruneDetails, setShowReplacePruneDetails] = useState(false);
+	const [selectiveRollback, setSelectiveRollback] = useState(false);
+	const [rollbackScopes, setRollbackScopes] = useState<DBImportScopes>(defaultImportScopes);
 	const [currentRollbackPreview, setCurrentRollbackPreview] = useState<DBRollbackPreviewResult | null>(null);
+	const rollbackPreviewRequestSeq = useRef(0);
 
 	const exportPresentation = useMemo(() => getExportSnapshotPresentation({ includeSecrets, includeLogs, includeStats, locale }), [includeSecrets, includeLogs, includeStats, locale]);
 	const importResult = importDB.data;
 	const compatibility = importResult?.compatibility;
 	const compatibilityCounts = useMemo(() => getCompatibilityCounts(compatibility), [compatibility]);
 	const compatibilityOverview = useMemo(() => getCompatibilityOverview({ counts: compatibilityCounts, warningsCount: (importResult?.warnings ?? []).length, kind: 'import', locale }), [compatibilityCounts, importResult?.warnings, locale]);
-	const compatibilitySignals = useMemo(() => buildCompatibilitySignalItems({ counts: compatibilityCounts, warningsCount: (importResult?.warnings ?? []).length, kind: 'import', locale, includeReplaceModeRisk: true, effectiveMode: importResult?.mode ?? importMode }), [compatibilityCounts, importResult?.warnings, importResult?.mode, importMode, locale]);
+	const compatibilitySignals = useMemo(() => buildCompatibilitySignalItems({
+		counts: compatibilityCounts,
+		warningsCount: (importResult?.warnings ?? []).length,
+		kind: 'import',
+		locale,
+		includeReplaceModeRisk: true,
+		includeStructuredReplacePrunedCount: true,
+		structuredReplacePrunedCount: compatibilityCounts.replacePrunedTargets,
+		effectiveMode: importResult?.mode ?? importMode,
+	}), [compatibilityCounts, importResult?.warnings, importResult?.mode, importMode, locale]);
+	const conflictItems = useMemo(() => getCompatibilityDiagnosticItems(compatibility?.conflicts, locale), [compatibility?.conflicts, locale]);
+	const aliasConflictItems = useMemo(() => getCompatibilityDiagnosticItems(compatibility?.alias_conflicts, locale), [compatibility?.alias_conflicts, locale]);
+	const routeConflictItems = useMemo(() => getCompatibilityDiagnosticItems(compatibility?.route_conflicts, locale), [compatibility?.route_conflicts, locale]);
 	const mappingPreviewItems = useMemo(() => getModelMappingPreviewItems(compatibility?.model_mapping_previews, locale), [compatibility?.model_mapping_previews, locale]);
 	const missingMappingItems = useMemo(() => getMissingModelMappingItems(compatibility?.model_mapping_previews, locale), [compatibility?.model_mapping_previews, locale]);
 	const unusedMappingItems = useMemo(() => getUnusedModelMappingItems(compatibility?.model_mapping_previews, locale), [compatibility?.model_mapping_previews, locale]);
+	const aliasPreviewItems = useMemo(() => getAliasPreviewItems(compatibility?.alias_preview_mappings, locale), [compatibility?.alias_preview_mappings, locale]);
+	const credentialRebindItems = useMemo(() => getCredentialRebindTargetItems(compatibility?.credential_rebind_targets, locale), [compatibility?.credential_rebind_targets, locale]);
+	const affectedGroupItems = useMemo(() => getCompatibilityNameItems(compatibility?.affected_groups, locale), [compatibility?.affected_groups, locale]);
+	const affectedChannelItems = useMemo(() => getCompatibilityNameItems(compatibility?.affected_channels, locale), [compatibility?.affected_channels, locale]);
+	const missingModelItems = useMemo(() => getCompatibilityNameItems(compatibility?.missing_models, locale), [compatibility?.missing_models, locale]);
+	const baseURLMismatchItems = useMemo(() => getCompatibilityNameItems(compatibility?.base_url_mismatches, locale), [compatibility?.base_url_mismatches, locale]);
+	const schemaMismatchItems = useMemo(() => getCompatibilityDiagnosticItems(compatibility?.schema_mismatches, locale), [compatibility?.schema_mismatches, locale]);
+	const skippedTargetItems = useMemo(() => getCompatibilityDiagnosticItems(compatibility?.skipped_targets, locale), [compatibility?.skipped_targets, locale]);
+	const invalidRouteIssueItems = useMemo(() => getRouteTargetIssueItems(compatibility?.invalid_route_targets, locale), [compatibility?.invalid_route_targets, locale]);
+	const skippedRouteIssueItems = useMemo(() => getRouteTargetIssueItems(compatibility?.skipped_route_target_previews, locale), [compatibility?.skipped_route_target_previews, locale]);
+	const routePreviewWarningItems = useMemo(() => getRoutePreviewWarningItems(compatibility?.route_preview_warnings, locale), [compatibility?.route_preview_warnings, locale]);
+	const routePreviewDiffItems = useMemo(() => getRoutePreviewDiffItems(compatibility?.route_preview_diffs, locale), [compatibility?.route_preview_diffs, locale]);
+	const modelPolicyDiffItems = useMemo(() => getModelPolicyDiffItems(compatibility?.model_policy_diffs, locale), [compatibility?.model_policy_diffs, locale]);
+	const replacePrunedBreakdown = useMemo(() => getReplacePrunedBreakdownItems({
+		channels: compatibility?.replace_pruned_channels,
+		groups: compatibility?.replace_pruned_groups,
+		settings: compatibility?.replace_pruned_settings,
+		models: compatibility?.replace_pruned_llm_infos,
+		apiKeys: compatibility?.replace_pruned_api_keys,
+	}, locale), [compatibility?.replace_pruned_api_keys, compatibility?.replace_pruned_channels, compatibility?.replace_pruned_groups, compatibility?.replace_pruned_llm_infos, compatibility?.replace_pruned_settings, locale]);
+	const compatibilityGuidanceItems = useMemo(() => buildImportCompatibilityGuidanceItems({ compatibility, counts: compatibilityCounts, effectiveMode: importResult?.mode ?? importMode, locale }), [compatibility, compatibilityCounts, importMode, importResult?.mode, locale]);
 	const replacePrunePreview = importResult?.replace_prune_preview ?? importResult?.replace_prune ?? importResult?.prune_preview ?? compatibility?.replace_prune_preview ?? compatibility?.replace_prune ?? compatibility?.prune_preview;
-	const replacePruneSections = useMemo(() => buildReplacePruneSections(replacePrunePreview, locale), [replacePrunePreview, locale]);
+	const replacePruneSections = useMemo(() => {
+		const previewSections = buildReplacePruneSections(replacePrunePreview, locale);
+		if (previewSections.length > 0) return previewSections;
+		return buildReplacePruneSectionsFromBreakdown(replacePrunedBreakdown, locale);
+	}, [locale, replacePrunePreview, replacePrunedBreakdown]);
 	const postImportSummary = useMemo(() => getPostImportValidationSummary(importResult?.post_import_validation), [importResult?.post_import_validation]);
-	const remainingMigrationSections = useMemo(() => getRemainingMigrationToolingSections(locale), [locale]);
-	const importRemainingMigrationSections = useMemo(() => remainingMigrationSections.filter((section) => section.key !== 'rollback-tooling'), [remainingMigrationSections]);
-	const historyRemainingMigrationSections = useMemo(() => {
-		const rollbackSection = remainingMigrationSections.find((section) => section.key === 'rollback-tooling');
-		const otherSections = remainingMigrationSections.filter((section) => section.key !== 'rollback-tooling');
-		return rollbackSection ? [rollbackSection, ...otherSections] : remainingMigrationSections;
-	}, [remainingMigrationSections]);
 	const rollbackCounts = useMemo(() => getCompatibilityCounts(currentRollbackPreview?.compatibility), [currentRollbackPreview?.compatibility]);
 	const rollbackOverview = useMemo(() => getCompatibilityOverview({ counts: rollbackCounts, warningsCount: (currentRollbackPreview?.preview_warnings ?? []).length, kind: 'rollback', locale }), [rollbackCounts, currentRollbackPreview?.preview_warnings, locale]);
+	const rollbackSignals = useMemo(() => buildCompatibilitySignalItems({
+		counts: rollbackCounts,
+		warningsCount: (currentRollbackPreview?.preview_warnings ?? []).length,
+		kind: 'rollback',
+		locale,
+		includeWarningsCount: true,
+		includeModelMappingPreviews: true,
+		includeUnusedModelMappings: true,
+	}), [rollbackCounts, currentRollbackPreview?.preview_warnings, locale]);
 	const rollbackPreviewName = currentRollbackPreview?.snapshot_name ?? text.unknown;
 	const rollbackScopeSummary = currentRollbackPreview?.applied_scopes ? joinLocalizedList(getVisibleScopeLabels(currentRollbackPreview.applied_scopes, scopeOptions), locale) : text.unknown;
 	const rollbackEncryptedSummary = currentRollbackPreview?.manifest?.encrypted === undefined ? text.unknown : currentRollbackPreview.manifest.encrypted ? text.yes : text.no;
@@ -474,11 +661,68 @@ export function SettingBackup() {
 	const rollbackSchemaVersionSummary = currentRollbackPreview?.manifest?.schema_version ?? text.unknown;
 	const rollbackRebindCount = rollbackCounts.channelKeyRebindTargets || rollbackCounts.credentialRebindTargets || rollbackCounts.apiKeyRebindTargets;
 	const rollbackWarningCount = currentRollbackPreview?.preview_warnings?.length ?? 0;
+	const rollbackConflictItems = useMemo(() => getCompatibilityDiagnosticItems(currentRollbackPreview?.compatibility?.conflicts, locale), [currentRollbackPreview?.compatibility?.conflicts, locale]);
+	const rollbackAliasConflictItems = useMemo(() => getCompatibilityDiagnosticItems(currentRollbackPreview?.compatibility?.alias_conflicts, locale), [currentRollbackPreview?.compatibility?.alias_conflicts, locale]);
+	const rollbackRouteConflictItems = useMemo(() => getCompatibilityDiagnosticItems(currentRollbackPreview?.compatibility?.route_conflicts, locale), [currentRollbackPreview?.compatibility?.route_conflicts, locale]);
+	const rollbackCredentialRebindItems = useMemo(() => getCredentialRebindTargetItems(currentRollbackPreview?.compatibility?.credential_rebind_targets, locale), [currentRollbackPreview?.compatibility?.credential_rebind_targets, locale]);
+	const rollbackAffectedGroupItems = useMemo(() => getCompatibilityNameItems(currentRollbackPreview?.compatibility?.affected_groups, locale), [currentRollbackPreview?.compatibility?.affected_groups, locale]);
+	const rollbackAffectedChannelItems = useMemo(() => getCompatibilityNameItems(currentRollbackPreview?.compatibility?.affected_channels, locale), [currentRollbackPreview?.compatibility?.affected_channels, locale]);
+	const rollbackMissingProviderItems = useMemo(() => getCompatibilityNameItems(currentRollbackPreview?.compatibility?.missing_providers, locale), [currentRollbackPreview?.compatibility?.missing_providers, locale]);
+	const rollbackMissingModelItems = useMemo(() => getCompatibilityNameItems(currentRollbackPreview?.compatibility?.missing_models, locale), [currentRollbackPreview?.compatibility?.missing_models, locale]);
+	const rollbackBaseURLMismatchItems = useMemo(() => getCompatibilityNameItems(currentRollbackPreview?.compatibility?.base_url_mismatches, locale), [currentRollbackPreview?.compatibility?.base_url_mismatches, locale]);
+	const rollbackSchemaMismatchItems = useMemo(() => getCompatibilityDiagnosticItems(currentRollbackPreview?.compatibility?.schema_mismatches, locale), [currentRollbackPreview?.compatibility?.schema_mismatches, locale]);
+	const rollbackSkippedTargetItems = useMemo(() => getCompatibilityDiagnosticItems(currentRollbackPreview?.compatibility?.skipped_targets, locale), [currentRollbackPreview?.compatibility?.skipped_targets, locale]);
+	const rollbackInvalidRouteIssueItems = useMemo(() => getRouteTargetIssueItems(currentRollbackPreview?.compatibility?.invalid_route_targets, locale), [currentRollbackPreview?.compatibility?.invalid_route_targets, locale]);
+	const rollbackSkippedRouteIssueItems = useMemo(() => getRouteTargetIssueItems(currentRollbackPreview?.compatibility?.skipped_route_target_previews, locale), [currentRollbackPreview?.compatibility?.skipped_route_target_previews, locale]);
+	const rollbackRoutePreviewWarningItems = useMemo(() => getRoutePreviewWarningItems(currentRollbackPreview?.compatibility?.route_preview_warnings, locale), [currentRollbackPreview?.compatibility?.route_preview_warnings, locale]);
+	const rollbackPreviewWarningItems = useMemo(() => getRoutePreviewWarningItems(currentRollbackPreview?.preview_warnings, locale), [currentRollbackPreview?.preview_warnings, locale]);
+	const rollbackMappingPreviewItems = useMemo(() => getModelMappingPreviewItems(currentRollbackPreview?.compatibility?.model_mapping_previews, locale), [currentRollbackPreview?.compatibility?.model_mapping_previews, locale]);
+	const rollbackMissingMappingItems = useMemo(() => getMissingModelMappingItems(currentRollbackPreview?.compatibility?.model_mapping_previews, locale), [currentRollbackPreview?.compatibility?.model_mapping_previews, locale]);
+	const rollbackUnusedMappingItems = useMemo(() => getUnusedModelMappingItems(currentRollbackPreview?.compatibility?.model_mapping_previews, locale), [currentRollbackPreview?.compatibility?.model_mapping_previews, locale]);
+	const rollbackAliasPreviewItems = useMemo(() => getAliasPreviewItems(currentRollbackPreview?.compatibility?.alias_preview_mappings, locale), [currentRollbackPreview?.compatibility?.alias_preview_mappings, locale]);
+	const rollbackModelPolicyDiffItems = useMemo(() => getModelPolicyDiffItems(currentRollbackPreview?.compatibility?.model_policy_diffs, locale), [currentRollbackPreview?.compatibility?.model_policy_diffs, locale]);
+	const rollbackGuidanceItems = useMemo(() => buildImportCompatibilityGuidanceItems({
+		compatibility: currentRollbackPreview?.compatibility,
+		counts: rollbackCounts,
+		kind: 'rollback',
+		locale,
+	}), [currentRollbackPreview?.compatibility, rollbackCounts, locale]);
+	const hasRollbackCompatibilityDetails = rollbackConflictItems.length > 0
+		|| rollbackAliasConflictItems.length > 0
+		|| rollbackRouteConflictItems.length > 0
+		|| rollbackCredentialRebindItems.length > 0
+		|| rollbackAffectedGroupItems.length > 0
+		|| rollbackAffectedChannelItems.length > 0
+		|| rollbackMissingProviderItems.length > 0
+		|| rollbackMissingModelItems.length > 0
+		|| rollbackBaseURLMismatchItems.length > 0
+		|| rollbackSchemaMismatchItems.length > 0
+		|| rollbackSkippedTargetItems.length > 0
+		|| rollbackInvalidRouteIssueItems.length > 0
+		|| rollbackSkippedRouteIssueItems.length > 0
+		|| rollbackRoutePreviewWarningItems.length > 0
+		|| rollbackMappingPreviewItems.length > 0
+		|| rollbackMissingMappingItems.length > 0
+		|| rollbackUnusedMappingItems.length > 0
+		|| rollbackAliasPreviewItems.length > 0
+		|| rollbackModelPolicyDiffItems.length > 0;
+	const routeDiffRows = useMemo(() => buildRouteDiffRows(currentRollbackPreview?.compatibility?.route_preview_diffs, locale), [currentRollbackPreview?.compatibility?.route_preview_diffs, locale]);
 
 	const activeScopeCount = Object.values(importScopes).filter(Boolean).length;
-	const effectiveScopes = selectiveImport ? importScopes : defaultImportScopes;
 	const importModeLabel = modeOptions.find((option) => option.value === (importResult?.mode ?? importMode))?.label ?? modeOptions[0].label;
 	const pendingApplyModeLabel = modeOptions.find((option) => option.value === pendingApplyRequest?.mode)?.label ?? importModeLabel;
+	const serializedModelMappingsText = useMemo(() => serializeMappingRows(mappingRows), [mappingRows]);
+	const structuredMappingCount = mappingRowCount(mappingRows);
+	const currentMappingPlaceholder = getLocalizedModelMappingsPlaceholder(locale).split(/\r?\n/);
+	const preparedRollbackScopes = useMemo(() => {
+		if (!selectiveRollback || !hasAnyEnabledImportScope(rollbackScopes)) {
+			return undefined;
+		}
+		return rollbackScopes;
+	}, [rollbackScopes, selectiveRollback]);
+	const rollbackScopeEditorSummary = preparedRollbackScopes
+		? joinLocalizedList(getVisibleScopeLabels(preparedRollbackScopes, scopeOptions), locale)
+		: text.rollbackScopeFullRestore;
 
 	useEffect(() => {
 		const button = document.querySelector('[data-testid="backup-apply-same-import-button"]');
@@ -498,10 +742,41 @@ export function SettingBackup() {
 		setImportScopes((current) => ({ ...current, [key]: checked }));
 	}
 
+	function invalidateRollbackPreview() {
+		rollbackPreviewRequestSeq.current += 1;
+		previewRollback.reset();
+		setCurrentRollbackPreview(null);
+	}
+
+	function handleSelectiveRollbackChange(checked: boolean) {
+		invalidateRollbackPreview();
+		setSelectiveRollback(checked);
+	}
+
+	function handleRollbackScopeChange(key: keyof DBImportScopes, checked: boolean) {
+		invalidateRollbackPreview();
+		setRollbackScopes((current) => ({ ...current, [key]: checked }));
+	}
+
+	function handleMappingRowChange(id: string, field: 'source' | 'target', value: string) {
+		setMappingRows((current) => current.map((row) => row.id === id ? { ...row, [field]: value } : row));
+	}
+
+	function handleAddMappingRow() {
+		setMappingRows((current) => [...current, createMappingRow()]);
+	}
+
+	function handleRemoveMappingRow(id: string) {
+		setMappingRows((current) => {
+			const filtered = current.filter((row) => row.id !== id);
+			return filtered.length > 0 ? filtered : [createMappingRow()];
+		});
+	}
+
 	function createPendingRequest(previewToken?: string): PendingApplyRequest {
 		if (!file) throw new Error(text.selectFileFirst);
-		const modelMappings = importMode === 'map' ? parseModelMappings(modelMappingsText, locale) : undefined;
-		const scopes = selectiveImport ? importScopes : defaultImportScopes;
+		const modelMappings = importMode === 'map' ? parseModelMappings(serializedModelMappingsText, locale) : undefined;
+		const scopes = selectiveImport && hasAnyEnabledImportScope(importScopes) ? importScopes : defaultImportScopes;
 		return {
 			file,
 			mode: importMode,
@@ -612,8 +887,13 @@ export function SettingBackup() {
 
 	async function handlePreviewRollback(snapshot: DBImportSnapshotInfo) {
 		if (!snapshot.snapshot_name) return;
+		const requestSeq = ++rollbackPreviewRequestSeq.current;
+		setCurrentRollbackPreview(null);
 		try {
-			const preview = await previewRollback.mutateAsync({ snapshotName: snapshot.snapshot_name });
+			const preview = await previewRollback.mutateAsync({ snapshotName: snapshot.snapshot_name, importScopes: preparedRollbackScopes });
+			if (requestSeq !== rollbackPreviewRequestSeq.current) {
+				return;
+			}
 			setCurrentRollbackPreview(preview);
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : text.toastRollbackFailed);
@@ -624,7 +904,7 @@ export function SettingBackup() {
 		if (!snapshot.snapshot_name) return;
 		if (!window.confirm(text.rollbackConfirmFull)) return;
 		try {
-			const result = await rollbackImportSnapshot.mutateAsync({ snapshotName: snapshot.snapshot_name });
+			const result = await rollbackImportSnapshot.mutateAsync({ snapshotName: snapshot.snapshot_name, importScopes: preparedRollbackScopes });
 			toast.success(result.snapshot_name ?? snapshot.snapshot_name);
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : text.toastRollbackFailed);
@@ -707,37 +987,33 @@ export function SettingBackup() {
 							) : null}
 							{selectiveImport && activeScopeCount === 0 ? <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-3 text-sm text-amber-700">{text.needScope}</div> : null}
 							{importMode === 'map' ? (
-                                <div className="space-y-3 rounded-2xl border border-border/60 bg-card/70 p-3.5" data-testid="backup-map-preview-root">
-									<div className="text-sm font-medium text-card-foreground"><InlineHelpLabel hint={text.help.modelMappings}>{text.modelMappings}</InlineHelpLabel></div>
-									<textarea value={modelMappingsText} onChange={(event) => setModelMappingsText(event.target.value)} placeholder={getLocalizedModelMappingsPlaceholder(locale)} className="min-h-28 w-full rounded-2xl border border-input bg-background px-3 py-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring/40" />
-                                    <div className="rounded-2xl border border-border/60 bg-background/70 p-3 text-xs text-muted-foreground">
-										<div className="font-medium text-card-foreground">{text.structuredMappings}</div>
-										<div className="mt-2">{`${text.activeMappings}：${Object.keys(importMode === 'map' ? (() => { try { return parseModelMappings(modelMappingsText, locale); } catch { return {}; } })() : {}).length}`}</div>
+								<div className="space-y-3 rounded-2xl border border-border/60 bg-card/70 p-3.5" data-testid="backup-map-preview-root">
+									<div className="space-y-1">
+										<div className="text-sm font-medium text-card-foreground"><InlineHelpLabel hint={text.help.modelMappings}>{text.modelMappings}</InlineHelpLabel></div>
+										<div className="text-xs text-muted-foreground" data-testid="backup-map-preview-summary">{text.structuredMappingsSummary}</div>
 									</div>
+									<div className="rounded-2xl border border-border/60 bg-background/70 p-3 text-xs text-muted-foreground" data-testid="backup-structured-mapping-panel">
+										<div className="flex flex-wrap items-center justify-between gap-3">
+											<div>
+												<div className="font-medium text-card-foreground">{text.structuredMappings}</div>
+												<div className="mt-1" data-testid="backup-structured-mapping-count">{`${text.activeMappings}：${structuredMappingCount}`}</div>
+											</div>
+											<Button type="button" variant="outline" size="sm" className="h-8 rounded-lg" data-testid="backup-structured-mapping-add" onClick={handleAddMappingRow}>{text.addMappingRow}</Button>
+										</div>
+										<div className="mt-3 space-y-2" data-testid="backup-structured-mapping-rows">
+											{mappingRows.map((row, index) => (
+												<div key={row.id} className="grid gap-2 rounded-xl border border-border/40 bg-card/80 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" data-testid={`backup-structured-mapping-row-${index}`}>
+													<Input value={row.source} onChange={(event) => handleMappingRowChange(row.id, 'source', event.target.value)} placeholder={currentMappingPlaceholder[0] ?? ''} data-testid={`backup-structured-mapping-source-${index}`} className="rounded-xl" />
+													<Input value={row.target} onChange={(event) => handleMappingRowChange(row.id, 'target', event.target.value)} placeholder={currentMappingPlaceholder[1] ?? ''} data-testid={`backup-structured-mapping-target-${index}`} className="rounded-xl" />
+													<Button type="button" variant="outline" size="sm" className="h-10 rounded-xl" data-testid={`backup-structured-mapping-remove-${index}`} onClick={() => handleRemoveMappingRow(row.id)}>{text.removeMappingRow}</Button>
+												</div>
+											))}
+										</div>
+										{structuredMappingCount === 0 ? <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-700" data-testid="backup-structured-mapping-empty">{text.mappingEmptyHint}</div> : null}
+									</div>
+									<textarea value={serializedModelMappingsText} readOnly aria-hidden className="sr-only" data-testid="backup-model-mappings-textarea" />
 								</div>
 							) : null}
-							<div className="rounded-2xl border border-border/60 bg-background/70 p-3">
-								<div className="flex items-center justify-between gap-3">
-									<div className="space-y-1">
-									<div className="text-sm font-semibold text-card-foreground" data-testid="backup-import-remaining-migration-title"><InlineHelpLabel hint={text.help.advancedPending}>{text.importAdvancedPending}</InlineHelpLabel></div>
-									<div className="text-xs text-muted-foreground" data-testid="backup-import-remaining-migration-summary">{text.remainingMigrationSummary}</div>
-								</div>
-								<Button type="button" variant="outline" size="sm" className="h-8 rounded-lg" data-testid="backup-import-remaining-migration-trigger" onClick={() => setShowImportRemainingMigration((current) => !current)}>{showImportRemainingMigration ? text.hide : text.remainingToggle}</Button>
-							</div>
-							<div className={cn('mt-2.5 space-y-2', showImportRemainingMigration ? '' : 'hidden')} data-testid="backup-import-remaining-migration-panel" aria-hidden={showImportRemainingMigration ? undefined : true}>
-								{importRemainingMigrationSections.map((section, index) => (
-								<div key={`import-remaining-${section.title}`} className="rounded-2xl border border-border/50 bg-card/70 px-3.5 py-2.5">
-										<button type="button" className="w-full text-left" data-slot="accordion-trigger" data-testid={`backup-import-remaining-migration-section-trigger-${index}`} onClick={() => setOpenedImportMigrationSection((current) => current === index ? null : index)}>
-											<div className="space-y-1 text-card-foreground">
-												<div className="text-sm font-medium">{section.title}</div>
-												<div className="text-xs leading-5 text-muted-foreground">{section.summary}</div>
-											</div>
-										</button>
-									<div className={cn('mt-2.5 space-y-2', openedImportMigrationSection === index ? '' : 'hidden')} data-testid={`backup-import-remaining-migration-section-panel-${index}`} aria-hidden={openedImportMigrationSection === index ? undefined : true}>{openedImportMigrationSection === index ? section.items.map((item) => <div key={item.key} className="rounded-xl border border-border/40 bg-background/70 px-3 py-2" data-testid={`backup-import-remaining-migration-section-item-${section.key}-${item.key}`}><div className="text-sm font-medium text-card-foreground" data-testid={`backup-import-remaining-migration-section-item-${section.key}-${item.key}-label`}>{item.label}</div><div className="mt-1 leading-5 text-muted-foreground" data-testid={`backup-import-remaining-migration-section-item-${section.key}-${item.key}-text`}>{item.text}</div></div>) : null}</div>
-									</div>
-								))}
-							</div>
-							</div>
 							<div className="flex justify-end">
 								<Button type="button" data-testid="backup-import-button" onClick={handleImport} disabled={!file || importDB.isPending || (selectiveImport && activeScopeCount === 0)} className="rounded-xl">{importDB.isPending ? text.importing : text.importButton}</Button>
 							</div>
@@ -789,19 +1065,41 @@ export function SettingBackup() {
 												{showCompatibilityDetails ? text.hide : `${text.show} ${Math.max(compatibilitySignals.length, 1)}`}
 											</Button>
 										</div>
-										<div data-testid="backup-compatibility-details">
-											{showCompatibilityDetails ? (
-												<div className="space-y-3 text-xs text-muted-foreground">
-													<div className="space-y-2" data-testid="backup-compatibility-signal-list">
-														{compatibilitySignals.map((item, index) => <div key={item} className="rounded-xl border border-border/40 bg-background/70 px-3 py-2" data-testid={`backup-compatibility-signal-${index}`}>{item}</div>)}
-													</div>
-													<DetailBlock title={text.missingProvidersTitle} items={compatibility?.missing_providers ?? []} testIdPrefix="backup-compatibility-missing-providers" />
-													<DetailBlock title={text.mappingPreviewTitle} items={mappingPreviewItems} testIdPrefix="backup-compatibility-mapping-preview" />
-													<DetailBlock title={text.missingMappingTitle} items={missingMappingItems} testIdPrefix="backup-compatibility-missing-mapping" />
-													<DetailBlock title={text.unusedMappingTitle} items={unusedMappingItems} testIdPrefix="backup-compatibility-unused-mapping" />
-												</div>
-											) : null}
-										</div>
+		<div data-testid="backup-compatibility-details">
+			{showCompatibilityDetails ? (
+				<div className="space-y-3 text-xs text-muted-foreground">
+					<DetailBlock title={text.compatibilityGuidanceTitle} items={compatibilityGuidanceItems.map((item) => `${item.title} | ${item.detail}`)} testIdPrefix="backup-compatibility-guidance" />
+					<div className="space-y-2" data-testid="backup-compatibility-signal-list">
+						{compatibilitySignals.map((item, index) => <div key={item} className="rounded-xl border border-border/40 bg-background/70 px-3 py-2" data-testid={`backup-compatibility-signal-${index}`}>{item}</div>)}
+					</div>
+					<DetailBlock title={text.compatibilityConflictTitle} items={conflictItems} testIdPrefix="backup-compatibility-conflicts" />
+					<DetailBlock title={text.aliasConflictTitle} items={aliasConflictItems} testIdPrefix="backup-compatibility-alias-conflicts" />
+					<DetailBlock title={text.routeConflictTitle} items={routeConflictItems} testIdPrefix="backup-compatibility-route-conflicts" />
+					<DetailBlock title={text.affectedGroupsTitle} items={affectedGroupItems} testIdPrefix="backup-compatibility-affected-groups" />
+					<DetailBlock title={text.affectedChannelsTitle} items={affectedChannelItems} testIdPrefix="backup-compatibility-affected-channels" />
+					<DetailBlock title={text.missingProvidersTitle} items={compatibility?.missing_providers ?? []} testIdPrefix="backup-compatibility-missing-providers" />
+					<DetailBlock title={text.missingModelsTitle} items={missingModelItems} testIdPrefix="backup-compatibility-missing-models" />
+					<DetailBlock title={text.baseURLMismatchTitle} items={baseURLMismatchItems} testIdPrefix="backup-compatibility-base-url-mismatches" />
+					<DetailBlock title={text.schemaMismatchTitle} items={schemaMismatchItems} testIdPrefix="backup-compatibility-schema-mismatches" />
+					<DetailBlock title={text.skippedTargetsTitle} items={skippedTargetItems} testIdPrefix="backup-compatibility-skipped-targets" />
+					<DetailBlock title={text.credentialRebindTitle} items={credentialRebindItems} testIdPrefix="backup-compatibility-credential-rebind" />
+					<DetailBlock title={localize(locale, { 'zh-Hans': '替换后会移除的渠道', en: 'Channels removed by replace mode' })} items={replacePrunedBreakdown.channels} testIdPrefix="backup-compatibility-replace-pruned-channels" />
+					<DetailBlock title={localize(locale, { 'zh-Hans': '替换后会移除的分组', en: 'Groups removed by replace mode' })} items={replacePrunedBreakdown.groups} testIdPrefix="backup-compatibility-replace-pruned-groups" />
+					<DetailBlock title={localize(locale, { 'zh-Hans': '替换后会重置的设置', en: 'Settings reset by replace mode' })} items={replacePrunedBreakdown.settings} testIdPrefix="backup-compatibility-replace-pruned-settings" />
+					<DetailBlock title={localize(locale, { 'zh-Hans': '替换后会移除的模型信息', en: 'Model rows removed by replace mode' })} items={replacePrunedBreakdown.llmInfos} testIdPrefix="backup-compatibility-replace-pruned-llm-infos" />
+					<DetailBlock title={localize(locale, { 'zh-Hans': '替换后会移除的 API 密钥', en: 'API keys removed by replace mode' })} items={replacePrunedBreakdown.apiKeys} testIdPrefix="backup-compatibility-replace-pruned-api-keys" />
+					<DetailBlock title={text.routeIssueTitle} items={invalidRouteIssueItems} testIdPrefix="backup-compatibility-invalid-route-targets" />
+					<DetailBlock title={text.skippedRouteIssueTitle} items={skippedRouteIssueItems} testIdPrefix="backup-compatibility-skipped-route-targets" />
+					<DetailBlock title={text.routePreviewWarningTitle} items={routePreviewWarningItems} testIdPrefix="backup-compatibility-route-preview-warnings" />
+					<DetailBlock title={text.routePreviewDiffTitle} items={routePreviewDiffItems} testIdPrefix="backup-compatibility-route-preview-diffs" />
+					<DetailBlock title={text.mappingPreviewTitle} items={mappingPreviewItems} testIdPrefix="backup-compatibility-mapping-preview" />
+					<DetailBlock title={text.missingMappingTitle} items={missingMappingItems} testIdPrefix="backup-compatibility-missing-mapping" />
+					<DetailBlock title={text.unusedMappingTitle} items={unusedMappingItems} testIdPrefix="backup-compatibility-unused-mapping" />
+					<DetailBlock title={text.aliasPreviewTitle} items={aliasPreviewItems} testIdPrefix="backup-compatibility-alias-preview" />
+					<DetailBlock title={text.modelPolicyDiffTitle} items={modelPolicyDiffItems} testIdPrefix="backup-compatibility-model-policy-diffs" />
+				</div>
+			) : null}
+		</div>
 									</div>
 
 									{replacePruneSections.length > 0 ? (
@@ -909,33 +1207,24 @@ export function SettingBackup() {
 						</div>
 					) : null}
 
-                    <div className="rounded-2xl border border-border/60 bg-background/70 p-3">
-						<div className="flex items-center justify-between gap-3">
-							<div className="space-y-1">
-								<div className="text-sm font-semibold text-card-foreground" data-testid="backup-advanced-pending-title"><InlineHelpLabel hint={text.help.advancedPending}>{text.advancedPending}</InlineHelpLabel></div>
-								<div className="text-xs text-muted-foreground" data-testid="backup-advanced-pending-summary">{text.remainingMigrationSummary}</div>
-							</div>
-							<Button type="button" variant="outline" size="sm" className="h-8 rounded-lg" data-testid="backup-remaining-migration-trigger" onClick={() => setShowHistoryRemainingMigration((current) => !current)}>{showHistoryRemainingMigration ? text.hide : text.remainingToggle}</Button>
+					<div className="rounded-2xl border border-border/60 bg-background/70 p-3" data-testid="backup-rollback-scope-editor">
+						<div className="space-y-1">
+							<div className="text-sm font-semibold text-card-foreground" data-testid="backup-rollback-scope-editor-title"><InlineHelpLabel hint={text.help.rollbackSelective}>{text.rollbackScopeEditorTitle}</InlineHelpLabel></div>
+							<div className="text-xs text-muted-foreground" data-testid="backup-rollback-scope-editor-summary">{text.rollbackScopeEditorSummary}</div>
 						</div>
-							{showHistoryRemainingMigration ? (
-								<div className="mt-2 space-y-2" data-testid="backup-remaining-migration-panel">
-								{historyRemainingMigrationSections.map((section, index) => (
-									<div key={section.title} className="rounded-2xl border border-border/50 bg-card/70 px-3 py-2.5">
-										<button type="button" className="w-full text-left" data-slot="accordion-trigger" data-testid={`backup-remaining-migration-section-trigger-${index}`} onClick={() => setOpenedHistoryMigrationSection((current) => current === index ? null : index)}>
-											<div className="space-y-1 text-card-foreground">
-												<div className="text-sm font-medium">{section.title}</div>
-												<div className="text-xs leading-5 text-muted-foreground">{section.summary}</div>
-											</div>
-										</button>
-										{openedHistoryMigrationSection === index ? (
-											<div className="mt-2.5 space-y-2" data-testid={`backup-remaining-migration-section-panel-${index}`}>
-												{section.items.map((item) => <div key={item.key} className="rounded-xl border border-border/40 bg-background/70 px-3 py-2" data-testid={`backup-remaining-migration-section-item-${section.key}-${item.key}`}><div className="text-sm font-medium text-card-foreground" data-testid={`backup-remaining-migration-section-item-${section.key}-${item.key}-label`}>{item.label}</div><div className="mt-1 leading-5 text-muted-foreground" data-testid={`backup-remaining-migration-section-item-${section.key}-${item.key}-text`}>{item.text}</div></div>)}
-											</div>
-										) : null}
-									</div>
-								))}
+						<div className="mt-3 space-y-3">
+							<SwitchRow label={text.selectiveRollback} hint={text.help.rollbackSelective} checked={selectiveRollback} onCheckedChange={handleSelectiveRollbackChange} testId="backup-rollback-selective-switch" />
+							{selectiveRollback ? (
+								<div className="grid gap-2.5 lg:grid-cols-2" data-testid="backup-rollback-scope-grid">
+									{scopeOptions.map((option) => <SwitchRow key={`rollback-${option.key}`} label={option.label} checked={rollbackScopes[option.key]} onCheckedChange={(checked) => handleRollbackScopeChange(option.key, checked)} testId={`backup-rollback-scope-${option.key}`} />)}
+								</div>
+							) : null}
+							<div className={cn('rounded-2xl border px-3 py-2.5 text-sm', preparedRollbackScopes ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700' : 'border-amber-500/30 bg-amber-500/10 text-amber-700')} data-testid="backup-rollback-scope-mode-note">
+								<div className="font-medium">{preparedRollbackScopes ? text.rollbackScopeScopedNote : text.rollbackScopeFallbackNote}</div>
+								<div className="mt-1 text-xs" data-testid="backup-rollback-scope-current-summary">{`${text.rollbackMetaScope}：${rollbackScopeEditorSummary}`}</div>
 							</div>
-						) : null}
+						</div>
+					</div>
 
 							{currentRollbackPreview ? (
                                 <div className="space-y-2.5 rounded-2xl border border-border/60 bg-card/70 p-3" data-testid="backup-rollback-preview-panel">
@@ -953,14 +1242,101 @@ export function SettingBackup() {
 									</div>
 									<div className="grid gap-2.5 text-xs text-muted-foreground sm:grid-cols-2 xl:grid-cols-2" data-testid="backup-rollback-preview-meta-grid">
 										<MetaGridCell label={text.rollbackMetaScope} value={rollbackScopeSummary} rawValue={serializeImportScopes(currentRollbackPreview?.applied_scopes)} testId="backup-rollback-preview-meta-scope" />
-										<MetaGridCell label={text.rollbackMetaEncrypted} value={rollbackEncryptedSummary} rawValue={currentRollbackPreview?.manifest?.encrypted} testId="backup-rollback-preview-meta-encrypted" />
-										<MetaGridCell label={text.rollbackMetaContainsSecrets} value={rollbackContainsSecretsSummary} rawValue={currentRollbackPreview?.manifest?.contains_secrets} testId="backup-rollback-preview-meta-contains-secrets" />
-										<MetaGridCell label={text.rollbackMetaSchemaVersion} value={rollbackSchemaVersionSummary} rawValue={currentRollbackPreview?.manifest?.schema_version} testId="backup-rollback-preview-meta-schema-version" />
+									<MetaGridCell label={text.rollbackMetaEncrypted} value={rollbackEncryptedSummary} rawValue={currentRollbackPreview?.manifest?.encrypted} testId="backup-rollback-preview-meta-encrypted" />
+									<MetaGridCell label={text.rollbackMetaContainsSecrets} value={rollbackContainsSecretsSummary} rawValue={currentRollbackPreview?.manifest?.contains_secrets} testId="backup-rollback-preview-meta-contains-secrets" />
+									<MetaGridCell label={text.rollbackMetaSchemaVersion} value={rollbackSchemaVersionSummary} rawValue={currentRollbackPreview?.manifest?.schema_version} testId="backup-rollback-preview-meta-schema-version" />
+								</div>
+								<div className="space-y-3 rounded-2xl border border-border/60 bg-background/70 p-3" data-testid="backup-rollback-signal-panel">
+									<div className="space-y-1">
+										<div className="text-sm font-medium text-card-foreground" data-testid="backup-rollback-signal-title">{text.rollbackGuidanceTitle}</div>
+										<div className="text-xs text-muted-foreground" data-testid="backup-rollback-signal-summary">{text.rollbackSignalsSummary}</div>
+									</div>
+									{rollbackSignals.length > 0 ? (
+										<div className="space-y-2" data-testid="backup-rollback-signal-list">
+											{rollbackSignals.map((item, index) => <div key={`${item}-${index}`} className="rounded-xl border border-border/40 bg-card/80 px-3 py-2 text-xs text-muted-foreground" data-testid={`backup-rollback-signal-${index}`}>{item}</div>)}
+										</div>
+									) : null}
+									<DetailBlock title={text.rollbackGuidanceTitle} items={rollbackGuidanceItems.map((item) => `${item.title} | ${item.detail}`)} testIdPrefix="backup-rollback-guidance" />
+								</div>
+								{rollbackPreviewWarningItems.length > 0 ? (
+									<div className="space-y-3 rounded-2xl border border-border/60 bg-background/70 p-3" data-testid="backup-rollback-preview-warnings-panel">
+										<div className="space-y-1">
+											<div className="text-sm font-medium text-card-foreground" data-testid="backup-rollback-preview-warnings-title">{text.rollbackPreviewWarningsTitle}</div>
+											<div className="text-xs text-muted-foreground" data-testid="backup-rollback-preview-warnings-summary">{text.rollbackPreviewWarningsSummary}</div>
+										</div>
+								<DetailBlock title={text.rollbackPreviewWarningsTitle} items={rollbackPreviewWarningItems} testIdPrefix="backup-rollback-preview-warnings-list" />
+									</div>
+								) : null}
+								{hasRollbackCompatibilityDetails ? (
+									<div className="space-y-3 rounded-2xl border border-border/60 bg-background/70 p-3" data-testid="backup-rollback-compatibility-panel">
+										<div className="space-y-1">
+											<div className="text-sm font-medium text-card-foreground" data-testid="backup-rollback-compatibility-title">{text.rollbackCompatibilityDetailsTitle}</div>
+											<div className="text-xs text-muted-foreground" data-testid="backup-rollback-compatibility-summary">{text.rollbackCompatibilityDetailsSummary}</div>
+										</div>
+										<div className="space-y-3">
+											<DetailBlock title={text.compatibilityConflictTitle} items={rollbackConflictItems} testIdPrefix="backup-rollback-compatibility-conflicts" />
+											<DetailBlock title={text.aliasConflictTitle} items={rollbackAliasConflictItems} testIdPrefix="backup-rollback-compatibility-alias-conflicts" />
+											<DetailBlock title={text.routeConflictTitle} items={rollbackRouteConflictItems} testIdPrefix="backup-rollback-compatibility-route-conflicts" />
+											<DetailBlock title={text.affectedGroupsTitle} items={rollbackAffectedGroupItems} testIdPrefix="backup-rollback-compatibility-affected-groups" />
+											<DetailBlock title={text.affectedChannelsTitle} items={rollbackAffectedChannelItems} testIdPrefix="backup-rollback-compatibility-affected-channels" />
+											<DetailBlock title={text.missingProvidersTitle} items={rollbackMissingProviderItems} testIdPrefix="backup-rollback-compatibility-missing-providers" />
+											<DetailBlock title={text.missingModelsTitle} items={rollbackMissingModelItems} testIdPrefix="backup-rollback-compatibility-missing-models" />
+											<DetailBlock title={text.baseURLMismatchTitle} items={rollbackBaseURLMismatchItems} testIdPrefix="backup-rollback-compatibility-base-url-mismatches" />
+											<DetailBlock title={text.schemaMismatchTitle} items={rollbackSchemaMismatchItems} testIdPrefix="backup-rollback-compatibility-schema-mismatches" />
+											<DetailBlock title={text.skippedTargetsTitle} items={rollbackSkippedTargetItems} testIdPrefix="backup-rollback-compatibility-skipped-targets" />
+											<DetailBlock title={text.credentialRebindTitle} items={rollbackCredentialRebindItems} testIdPrefix="backup-rollback-compatibility-credential-rebind" />
+											<DetailBlock title={text.routeIssueTitle} items={rollbackInvalidRouteIssueItems} testIdPrefix="backup-rollback-compatibility-invalid-route-targets" />
+											<DetailBlock title={text.skippedRouteIssueTitle} items={rollbackSkippedRouteIssueItems} testIdPrefix="backup-rollback-compatibility-skipped-route-targets" />
+											<DetailBlock title={text.routePreviewWarningTitle} items={rollbackRoutePreviewWarningItems} testIdPrefix="backup-rollback-compatibility-route-preview-warnings" />
+											<DetailBlock title={text.mappingPreviewTitle} items={rollbackMappingPreviewItems} testIdPrefix="backup-rollback-compatibility-mapping-preview" />
+											<DetailBlock title={text.missingMappingTitle} items={rollbackMissingMappingItems} testIdPrefix="backup-rollback-compatibility-missing-mapping" />
+											<DetailBlock title={text.unusedMappingTitle} items={rollbackUnusedMappingItems} testIdPrefix="backup-rollback-compatibility-unused-mapping" />
+											<DetailBlock title={text.aliasPreviewTitle} items={rollbackAliasPreviewItems} testIdPrefix="backup-rollback-compatibility-alias-preview" />
+											<DetailBlock title={text.modelPolicyDiffTitle} items={rollbackModelPolicyDiffItems} testIdPrefix="backup-rollback-compatibility-model-policy-diffs" />
+										</div>
+									</div>
+								) : null}
+								<div className="space-y-3 rounded-2xl border border-border/60 bg-background/70 p-3" data-testid="backup-rollback-route-diff-panel">
+										<div className="space-y-1">
+											<div className="text-sm font-medium text-card-foreground" data-testid="backup-rollback-route-diff-title">{text.routeDiffCompareTitle}</div>
+											<div className="text-xs text-muted-foreground" data-testid="backup-rollback-route-diff-summary">{text.routeDiffCompareSummary}</div>
+										</div>
+										{routeDiffRows.length === 0 ? (
+											<div className="rounded-xl border border-border/40 bg-card/80 px-3 py-2 text-xs text-muted-foreground" data-testid="backup-rollback-route-diff-empty">{text.routeDiffNone}</div>
+										) : (
+											<div className="space-y-3" data-testid="backup-rollback-route-diff-list">
+												{routeDiffRows.map((row, index) => (
+													<div key={`${row.groupName}-${row.model}-${index}`} className="rounded-xl border border-border/40 bg-card/80 p-3" data-testid={`backup-rollback-route-diff-row-${index}`}>
+														<div className="flex flex-wrap items-center justify-between gap-2">
+															<div className="text-sm font-medium text-card-foreground" data-testid={`backup-rollback-route-diff-row-title-${index}`}>{`${row.groupName} / ${row.model}`}</div>
+															<Badge variant={row.fallbackChanged ? 'default' : 'secondary'} data-testid={`backup-rollback-route-diff-row-fallback-${index}`}>{row.fallbackChanged ? text.yes : text.no}</Badge>
+														</div>
+														<div className="mt-3 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
+															<div className="rounded-xl border border-border/40 bg-background/70 p-2.5" data-testid={`backup-rollback-route-diff-current-${index}`}>
+																<div className="font-medium text-card-foreground">{text.routeDiffCurrentState}</div>
+																<div className="mt-1">{row.before}</div>
+															</div>
+															<div className="rounded-xl border border-border/40 bg-background/70 p-2.5" data-testid={`backup-rollback-route-diff-snapshot-${index}`}>
+																<div className="font-medium text-card-foreground">{text.routeDiffSnapshotState}</div>
+																<div className="mt-1">{row.after}</div>
+															</div>
+															<div className="rounded-xl border border-border/40 bg-background/70 p-2.5" data-testid={`backup-rollback-route-diff-removed-${index}`}>
+																<div className="font-medium text-card-foreground">{text.routeDiffRemoved}</div>
+																<div className="mt-1">{row.removed}</div>
+															</div>
+															<div className="rounded-xl border border-border/40 bg-background/70 p-2.5" data-testid={`backup-rollback-route-diff-added-${index}`}>
+																<div className="font-medium text-card-foreground">{text.routeDiffAdded}</div>
+																<div className="mt-1">{row.added}</div>
+															</div>
+														</div>
+													</div>
+												))}
+											</div>
+										)}
 									</div>
 								</div>
 							) : null}
 				</div>
-			</div>
 			</SectionCard>
 		</div>
 	);

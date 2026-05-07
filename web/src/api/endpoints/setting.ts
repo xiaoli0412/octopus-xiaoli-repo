@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient, API_BASE_URL } from '../client';
+import { apiClient, buildApiUrl, getResolvedAuthToken } from '../client';
 import { logger } from '@/lib/logger';
 import { useAuthStore } from './user';
 
@@ -412,10 +412,12 @@ function getDataField<T>(value: unknown): T | undefined {
     return (value as ApiResponse<T>).data;
 }
 
-function getAuthHeader(): string {
-    const token = useAuthStore.getState().token;
-    if (!token) throw new Error('Not authenticated');
-    return `Bearer ${token}`;
+function buildAuthHeaders(): Headers {
+	const token = useAuthStore.getState().token || getResolvedAuthToken();
+	if (!token) throw new Error('Not authenticated');
+	const headers = new Headers();
+	headers.set('Authorization', `Bearer ${token}`);
+	return headers;
 }
 
 function parseFilename(contentDisposition: string | null): string | null {
@@ -458,12 +460,15 @@ export function useExportDB() {
             params.set('include_secrets', String(options.include_secrets ?? true));
             params.set('format', options.format ?? 'standard');
 
-            const res = await fetch(`${API_BASE_URL}/api/v1/setting/export?${params.toString()}`, {
-                method: 'GET',
-                headers: {
-                    Authorization: getAuthHeader(),
-                },
-            });
+			const res = await fetch(buildApiUrl('/api/v1/setting/export', {
+				include_logs: !!options.include_logs,
+				include_stats: !!options.include_stats,
+				include_secrets: options.include_secrets ?? true,
+				format: options.format ?? 'standard',
+			}), {
+				method: 'GET',
+				headers: buildAuthHeaders(),
+			});
 
             if (!res.ok) {
                 const text = await res.text();
@@ -513,18 +518,14 @@ export function useImportDB() {
                 form.append('preview_token', previewToken);
             }
 
-            const params = new URLSearchParams({
-                dry_run: dryRun ? 'true' : 'false',
-                mode,
-            });
-
-            const res = await fetch(`${API_BASE_URL}/api/v1/setting/import?${params.toString()}`, {
-                method: 'POST',
-                headers: {
-                    Authorization: getAuthHeader(),
-                },
-                body: form,
-            });
+			const res = await fetch(buildApiUrl('/api/v1/setting/import', {
+				dry_run: dryRun,
+				mode,
+			}), {
+				method: 'POST',
+				headers: buildAuthHeaders(),
+				body: form,
+			});
 
             const contentType = res.headers.get('content-type') || '';
             const isJson = contentType.includes('application/json');

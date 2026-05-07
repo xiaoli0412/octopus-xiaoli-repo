@@ -1,7 +1,6 @@
 package task
 
 import (
-	"context"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -27,7 +26,7 @@ func SyncModelsTask() {
 	defer func() {
 		log.Debugf("sync models task finished, sync time: %s", time.Since(startTime))
 	}()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := taskContextWithTimeout(30 * time.Minute)
 	defer cancel()
 	channels, err := op.ChannelList(ctx)
 	if err != nil {

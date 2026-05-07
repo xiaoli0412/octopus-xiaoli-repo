@@ -50,12 +50,11 @@ func init() {
 }
 
 func listRouteTargetOverrides(c *gin.Context) {
-	channelIDParam := strings.TrimSpace(c.Query("channel_id"))
 	var (
 		rows []model.RouteTargetOverride
 		err  error
 	)
-	if channelIDParam != "" {
+	if _, exists := c.GetQuery("channel_id"); exists {
 		channelID, ok, parseErr := parseOptionalPositiveIntQuery(c, "channel_id")
 		if parseErr != nil || !ok {
 			resp.Error(c, http.StatusBadRequest, "invalid channel id")

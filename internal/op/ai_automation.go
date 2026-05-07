@@ -16,6 +16,8 @@ import (
 
 var ErrAIAutomationDisabled = errors.New("ai automation is disabled")
 
+const aiTaskListMaxOffset = 10000
+
 func AIAutomationConfigGet(ctx context.Context) (model.AIAutomationConfig, error) {
 	config, err := aiAutomationConfigGetRaw(ctx)
 	if err != nil {
@@ -461,7 +463,10 @@ func AITaskList(req model.AITaskListRequest, ctx context.Context) (model.AITaskL
 		pageSize = 20
 	}
 	if pageSize > 100 {
-		pageSize = 100
+		return model.AITaskListResult{}, fmt.Errorf("invalid page_size")
+	}
+	if int64(page-1)*int64(pageSize) >= aiTaskListMaxOffset {
+		return model.AITaskListResult{}, fmt.Errorf("invalid page")
 	}
 	query := db.GetDB().WithContext(ctx).Model(&model.AITask{})
 	if status := strings.TrimSpace(req.Status); status != "" {

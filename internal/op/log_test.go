@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 )
 
@@ -167,5 +168,41 @@ func TestRelayLogAddDoesNotBlockWhenSubscriberBufferIsFull(t *testing.T) {
 		}
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("RelayLogAdd() blocked with a full subscriber buffer")
+	}
+}
+
+func TestRelayLogListDeduplicatesEntriesPresentInCacheAndDB(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	entries := []model.RelayLog{
+		{ID: 101, Time: 1700000001, RequestModelName: "dup-newest"},
+		{ID: 100, Time: 1700000000, RequestModelName: "dup-older"},
+		{ID: 99, Time: 1699999999, RequestModelName: "db-only"},
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&entries).Error; err != nil {
+		t.Fatalf("seed relay logs error = %v", err)
+	}
+
+	relayLogCacheLock.Lock()
+	relayLogCache = []model.RelayLog{entries[1], entries[0]}
+	relayLogCacheLock.Unlock()
+
+	logs, err := RelayLogList(ctx, nil, nil, 1, 3)
+	if err != nil {
+		t.Fatalf("RelayLogList() error = %v", err)
+	}
+	if len(logs) != 3 {
+		t.Fatalf("len(logs) = %d, want 3", len(logs))
+	}
+	if logs[0].ID != 101 || logs[1].ID != 100 || logs[2].ID != 99 {
+		t.Fatalf("unexpected log order/ids = [%d %d %d], want [101 100 99]", logs[0].ID, logs[1].ID, logs[2].ID)
+	}
+
+	seen := make(map[int64]struct{}, len(logs))
+	for _, item := range logs {
+		if _, ok := seen[item.ID]; ok {
+			t.Fatalf("duplicate relay log id %d returned from RelayLogList()", item.ID)
+		}
+		seen[item.ID] = struct{}{}
 	}
 }

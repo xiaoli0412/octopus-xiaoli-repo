@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/conf"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	serverauth "github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/auth"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 const importPreviewTokenTTL = 30 * time.Minute
@@ -32,6 +32,15 @@ func buildImportPreviewDigest(dump *model.DBDump, mode model.DBImportMode, optio
 	if dump == nil {
 		return "", fmt.Errorf("empty import dump")
 	}
+	if !model.IsValidDBImportMode(mode) {
+		return "", fmt.Errorf("unsupported import mode")
+	}
+	if err := validateImportScopes(options.ImportScopes); err != nil {
+		return "", err
+	}
+	if err := validateImportModelMappings(options.ModelMappings); err != nil {
+		return "", err
+	}
 	payload, err := json.Marshal(dump)
 	if err != nil {
 		return "", fmt.Errorf("marshal import dump: %w", err)
@@ -39,7 +48,7 @@ func buildImportPreviewDigest(dump *model.DBDump, mode model.DBImportMode, optio
 	dumpHash := sha256.Sum256(payload)
 	fingerprint := importPreviewFingerprint{
 		DumpHash:      hex.EncodeToString(dumpHash[:]),
-		Mode:          model.DefaultDBImportMode(string(mode)),
+		Mode:          model.NormalizeDBImportMode(string(mode)),
 		ModelMappings: normalizeImportPreviewModelMappings(options.ModelMappings),
 		ImportScopes:  normalizeImportPreviewScopes(options.ImportScopes),
 	}
@@ -98,6 +107,25 @@ func importPreviewTokenSecret() []byte {
 		"import-preview-token",
 	}, "\n")
 	return []byte(secret)
+}
+
+func validateImportModelMappings(input map[string]string) error {
+	if len(input) == 0 {
+		return nil
+	}
+	for source, target := range input {
+		if strings.TrimSpace(source) == "" || strings.TrimSpace(target) == "" {
+			return fmt.Errorf("invalid model_mappings")
+		}
+	}
+	return nil
+}
+
+func validateImportScopes(scopes *model.DBImportScopes) error {
+	if scopes == nil {
+		return nil
+	}
+	return scopes.Validate()
 }
 
 func normalizeImportPreviewModelMappings(input map[string]string) map[string]string {

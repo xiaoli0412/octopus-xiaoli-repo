@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -35,12 +36,22 @@ type DBImportScopes struct {
 	Logs     bool `json:"logs,omitempty"`
 }
 
+func (s *DBImportScopes) Validate() error {
+	if s == nil {
+		return nil
+	}
+	if !s.Routing && !s.Models && !s.APIKeys && !s.Settings && !s.Stats && !s.Logs {
+		return fmt.Errorf("at least one import scope must be enabled")
+	}
+	return nil
+}
+
 type DBRollbackResult struct {
-	SnapshotPath string          `json:"snapshot_path,omitempty"`
-	SnapshotName string          `json:"snapshot_name,omitempty"`
-	ImportedAt   time.Time       `json:"imported_at,omitempty"`
+	SnapshotPath  string          `json:"snapshot_path,omitempty"`
+	SnapshotName  string          `json:"snapshot_name,omitempty"`
+	ImportedAt    time.Time       `json:"imported_at,omitempty"`
 	AppliedScopes *DBImportScopes `json:"applied_scopes,omitempty"`
-	Result       *DBImportResult `json:"result,omitempty"`
+	Result        *DBImportResult `json:"result,omitempty"`
 }
 
 type DBImportSnapshotInfo struct {
@@ -298,11 +309,11 @@ type DBImportRoutePreviewCandidate struct {
 }
 
 type DBDump struct {
-	Version      int            `json:"version"`
-	ExportedAt   time.Time      `json:"exported_at"`
-	IncludeLogs  bool           `json:"include_logs"`
-	IncludeStats bool           `json:"include_stats"`
-	Manifest     DBDumpManifest `json:"manifest"`
+	Version      int                `json:"version"`
+	ExportedAt   time.Time          `json:"exported_at"`
+	IncludeLogs  bool               `json:"include_logs"`
+	IncludeStats bool               `json:"include_stats"`
+	Manifest     DBDumpManifest     `json:"manifest"`
 	LegacyHints  *DBDumpLegacyHints `json:"-"`
 
 	Channels             []Channel               `json:"channels,omitempty"`

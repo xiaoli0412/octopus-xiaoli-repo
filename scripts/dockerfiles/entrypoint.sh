@@ -4,6 +4,18 @@ set -e
 PUID=${PUID:-10001}
 PGID=${PGID:-10001}
 DATA_DIR=${DATA_DIR:-/app/data}
+ALLOW_ROOT_FALLBACK_ON_DATA_DIR_ERROR=${ALLOW_ROOT_FALLBACK_ON_DATA_DIR_ERROR:-false}
+
+is_truthy() {
+    case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+        1|true|yes|on)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
 
 can_write_data_dir_as_target() {
     if [ "$PUID" = 0 ] && [ "$PGID" = 0 ]; then
@@ -58,9 +70,15 @@ fi
 cd /app
 
 if [ "$(id -u)" = 0 ] && { [ "$PUID" != 0 ] || [ "$PGID" != 0 ]; } && ! target_runtime_is_writable; then
-    echo "Warning: $DATA_DIR is not writable for the container runtime; starting Octopus as root." >&2
-    echo 'Hint: fix the host volume ownership or mount a writable data directory to restore unprivileged runtime.' >&2
-    exec ./octopus start
+    if is_truthy "$ALLOW_ROOT_FALLBACK_ON_DATA_DIR_ERROR"; then
+        echo "Warning: $DATA_DIR is not writable for the configured runtime user; ALLOW_ROOT_FALLBACK_ON_DATA_DIR_ERROR is enabled, so Octopus will start as root." >&2
+        echo 'Hint: fix the host volume ownership or mount a writable data directory to restore unprivileged runtime and remove the fallback override.' >&2
+        exec ./octopus start
+    fi
+
+    echo "Error: $DATA_DIR is not writable for the configured runtime user; refusing to start Octopus as root by default." >&2
+    echo 'Hint: fix the host volume ownership or mount a writable data directory. Set ALLOW_ROOT_FALLBACK_ON_DATA_DIR_ERROR=true only as a temporary compatibility escape hatch.' >&2
+    exit 1
 fi
 
 if command -v su-exec >/dev/null 2>&1; then

@@ -562,6 +562,19 @@ async function waitForRollbackPreview(timeoutMs = 30000) {
   throw new Error('Timed out waiting for rollback preview panel');
 }
 
+async function waitForRollbackPreviewCleared(timeoutMs = 15000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const result = await runPlaywrightCli(['eval', `() => ({ panelGone: !document.querySelector('[data-testid="backup-rollback-preview-panel"]') })`], { raw: true });
+    const snapshot = parsePlaywrightJson(result.stdout);
+    if (snapshot.panelGone) {
+      return;
+    }
+    await sleep(300);
+  }
+  throw new Error('Timed out waiting for rollback preview panel to clear after scope change');
+}
+
 async function ensureSnapshotHistoryExists(token, timeoutMs = 30000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
@@ -666,10 +679,48 @@ async function main() {
     assert.equal(history.list, true, 'history list should render after opening history');
     assert.ok(history.items >= 1, 'history list should show at least one imported snapshot after apply');
 
+    smokeLog('editing rollback scopes before previewing snapshot');
+    const rollbackScopeEditorResult = await runPlaywrightCli(['eval', `() => ({ editor: !!document.querySelector('[data-testid="backup-rollback-scope-editor"]'), summary: document.querySelector('[data-testid="backup-rollback-scope-current-summary"]')?.textContent?.trim() || '' })`], { raw: true });
+    const rollbackScopeEditor = parsePlaywrightJson(rollbackScopeEditorResult.stdout);
+    assert.equal(rollbackScopeEditor.editor, true, 'rollback scope editor should render after opening history');
+    assert.ok(rollbackScopeEditor.summary.includes('回滚范围：整包快照恢复'), 'rollback scope summary should default to full snapshot restore before selective rollback');
+
+    await runPlaywrightCli(['click', '[data-testid="backup-rollback-selective-switch"]']);
+    await runPlaywrightCli(['click', '[data-testid="backup-rollback-scope-routing"]']);
+    await runPlaywrightCli(['click', '[data-testid="backup-rollback-scope-stats"]']);
+    await runPlaywrightCli(['click', '[data-testid="backup-rollback-scope-logs"]']);
+    const rollbackScopeSelectedResult = await runPlaywrightCli(['eval', `() => ({ grid: !!document.querySelector('[data-testid="backup-rollback-scope-grid"]'), summary: document.querySelector('[data-testid="backup-rollback-scope-current-summary"]')?.textContent?.trim() || '' })`], { raw: true });
+    const rollbackScopeSelected = parsePlaywrightJson(rollbackScopeSelectedResult.stdout);
+    assert.equal(rollbackScopeSelected.grid, true, 'rollback scope grid should render after enabling selective rollback');
+    assert.ok(rollbackScopeSelected.summary.includes('回滚范围：模型数据、API 密钥、系统设置'), 'rollback scope summary should reflect the narrowed rollback domains');
+
     await runPlaywrightCli(['click', '[data-testid="backup-history-list"] [data-testid="backup-history-preview-button"]']);
     const rollback = await waitForRollbackPreview();
     assert.equal(rollback.panel, true, 'rollback preview should render after clicking preview');
     assert.equal(rollback.title, '回滚预览', 'rollback preview title should use localized copy');
+
+    const rollbackDetailsResult = await runPlaywrightCli(['eval', `() => ({ metaScopeText: document.querySelector('[data-testid="backup-rollback-preview-meta-scope"]')?.textContent?.trim() || '', metaScopeRaw: document.querySelector('[data-testid="backup-rollback-preview-meta-scope"]')?.getAttribute('data-raw-value') || '', routeDiffPanel: !!document.querySelector('[data-testid="backup-rollback-route-diff-panel"]'), routeDiffRows: document.querySelectorAll('[data-testid^="backup-rollback-route-diff-row-title-"]').length, routeDiffCurrent: document.querySelector('[data-testid="backup-rollback-route-diff-current-0"]')?.textContent?.trim() || '', routeDiffSnapshot: document.querySelector('[data-testid="backup-rollback-route-diff-snapshot-0"]')?.textContent?.trim() || '' })`], { raw: true });
+    const rollbackDetails = parsePlaywrightJson(rollbackDetailsResult.stdout);
+    assert.ok(rollbackDetails.metaScopeText.includes('回滚范围：模型数据、API 密钥、系统设置'), 'rollback preview should echo the narrowed rollback scopes');
+    assert.equal(rollbackDetails.metaScopeRaw, 'models,api_keys,settings', 'rollback preview raw scope should match the narrowed rollback scopes');
+    assert.equal(rollbackDetails.routeDiffPanel, true, 'rollback route-diff compare panel should render after previewing a snapshot');
+    assert.ok(rollbackDetails.routeDiffRows >= 1, 'rollback route-diff compare panel should expose at least one compare row');
+    assert.ok(rollbackDetails.routeDiffCurrent.includes('current-primary:gpt-4o'), 'rollback route-diff current-state cell should stay visible after preview');
+    assert.ok(rollbackDetails.routeDiffSnapshot.includes('snapshot-primary:gpt-4o'), 'rollback route-diff snapshot-state cell should stay visible after preview');
+
+    await runPlaywrightCli(['click', '[data-testid="backup-rollback-scope-settings"]']);
+    await waitForRollbackPreviewCleared();
+    const rollbackScopeNarrowedResult = await runPlaywrightCli(['eval', `() => ({ summary: document.querySelector('[data-testid="backup-rollback-scope-current-summary"]')?.textContent?.trim() || '', previewGone: !document.querySelector('[data-testid="backup-rollback-preview-panel"]') })`], { raw: true });
+    const rollbackScopeNarrowed = parsePlaywrightJson(rollbackScopeNarrowedResult.stdout);
+    assert.equal(rollbackScopeNarrowed.previewGone, true, 'rollback preview should clear after rollback scopes change');
+    assert.ok(rollbackScopeNarrowed.summary.includes('回滚范围：模型数据、API 密钥'), 'rollback scope summary should update after narrowing settings away');
+
+    await runPlaywrightCli(['click', '[data-testid="backup-history-list"] [data-testid="backup-history-preview-button"]']);
+    await waitForRollbackPreview();
+    const rollbackDetailsNarrowedResult = await runPlaywrightCli(['eval', `() => ({ metaScopeText: document.querySelector('[data-testid="backup-rollback-preview-meta-scope"]')?.textContent?.trim() || '', metaScopeRaw: document.querySelector('[data-testid="backup-rollback-preview-meta-scope"]')?.getAttribute('data-raw-value') || '' })`], { raw: true });
+    const rollbackDetailsNarrowed = parsePlaywrightJson(rollbackDetailsNarrowedResult.stdout);
+    assert.ok(rollbackDetailsNarrowed.metaScopeText.includes('回滚范围：模型数据、API 密钥'), 'rollback preview should refresh with the latest narrowed rollback scopes');
+    assert.equal(rollbackDetailsNarrowed.metaScopeRaw, 'models,api_keys', 'rollback preview raw scope should refresh after rollback scopes change');
 
     smokeLog('opening history remaining migration section');
     await runPlaywrightCli(['click', '[data-testid="backup-remaining-migration-trigger"]']);
@@ -695,6 +746,8 @@ async function main() {
       previewTokenVisible: preview.previewToken.length > 0,
       historyItems: history.items,
       rollbackSummaryCells: rollback.summaryCells,
+      rollbackScopeRaw: rollbackDetails.metaScopeRaw,
+      rollbackScopeNarrowedRaw: rollbackDetailsNarrowed.metaScopeRaw,
       mobileWidth: mobile.width,
       result: 'backup-browser-smoke passed',
     }, null, 2));

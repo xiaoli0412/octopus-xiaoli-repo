@@ -14,12 +14,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/resp"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
-	"github.com/gin-gonic/gin"
 )
 
 type antigravityOAuthSession struct {
@@ -271,9 +271,9 @@ func pollAntigravityOAuth(c *gin.Context) {
 }
 
 func antigravityOAuthCallback(c *gin.Context) {
-	state := c.Query("state")
-	if state == "" {
-		c.String(http.StatusBadRequest, "missing state")
+	state, err := parseRequiredTrimmedStringQuery(c, "state")
+	if err != nil {
+		c.String(http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -286,8 +286,8 @@ func antigravityOAuthCallback(c *gin.Context) {
 		return
 	}
 
-	if errText := c.Query("error"); errText != "" {
-		msg := c.Query("error_description")
+	if errText, hasError := parseOptionalTrimmedStringQuery(c, "error"); hasError {
+		msg, _ := parseOptionalTrimmedStringQuery(c, "error_description")
 		if msg == "" {
 			msg = errText
 		}
@@ -299,9 +299,9 @@ func antigravityOAuthCallback(c *gin.Context) {
 		return
 	}
 
-	code := c.Query("code")
-	if code == "" {
-		c.String(http.StatusBadRequest, "missing code")
+	code, err := parseRequiredTrimmedStringQuery(c, "code")
+	if err != nil {
+		c.String(http.StatusBadRequest, err.Error())
 		return
 	}
 

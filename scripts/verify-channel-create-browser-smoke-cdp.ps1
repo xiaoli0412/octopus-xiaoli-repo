@@ -156,12 +156,63 @@ function Get-JsonFileContent {
         return $null
     }
 
+    $candidatePaths = New-Object System.Collections.Generic.List[string]
+
     try {
-        return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+        $resolved = Resolve-Path -LiteralPath $Path -ErrorAction Stop
+        if ($null -ne $resolved -and -not [string]::IsNullOrWhiteSpace($resolved.ProviderPath)) {
+            $candidatePaths.Add($resolved.ProviderPath)
+        }
     }
     catch {
+    }
+
+    $candidatePaths.Add([string]$Path)
+
+    foreach ($candidate in ($candidatePaths | Select-Object -Unique)) {
+        foreach ($reader in @(
+            { param($value) [System.IO.File]::ReadAllText($value) },
+            { param($value) Get-Content -LiteralPath $value -Raw -Encoding utf8 -ErrorAction Stop },
+            { param($value) Get-Content -LiteralPath $value -Raw -ErrorAction Stop }
+        )) {
+            try {
+                $raw = & $reader $candidate
+                if ([string]::IsNullOrWhiteSpace($raw)) {
+                    continue
+                }
+
+                $normalized = ([string]$raw).TrimStart([char]0xFEFF).Trim([char]0)
+                if ([string]::IsNullOrWhiteSpace($normalized)) {
+                    continue
+                }
+
+                return $normalized | ConvertFrom-Json -ErrorAction Stop
+            }
+            catch {
+                continue
+            }
+        }
+    }
+
+    return $null
+}
+
+function Get-OptionalObjectPropertyValue {
+    param(
+        $Object,
+        [string]$Name
+    )
+
+    if ($null -eq $Object -or [string]::IsNullOrWhiteSpace($Name)) {
         return $null
     }
+
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    return $property.Value
 }
 
 function Read-LogContent {
@@ -204,6 +255,112 @@ function Write-JsonArtifact {
     }
 
     $Value | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $Path -Encoding utf8
+}
+
+function Get-StableSmokeDiagnosticDirectory {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$SmokeLabel
+    )
+
+    switch ($SmokeLabel) {
+        'backup' { return Join-Path $RepoRoot 'build\verify-backup-browser' }
+        default { return $null }
+    }
+}
+
+function Publish-StableSmokeDiagnosticCopies {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$SmokeLabel,
+        [string]$CdpDiagnosticPath,
+        [string]$ExternalPreflightDiagnosticPath
+    )
+
+    $stableDir = Get-StableSmokeDiagnosticDirectory -RepoRoot $RepoRoot -SmokeLabel $SmokeLabel
+    if ([string]::IsNullOrWhiteSpace($stableDir)) {
+        return
+    }
+
+    New-Item -ItemType Directory -Path $stableDir -Force | Out-Null
+
+    foreach ($entry in @(@{ Source = $CdpDiagnosticPath; Dest = 'latest-cdp-diagnostic.json'; Label = 'Stable smoke CDP diagnostic copy' }, @{ Source = $ExternalPreflightDiagnosticPath; Dest = 'latest-external-preflight-diagnostic.json'; Label = 'Stable smoke external preflight diagnostic copy' })) {
+        if ([string]::IsNullOrWhiteSpace($entry.Source) -or -not (Test-Path -LiteralPath $entry.Source)) {
+            continue
+        }
+
+        $destPath = Join-Path $stableDir $entry.Dest
+        Copy-Item -LiteralPath $entry.Source -Destination $destPath -Force
+        Write-Host ('{0}: {1}' -f $entry.Label, $destPath)
+    }
+}
+
+function Write-StableSmokeDiagnosticPreview {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$SmokeLabel
+    )
+
+    $stableDir = Get-StableSmokeDiagnosticDirectory -RepoRoot $RepoRoot -SmokeLabel $SmokeLabel
+    if ([string]::IsNullOrWhiteSpace($stableDir) -or -not (Test-Path -LiteralPath $stableDir)) {
+        return
+    }
+
+    foreach ($entry in @(@{ Path = Join-Path $stableDir 'latest-cdp-diagnostic.json'; Label = 'Stable smoke CDP diagnostic'; Keys = @('generatedAt','checkedAt','classification','errorName','pageStrategy','bootstrapCommandOrder','hint') }, @{ Path = Join-Path $stableDir 'latest-external-preflight-diagnostic.json'; Label = 'Stable smoke external preflight diagnostic'; Keys = @('generatedAt','checkedAt','overallClassification','primaryBlockingCheck') })) {
+        if (-not (Test-Path -LiteralPath $entry.Path)) {
+            continue
+        }
+
+        Write-Host ('{0} copy: {1}' -f $entry.Label, $entry.Path)
+        $payload = Get-JsonFileContent -Path $entry.Path
+        if ($null -eq $payload) {
+            Write-Host ('{0} preview unavailable: could not parse JSON.' -f $entry.Label)
+            continue
+        }
+
+        foreach ($key in $entry.Keys) {
+            $value = Get-OptionalObjectPropertyValue -Object $payload -Name $key
+            if ($null -eq $value -or [string]::IsNullOrWhiteSpace([string]$value)) {
+                continue
+            }
+            Write-Host ('{0} {1}: {2}' -f $entry.Label, $key, $value)
+        }
+
+        $commandTimeoutMs = Get-OptionalObjectPropertyValue -Object $payload -Name 'commandTimeoutMs'
+        if ($entry.Path -like '*latest-cdp-diagnostic.json' -and $null -ne $commandTimeoutMs) {
+            Write-Host ('{0} commandTimeoutMs: {1}' -f $entry.Label, $commandTimeoutMs)
+        }
+
+        $failedChecks = @(Get-OptionalObjectPropertyValue -Object $payload -Name 'failedChecks')
+        if ($entry.Path -like '*external-preflight*' -and $failedChecks.Count -gt 0) {
+            Write-Host ('{0} failedChecks: {1}' -f $entry.Label, ($failedChecks -join ', '))
+        }
+    }
+}
+
+function Write-StableSmokeFailureSummary {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$SmokeLabel,
+        [Parameter(Mandatory = $true)][string]$SummaryText,
+        [string]$Classification = 'host_blocker'
+    )
+
+    $stableDir = Get-StableSmokeDiagnosticDirectory -RepoRoot $RepoRoot -SmokeLabel $SmokeLabel
+    if ([string]::IsNullOrWhiteSpace($stableDir)) {
+        return
+    }
+
+    New-Item -ItemType Directory -Path $stableDir -Force | Out-Null
+    $path = Join-Path $stableDir 'latest-wrapper-failure-summary.txt'
+    $payload = @(
+        ('classification: {0}' -f $Classification),
+        ('checkedAt: {0}' -f (Get-Date).ToString('o')),
+        '',
+        $SummaryText
+    ) -join [Environment]::NewLine
+    Set-Content -LiteralPath $path -Value $payload -Encoding utf8
+    Write-Host ('Stable smoke wrapper failure summary: {0}' -f $path)
 }
 
 function Get-HttpReachabilityResult {
@@ -1528,6 +1685,7 @@ if ($Mode -eq 'check-only') {
         Write-Host ("Local service port resolution: backend=$effectiveBackendPort frontend=$effectiveFrontendPort cdp=$effectiveCdpPort")
     }
     & $resolvedNodePath @checkOnlyArgs
+    Write-StableSmokeDiagnosticPreview -RepoRoot $repoRoot -SmokeLabel $SmokeLabel
     exit $LASTEXITCODE
 }
 
@@ -1622,7 +1780,13 @@ try {
             Write-Host ("Launching Edge preset '{0}' with profile strategy '{1}' at {2}" -f $EdgeLaunchPreset, $EdgeProfileStrategy, $browserProfile.Path)
             $browserProc = Start-LoggedProcess -FilePath $resolvedBrowserPath -ArgumentList $browserArgs -WorkingDirectory $repoRoot -StdoutPath $browserStdout -StderrPath $browserStderr -WindowStyle $browserWindowStyle
             $processes += $browserProc
-            Wait-Http -Url "$cdpBaseUrl/json/version" -TimeoutSeconds 30
+            try {
+                Wait-Http -Url "$cdpBaseUrl/json/version" -TimeoutSeconds 30
+            }
+            catch {
+                Write-StableSmokeFailureSummary -RepoRoot $repoRoot -SmokeLabel $SmokeLabel -Classification 'cdp_endpoint_timeout' -SummaryText ("Timed out waiting for {0}/json/version during Edge bootstrap.`nEdge launch preset: {1}`nEdge profile strategy: {2}`nBrowser stdout: {3}`nBrowser stderr: {4}`nError: {5}" -f $cdpBaseUrl, $EdgeLaunchPreset, $EdgeProfileStrategy, $browserStdout, $browserStderr, $_.Exception.Message)
+                throw
+            }
         }
         elseif ($reuseExistingCdpSession -or $Mode -ne 'self-start') {
             Write-Host ("Reusing existing Edge CDP endpoint at {0}." -f $cdpBaseUrl)
@@ -1667,6 +1831,7 @@ try {
         Assert-NodeSmokeSucceeded -Result $nodeSmokeResult -ExpectedResult $NodeSmokeSuccessMarker
     }
     catch {
+        Publish-StableSmokeDiagnosticCopies -RepoRoot $repoRoot -SmokeLabel $SmokeLabel -CdpDiagnosticPath $nodeSmokeDiagnosticPath -ExternalPreflightDiagnosticPath (Get-ExternalPreflightDiagnosticPath -TempRoot $tempRoot)
         $diagnosticSummary = ''
         if ($nodeSmokeDiagnosticPath) {
             $diagnostic = Get-JsonFileContent -Path $nodeSmokeDiagnosticPath
@@ -1704,6 +1869,7 @@ try {
         Write-Host ("CDP URL: $cdpBaseUrl")
     }
     Write-Host ("Artifacts: $tempRoot")
+    Publish-StableSmokeDiagnosticCopies -RepoRoot $repoRoot -SmokeLabel $SmokeLabel -CdpDiagnosticPath $nodeSmokeDiagnosticPath -ExternalPreflightDiagnosticPath (Get-ExternalPreflightDiagnosticPath -TempRoot $tempRoot)
 }
 finally {
     if (-not $verificationSucceeded -and $KeepProcessesOnFailure) {

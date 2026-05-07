@@ -37,6 +37,47 @@ func defaultRouteTargetResolvedPolicy(channelID, channelKeyID int, sourceType, m
 	}
 }
 
+func routeTargetKeyAllowsModel(key model.ChannelKey, modelName string) bool {
+	if modelName == "" {
+		return true
+	}
+	allowed := strings.TrimSpace(key.AllowedModels)
+	if allowed == "" {
+		return true
+	}
+	for _, part := range strings.Split(allowed, ",") {
+		if model.NormalizeRouteTargetModelName(part) == modelName {
+			return true
+		}
+	}
+	return false
+}
+
+func validateRouteTargetOverrideTarget(channelID, channelKeyID int, modelName string) error {
+	channel, ok := channelCache.Get(channelID)
+	if !ok {
+		return fmt.Errorf("channel not found")
+	}
+	key, ok := channelKeyCache.Get(channelKeyID)
+	if !ok {
+		return fmt.Errorf("channel key not found")
+	}
+	if key.ChannelID != channelID {
+		return fmt.Errorf("invalid channel key id for channel")
+	}
+	normalizedModelName := model.NormalizeRouteTargetModelName(modelName)
+	if normalizedModelName == "" {
+		return fmt.Errorf("model name is required")
+	}
+	if !channel.SupportsModel(normalizedModelName) {
+		return fmt.Errorf("invalid model for channel")
+	}
+	if !routeTargetKeyAllowsModel(key, normalizedModelName) {
+		return fmt.Errorf("invalid model for channel key")
+	}
+	return nil
+}
+
 func normalizeRouteTargetOverrideStrict(row model.RouteTargetOverride) (model.RouteTargetOverride, error) {
 	row.ModelName = model.NormalizeRouteTargetModelName(row.ModelName)
 	if row.ChannelID <= 0 {
@@ -115,6 +156,9 @@ func RouteTargetOverrideGet(channelID, channelKeyID int, modelName string) (mode
 func RouteTargetOverrideUpsert(row model.RouteTargetOverride, ctx context.Context) (model.RouteTargetOverride, error) {
 	normalized, err := normalizeRouteTargetOverrideStrict(row)
 	if err != nil {
+		return model.RouteTargetOverride{}, err
+	}
+	if err := validateRouteTargetOverrideTarget(normalized.ChannelID, normalized.ChannelKeyID, normalized.ModelName); err != nil {
 		return model.RouteTargetOverride{}, err
 	}
 	if err := db.GetDB().WithContext(ctx).Clauses(clause.OnConflict{

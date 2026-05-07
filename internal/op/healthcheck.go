@@ -15,6 +15,7 @@ import (
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	transformerModel "github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/model"
 	transformerOutbound "github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/xurl"
 	"golang.org/x/net/proxy"
 )
 
@@ -226,6 +227,9 @@ func newHealthHTTPClientCustomProxy(proxyURLStr string) (*http.Client, error) {
 		return nil, fmt.Errorf("default transport is not *http.Transport")
 	}
 	cloned := transport.Clone()
+	if err := xurl.ValidateProxyURL(proxyURLStr, "proxy url"); err != nil {
+		return nil, err
+	}
 	parsed, err := url.Parse(proxyURLStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid proxy url: %w", err)

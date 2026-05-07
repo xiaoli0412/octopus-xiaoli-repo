@@ -1,7 +1,6 @@
 package task
 
 import (
-	"context"
 	"sync"
 	"time"
 
@@ -77,7 +76,7 @@ func DynamicRoutingSummaryScanTask() {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := taskContextWithTimeout(5 * time.Minute)
 	defer cancel()
 
 	channels, err := op.ChannelList(ctx)

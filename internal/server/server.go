@@ -1,12 +1,15 @@
 package server
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/conf"
 	_ "github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/handlers"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
@@ -14,7 +17,6 @@ import (
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/log"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/static"
-	"github.com/gin-gonic/gin"
 )
 
 var httpSrv http.Server
@@ -23,6 +25,7 @@ const (
 	httpReadHeaderTimeout = 10 * time.Second
 	httpReadTimeout       = 3 * time.Minute
 	httpIdleTimeout       = 60 * time.Second
+	httpShutdownTimeout   = 15 * time.Second
 )
 
 func Start() error {
@@ -79,7 +82,29 @@ func newEngine() (*gin.Engine, error) {
 }
 
 func Close() error {
-	return httpSrv.Close()
+	return closeHTTPServer(&httpSrv, httpShutdownTimeout)
+}
+
+func closeHTTPServer(srv *http.Server, timeout time.Duration) error {
+	if srv == nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	err := srv.Shutdown(ctx)
+	if err == nil || errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		if closeErr := srv.Close(); closeErr != nil && !errors.Is(closeErr, http.ErrServerClosed) {
+			return closeErr
+		}
+	}
+
+	return err
 }
 
 func newHTTPServer(addr string, handler http.Handler) http.Server {

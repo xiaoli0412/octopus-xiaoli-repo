@@ -73,6 +73,62 @@ func TestUpsertRouteTargetOverrideSucceeds(t *testing.T) {
 	}
 }
 
+func TestUpsertRouteTargetOverrideRejectsForeignChannelKey(t *testing.T) {
+	setupHandlerTest(t)
+	ctx := setupHandlerTestDB(t)
+	if err := initializeHandlerCaches(); err != nil {
+		t.Fatalf("initializeHandlerCaches() error = %v", err)
+	}
+
+	createChannelWithKey := func(name, keyValue string) *model.Channel {
+		channel := &model.Channel{
+			Name:              name,
+			Type:              transformerOutbound.OutboundTypeOpenAIChat,
+			Enabled:           true,
+			KeyManagementMode: model.KeyManagementModeClassified,
+			BaseUrls:          []model.BaseUrl{{URL: "https://example.com/v1", Delay: 0}},
+			Model:             "gpt-4o",
+		}
+		if err := op.ChannelCreate(channel, ctx); err != nil {
+			t.Fatalf("ChannelCreate() error = %v", err)
+		}
+		updated, err := op.ChannelUpdate(&model.ChannelUpdateRequest{
+			ID: channel.ID,
+			KeysToAdd: []model.ChannelKeyAddRequest{{
+				Enabled:       true,
+				ChannelKey:    keyValue,
+				SourceType:    "paid/metered",
+				AllowedModels: "gpt-4o",
+			}},
+		}, ctx)
+		if err != nil {
+			t.Fatalf("ChannelUpdate() error = %v", err)
+		}
+		return updated
+	}
+
+	updatedA := createChannelWithKey("handler-route-target-foreign-a", "handler-route-target-foreign-key-a")
+	updatedB := createChannelWithKey("handler-route-target-foreign-b", "handler-route-target-foreign-key-b")
+
+	recorder := performJSONHandlerRequest(t, http.MethodPost, "/api/v1/route-target/upsert", map[string]any{
+		"channel_id":              updatedA.ID,
+		"channel_key_id":          updatedB.Keys[0].ID,
+		"model_name":              "gpt-4o",
+		"billing_mode":            "per_request",
+		"probe_policy":            "concurrent",
+		"probe_interval_seconds":  60,
+		"probe_concurrency_limit": 3,
+	}, upsertRouteTargetOverride)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+	res := decodeHandlerResponse(t, recorder)
+	if res.Message != "invalid channel key id for channel" {
+		t.Fatalf("message = %q, want %q", res.Message, "invalid channel key id for channel")
+	}
+}
+
 func TestListRouteTargetOverridesFiltersByChannel(t *testing.T) {
 	setupHandlerTest(t)
 	ctx := setupHandlerTestDB(t)
@@ -151,6 +207,8 @@ func TestListRouteTargetOverridesRejectsNonPositiveChannelIDFilter(t *testing.T)
 	for _, target := range []string{
 		"/api/v1/route-target/list?channel_id=0",
 		"/api/v1/route-target/list?channel_id=-1",
+		"/api/v1/route-target/list?channel_id=",
+		"/api/v1/route-target/list?channel_id=%20",
 	} {
 		recorder := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(recorder)
@@ -243,6 +301,8 @@ func TestListRouteTargetOverridesRejectsInvalidChannelIDFilter(t *testing.T) {
 	for _, target := range []string{
 		"/api/v1/route-target/list?channel_id=0",
 		"/api/v1/route-target/list?channel_id=-1",
+		"/api/v1/route-target/list?channel_id=",
+		"/api/v1/route-target/list?channel_id=%20",
 	} {
 		recorder := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(recorder)

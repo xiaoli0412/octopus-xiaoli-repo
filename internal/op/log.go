@@ -269,6 +269,7 @@ func RelayLogList(ctx context.Context, startTime, endTime *int, page, pageSize i
 		return nil, err
 	}
 	hasTimeFilter := startTime != nil && endTime != nil
+	seen := make(map[int64]struct{}, pageSize)
 
 	// 获取缓存中符合条件的日志
 	relayLogCacheLock.Lock()
@@ -301,17 +302,20 @@ func RelayLogList(ctx context.Context, startTime, endTime *int, page, pageSize i
 			cacheEnd = cacheCount
 		}
 		result = append(result, cachedLogs[offset:cacheEnd]...)
+		for _, item := range cachedLogs[offset:cacheEnd] {
+			seen[item.ID] = struct{}{}
+		}
 	}
 
 	// 如果启用了日志保存，缓存不够时从数据库补充
 	if enabled {
 		remaining := pageSize - len(result)
-		if remaining > 0 {
-			dbOffset := 0
-			if offset > cacheCount {
-				dbOffset = offset - cacheCount
-			}
+		dbOffset := 0
+		if offset > cacheCount {
+			dbOffset = offset - cacheCount
+		}
 
+		for remaining > 0 {
 			query := db.GetDB().WithContext(ctx)
 			if hasTimeFilter {
 				query = query.Where("time >= ? AND time <= ?", *startTime, *endTime)
@@ -321,7 +325,27 @@ func RelayLogList(ctx context.Context, startTime, endTime *int, page, pageSize i
 			if err := query.Order("id DESC").Offset(dbOffset).Limit(remaining).Find(&dbLogs).Error; err != nil {
 				return nil, err
 			}
-			result = append(result, dbLogs...)
+			if len(dbLogs) == 0 {
+				break
+			}
+
+			dbOffset += len(dbLogs)
+			appended := 0
+			for _, item := range dbLogs {
+				if _, ok := seen[item.ID]; ok {
+					continue
+				}
+				result = append(result, item)
+				seen[item.ID] = struct{}{}
+				remaining--
+				appended++
+				if remaining == 0 {
+					break
+				}
+			}
+			if appended == 0 && len(dbLogs) < remaining {
+				break
+			}
 		}
 	}
 

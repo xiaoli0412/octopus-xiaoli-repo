@@ -1,6 +1,6 @@
 import type { InfiniteData } from '@tanstack/react-query';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient, API_BASE_URL } from '../client';
+import { apiClient, buildApiUrl } from '../client';
 import { logger } from '@/lib/logger';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -181,7 +181,7 @@ export function useLogs(options: { pageSize?: number } = {}) {
                 const { token } = await apiClient.get<{ token: string }>('/api/v1/log/stream-token');
                 if (cancelled) return;
 
-                const eventSource = new EventSource(`${API_BASE_URL}/api/v1/log/stream?token=${token}`);
+				const eventSource = new EventSource(buildApiUrl('/api/v1/log/stream', { token }));
                 eventSourceRef.current = eventSource;
 
                 eventSource.onopen = () => {

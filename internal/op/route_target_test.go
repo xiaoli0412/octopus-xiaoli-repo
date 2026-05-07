@@ -123,3 +123,64 @@ func TestRouteTargetOverrideDeleteByModels(t *testing.T) {
 		t.Fatalf("override for claude should remain")
 	}
 }
+
+func TestRouteTargetOverrideUpsertRejectsChannelKeyFromAnotherChannel(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	channelA := createConfiguredTestChannel(t, ctx, "route-target-ownership-a", "gpt-4o", "")
+	channelB := createConfiguredTestChannel(t, ctx, "route-target-ownership-b", "gpt-4o", "")
+
+	if _, err := RouteTargetOverrideUpsert(model.RouteTargetOverride{
+		ChannelID:    channelA.ID,
+		ChannelKeyID: channelB.Keys[0].ID,
+		ModelName:    "gpt-4o",
+	}, ctx); err == nil {
+		t.Fatal("RouteTargetOverrideUpsert() expected channel/key ownership error")
+	} else if err.Error() != "invalid channel key id for channel" {
+		t.Fatalf("RouteTargetOverrideUpsert() error = %v, want invalid channel key id for channel", err)
+	}
+
+	rows, err := RouteTargetOverrideList(ctx)
+	if err != nil {
+		t.Fatalf("RouteTargetOverrideList() error = %v", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("route target overrides = %#v, want no persisted rows", rows)
+	}
+}
+
+func TestRouteTargetOverrideUpsertRejectsModelOutsideKeyScope(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	channel := &model.Channel{Name: "route-target-model-scope", Enabled: true, Model: "gpt-4o,claude-3-5-sonnet"}
+	if err := ChannelCreate(channel, ctx); err != nil {
+		t.Fatalf("ChannelCreate() error = %v", err)
+	}
+	updated, err := ChannelUpdate(&model.ChannelUpdateRequest{ID: channel.ID, KeysToAdd: []model.ChannelKeyAddRequest{{
+		Enabled:       true,
+		ChannelKey:    "route-target-model-scope-key",
+		SourceType:    "paid/metered",
+		AllowedModels: "gpt-4o",
+	}}}, ctx)
+	if err != nil {
+		t.Fatalf("ChannelUpdate(keys) error = %v", err)
+	}
+
+	if _, err := RouteTargetOverrideUpsert(model.RouteTargetOverride{
+		ChannelID:    updated.ID,
+		ChannelKeyID: updated.Keys[0].ID,
+		ModelName:    "claude-3-5-sonnet",
+	}, ctx); err == nil {
+		t.Fatal("RouteTargetOverrideUpsert() expected key model-scope validation error")
+	} else if err.Error() != "invalid model for channel key" {
+		t.Fatalf("RouteTargetOverrideUpsert() error = %v, want invalid model for channel key", err)
+	}
+
+	rows, err := RouteTargetOverrideList(ctx)
+	if err != nil {
+		t.Fatalf("RouteTargetOverrideList() error = %v", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("route target overrides = %#v, want no persisted rows", rows)
+	}
+}

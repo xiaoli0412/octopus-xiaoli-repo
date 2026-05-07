@@ -10,6 +10,7 @@ import (
 
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/xurl"
 	"golang.org/x/net/proxy"
 )
 
@@ -107,6 +108,9 @@ func newHTTPClientNoProxy() (*http.Client, error) {
 func newHTTPClientCustomProxy(proxyURLStr string) (*http.Client, error) {
 	cloned, err := clonedDefaultTransport()
 	if err != nil {
+		return nil, err
+	}
+	if err := xurl.ValidateProxyURL(proxyURLStr, "proxy url"); err != nil {
 		return nil, err
 	}
 

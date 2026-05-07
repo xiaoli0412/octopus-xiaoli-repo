@@ -192,6 +192,27 @@ func TestChannelBaseUrlUpdateCopiesInputAndChannelKeySaveDBPersistsCacheUpdates(
 	}
 }
 
+func TestChannelBaseUrlUpdateRejectsInvalidURL(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	channel := &model.Channel{Name: "channel-invalid-base-url-update", Enabled: true}
+	if err := ChannelCreate(channel, ctx); err != nil {
+		t.Fatalf("ChannelCreate() error = %v", err)
+	}
+
+	if err := ChannelBaseUrlUpdate(channel.ID, []model.BaseUrl{{URL: "ftp://example.com/v1", Delay: 0}}); err == nil {
+		t.Fatal("ChannelBaseUrlUpdate() expected invalid base url error")
+	}
+
+	cached, err := ChannelGet(channel.ID, ctx)
+	if err != nil {
+		t.Fatalf("ChannelGet() error = %v", err)
+	}
+	if len(cached.BaseUrls) != 0 {
+		t.Fatalf("cached base urls = %#v, want empty after rejected update", cached.BaseUrls)
+	}
+}
+
 func TestChannelRefreshCacheRemovesDeletedChannelFromCache(t *testing.T) {
 	ctx := setupOpTestDB(t)
 
@@ -423,6 +444,69 @@ func TestChannelCreateAndUpdateValidateChannelKeySourceType(t *testing.T) {
 	}
 	if len(updated.Keys) != 1 || updated.Keys[0].SourceType != "public/free" {
 		t.Fatalf("updated keys = %#v, want normalized public/free source type", updated.Keys)
+	}
+}
+
+func TestChannelCreateAndUpdateRejectUnsupportedBaseURLScheme(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	invalid := &model.Channel{
+		Name:     "channel-invalid-base-url",
+		Enabled:  true,
+		BaseUrls: []model.BaseUrl{{URL: "ftp://example.com/v1", Delay: 0}},
+	}
+	if err := ChannelCreate(invalid, ctx); err == nil {
+		t.Fatalf("ChannelCreate() expected invalid base url error")
+	}
+
+	channel := &model.Channel{Name: "channel-valid-base-url", Enabled: true, BaseUrls: []model.BaseUrl{{URL: "https://example.com/v1", Delay: 0}}}
+	if err := ChannelCreate(channel, ctx); err != nil {
+		t.Fatalf("ChannelCreate(valid) error = %v", err)
+	}
+
+	updatedBaseURLs := []model.BaseUrl{{URL: "ftp://example.com/v1", Delay: 1}}
+	if _, err := ChannelUpdate(&model.ChannelUpdateRequest{ID: channel.ID, BaseUrls: &updatedBaseURLs}, ctx); err == nil {
+		t.Fatalf("ChannelUpdate() expected invalid base url error")
+	}
+
+	refreshed, err := ChannelGet(channel.ID, ctx)
+	if err != nil {
+		t.Fatalf("ChannelGet() error = %v", err)
+	}
+	if len(refreshed.BaseUrls) != 1 || refreshed.BaseUrls[0].URL != "https://example.com/v1" {
+		t.Fatalf("refreshed base urls = %#v, want preserved valid base url", refreshed.BaseUrls)
+	}
+}
+
+func TestChannelCreateAndUpdateRejectChannelProxyWithCredentials(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	proxy := "https://user:pass@example.com:8443"
+	invalid := &model.Channel{
+		Name:         "channel-invalid-proxy-create",
+		Enabled:      true,
+		ChannelProxy: &proxy,
+	}
+	if err := ChannelCreate(invalid, ctx); err == nil {
+		t.Fatalf("ChannelCreate() expected invalid channel proxy error")
+	}
+
+	channel := &model.Channel{Name: "channel-valid-proxy-update", Enabled: true}
+	if err := ChannelCreate(channel, ctx); err != nil {
+		t.Fatalf("ChannelCreate(valid) error = %v", err)
+	}
+
+	if _, err := ChannelUpdate(&model.ChannelUpdateRequest{ID: channel.ID, ChannelProxy: &proxy}, ctx); err == nil {
+		t.Fatalf("ChannelUpdate() expected invalid channel proxy error")
+	}
+
+	blank := "   "
+	updated, err := ChannelUpdate(&model.ChannelUpdateRequest{ID: channel.ID, ChannelProxy: &blank}, ctx)
+	if err != nil {
+		t.Fatalf("ChannelUpdate(blank proxy) error = %v", err)
+	}
+	if updated.ChannelProxy != nil {
+		t.Fatalf("updated channel proxy = %#v, want nil after blank normalization", updated.ChannelProxy)
 	}
 }
 

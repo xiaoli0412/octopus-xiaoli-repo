@@ -1,7 +1,6 @@
 package task
 
 import (
-	"context"
 	"time"
 
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/helper"
@@ -15,7 +14,7 @@ func ChannelBaseUrlDelayTask() {
 	defer func() {
 		log.Debugf("channel base url delay task finished, update time: %s", time.Since(startTime))
 	}()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := taskContextWithTimeout(30 * time.Minute)
 	defer cancel()
 	channels, err := op.ChannelList(ctx)
 	if err != nil {

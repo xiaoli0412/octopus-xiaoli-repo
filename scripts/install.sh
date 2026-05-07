@@ -5,12 +5,14 @@ set -euo pipefail
 DEFAULT_PORT="1088"
 DEFAULT_DATA_DIR="./data"
 DEFAULT_CONTAINER_NAME="octopus"
-DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.16.4"
+DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17"
+DEFAULT_IMAGE_FALLBACK=""
 
 OCTOPUS_PORT_INPUT="${OCTOPUS_PORT:-${DEFAULT_PORT}}"
 OCTOPUS_DATA_DIR_INPUT="${OCTOPUS_DATA_DIR:-${DEFAULT_DATA_DIR}}"
 OCTOPUS_CONTAINER_NAME_INPUT="${OCTOPUS_CONTAINER_NAME:-${DEFAULT_CONTAINER_NAME}}"
 OCTOPUS_IMAGE_INPUT="${OCTOPUS_IMAGE:-${DEFAULT_IMAGE}}"
+OCTOPUS_IMAGE_FALLBACK_INPUT="${OCTOPUS_IMAGE_FALLBACK:-${DEFAULT_IMAGE_FALLBACK}}"
 
 write_info() {
     printf '[INFO] %s\n' "$1"
@@ -31,6 +33,27 @@ require_command() {
     if ! command -v "$name" >/dev/null 2>&1; then
         fail "Missing required command '$name'. ${hint}"
     fi
+}
+
+pull_image_with_fallback() {
+    local primary_image="$1"
+    local fallback_image="$2"
+
+    write_info "Pulling Docker image ${primary_image}"
+    if docker pull "$primary_image"; then
+        printf '%s' "$primary_image"
+        return 0
+    fi
+
+    if [[ -n "$fallback_image" && "$fallback_image" != "$primary_image" ]]; then
+        write_warn "Failed to pull ${primary_image}; retrying with fallback image ${fallback_image}."
+        if docker pull "$fallback_image"; then
+            printf '%s' "$fallback_image"
+            return 0
+        fi
+    fi
+
+    fail "Unable to pull Octopus image. Check access to GHCR or Docker Hub, or re-run with OCTOPUS_IMAGE=<reachable-image>."
 }
 
 is_valid_port() {
@@ -141,8 +164,11 @@ fi
 
 EXTERNAL_PORT="$(resolve_external_port "$OCTOPUS_PORT_INPUT")"
 
-write_info "Pulling Docker image ${OCTOPUS_IMAGE_INPUT}"
-docker pull "$OCTOPUS_IMAGE_INPUT"
+if [[ ! -t 0 ]]; then
+    write_info "Non-interactive install detected. If this host cannot access raw.githubusercontent.com or GHCR reliably, download scripts/install.sh locally first or set OCTOPUS_IMAGE to a reachable registry mirror."
+fi
+
+PULLED_IMAGE="$(pull_image_with_fallback "$OCTOPUS_IMAGE_INPUT" "$OCTOPUS_IMAGE_FALLBACK_INPUT")"
 
 write_info "Removing any existing container named ${OCTOPUS_CONTAINER_NAME_INPUT}"
 docker rm -f "$OCTOPUS_CONTAINER_NAME_INPUT" >/dev/null 2>&1 || true
@@ -150,7 +176,7 @@ docker rm -f "$OCTOPUS_CONTAINER_NAME_INPUT" >/dev/null 2>&1 || true
 mkdir -p "$OCTOPUS_DATA_DIR_INPUT"
 
 write_info "Starting Octopus container with external port ${EXTERNAL_PORT}"
-docker run -d \
+CONTAINER_ID="$(docker run -d \
     --name "$OCTOPUS_CONTAINER_NAME_INPUT" \
     --restart unless-stopped \
     -p "${EXTERNAL_PORT}:1088" \
@@ -163,9 +189,16 @@ docker run -d \
     -e PUID=10001 \
     -e PGID=10001 \
     -v "${OCTOPUS_DATA_DIR_INPUT}:/app/data" \
-    "$OCTOPUS_IMAGE_INPUT"
+    "$PULLED_IMAGE")"
+
+if [[ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_ID" 2>/dev/null || printf 'false')" != "true" ]]; then
+    write_warn "Container failed to stay running. Showing the latest logs for ${OCTOPUS_CONTAINER_NAME_INPUT}:"
+    docker logs --tail 80 "$OCTOPUS_CONTAINER_NAME_INPUT" >&2 || true
+    fail "Octopus container exited right after startup. Check the logs above, especially data directory permissions or registry/image overrides."
+fi
 
 write_info "Octopus is starting"
 write_info "UI: http://127.0.0.1:${EXTERNAL_PORT}"
 write_info "Container: ${OCTOPUS_CONTAINER_NAME_INPUT}"
 write_info "Data dir: ${OCTOPUS_DATA_DIR_INPUT}"
+write_info "Image: ${PULLED_IMAGE}"

@@ -32,6 +32,46 @@ type CompatibilitySummaryLike = {
 
 type CredentialRebindTargetLike = {
 	target_type: string;
+	snapshot_id?: number;
+	channel_name?: string;
+	key_name?: string;
+	source_type?: string;
+	remark?: string;
+	models?: string[];
+	affected_groups?: string[];
+	contexts?: string[];
+	warnings?: string[];
+};
+
+type RouteTargetPreviewIssueLike = {
+	group_name?: string;
+	channel_name?: string;
+	model?: string;
+	resolved_model?: string;
+	key_id?: number;
+	issue_type: string;
+	reason?: string;
+	action?: string;
+};
+
+type RoutePreviewCandidateLike = {
+	channel_name?: string;
+	model?: string;
+	resolved_model?: string;
+	priority?: number;
+	weight?: number;
+	reason?: string;
+};
+
+type RoutePreviewDiffLike = {
+	group_name?: string;
+	model?: string;
+	before_candidates?: RoutePreviewCandidateLike[];
+	after_candidates?: RoutePreviewCandidateLike[];
+	removed_candidates?: RoutePreviewCandidateLike[];
+	added_candidates?: RoutePreviewCandidateLike[];
+	skip_reasons?: string[];
+	fallback_changed?: boolean;
 };
 
 type ModelMappingPreviewLike = {
@@ -89,7 +129,7 @@ export type CompatibilityLike = {
 	base_url_mismatches?: unknown[];
 	schema_mismatches?: unknown[];
 	skipped_targets?: unknown[];
-	model_mapping_previews?: ModelMappingPreviewLike[];
+	model_mapping_previews?: ModelMappingPreviewDisplayLike[];
 	alias_preview_mappings?: unknown[];
 	model_policy_diffs?: unknown[];
 	replace_pruned_channels?: unknown[];
@@ -124,6 +164,21 @@ export type CompatibilityCounts = {
 	replacePrunedTargets: number;
 };
 
+export type CompatibilityGuidanceItem = {
+	key: string;
+	tone: SummaryTone;
+	title: string;
+	detail: string;
+};
+
+type ReplacePrunedBreakdownLike = {
+	channels?: unknown[];
+	groups?: unknown[];
+	settings?: unknown[];
+	models?: unknown[];
+	apiKeys?: unknown[];
+};
+
 type CompatibilityOverviewInput = {
 	counts: CompatibilityCounts;
 	warningsCount: number;
@@ -145,6 +200,14 @@ type CompatibilitySignalItemsInput = {
 	includeStructuredReplacePrunedCount?: boolean;
 	effectiveMode?: ImportMode;
 	importWarningsLabel?: string;
+};
+
+type CompatibilityGuidanceItemsInput = {
+	compatibility: CompatibilityLike | undefined;
+	counts: CompatibilityCounts;
+	kind?: 'import' | 'rollback';
+	effectiveMode?: ImportMode;
+	locale?: BackupLogicLocale;
 };
 
 type PostImportValidationSummaryLike = {
@@ -191,19 +254,6 @@ export type ExportSnapshotPresentation = {
 	warning: string;
 	scopeBadges: string[];
 	toggleLabel: string;
-};
-
-export type RemainingMigrationToolingItem = {
-	key: string;
-	label: string;
-	text: string;
-};
-
-export type RemainingMigrationToolingSection = {
-	key: string;
-	title: string;
-	summary: string;
-	items: RemainingMigrationToolingItem[];
 };
 
 export type ApplySameImportGuardReason = 'missing_request' | 'missing_preview_token' | 'confirm_required' | null;
@@ -302,6 +352,18 @@ const BACKUP_DIAGNOSTIC_TEXT: LocalizedValueMap = {
 		en: 'policy drift',
 		ja: '\u30dd\u30ea\u30b7\u30fc\u5dee\u5206',
 	},
+	'route may degrade': {
+		'zh-Hans': '\u8def\u7531\u5019\u9009\u94fe\u53ef\u80fd\u964d\u7ea7',
+		'zh-Hant': '\u8def\u7531\u5019\u9078\u93c8\u53ef\u80fd\u964d\u7d1a',
+		en: 'route may degrade',
+		ja: '\u30eb\u30fc\u30c8\u5019\u88dc\u304c\u52a3\u5316\u3059\u308b\u53ef\u80fd\u6027\u304c\u3042\u308a\u307e\u3059',
+	},
+	'route preview needs manual review': {
+		'zh-Hans': '\u8def\u7531\u9884\u89c8\u4ecd\u9700\u8981\u4eba\u5de5\u590d\u6838',
+		'zh-Hant': '\u8def\u7531\u9810\u89bd\u4ecd\u9700\u8981\u4eba\u5de5\u8907\u6838',
+		en: 'route preview needs manual review',
+		ja: '\u30eb\u30fc\u30c8\u30d7\u30ec\u30d3\u30e5\u30fc\u306f\u307e\u3060\u624b\u52d5\u78ba\u8a8d\u304c\u5fc5\u8981\u3067\u3059',
+	},
 	'missing candidate': {
 		'zh-Hans': '\u7f3a\u5c11\u5019\u9009\u9879',
 		'zh-Hant': '\u7f3a\u5c11\u5019\u9078\u9805',
@@ -376,6 +438,51 @@ type BackupPolicyWarningPattern = {
 
 const LOCALIZED_BACKUP_POLICY_WARNING_PATTERNS: readonly BackupPolicyWarningPattern[] = [
 	{
+		pattern: /^channel_key:(\d+) empty credential$/,
+		format: (locale: BackupLogicLocale, ...[id = '']) => t(locale, {
+			'zh-Hans': `渠道密钥:${id.trim()} 缺少明文凭证`,
+			'zh-Hant': `渠道金鑰:${id.trim()} 缺少明文憑證`,
+			en: `channel_key:${id.trim()} empty credential`,
+			ja: `チャネルキー:${id.trim()} に平文認証情報がありません`,
+		}),
+	},
+	{
+		pattern: /^api_key:(\d+) empty credential$/,
+		format: (locale: BackupLogicLocale, ...[id = '']) => t(locale, {
+			'zh-Hans': `API 密钥:${id.trim()} 缺少明文凭证`,
+			'zh-Hant': `API 金鑰:${id.trim()} 缺少明文憑證`,
+			en: `api_key:${id.trim()} empty credential`,
+			ja: `API キー:${id.trim()} に平文認証情報がありません`,
+		}),
+	},
+	{
+		pattern: /^channel:(.+) existing row preserved by skip mode$/,
+		format: (locale: BackupLogicLocale, ...[name = '']) => t(locale, {
+			'zh-Hans': `渠道:${name.trim()} 因跳过模式而保留当前记录`,
+			'zh-Hant': `渠道:${name.trim()} 因跳過模式而保留目前記錄`,
+			en: `channel:${name.trim()} existing row preserved by skip mode`,
+			ja: `チャネル:${name.trim()} は skip モードにより既存レコードを保持しました`,
+		}),
+	},
+	{
+		pattern: /^setting:(.+) existing row preserved by skip mode$/,
+		format: (locale: BackupLogicLocale, ...[key = '']) => t(locale, {
+			'zh-Hans': `系统设置:${key.trim()} 因跳过模式而保留当前记录`,
+			'zh-Hant': `系統設定:${key.trim()} 因跳過模式而保留目前記錄`,
+			en: `setting:${key.trim()} existing row preserved by skip mode`,
+			ja: `設定:${key.trim()} は skip モードにより既存レコードを保持しました`,
+		}),
+	},
+	{
+		pattern: /^snapshot schema:(.+) differs$/,
+		format: (locale: BackupLogicLocale, ...[schema = '']) => t(locale, {
+			'zh-Hans': `快照结构版本 ${schema.trim()} 与当前导入链路不一致`,
+			'zh-Hant': `快照結構版本 ${schema.trim()} 與目前導入鏈路不一致`,
+			en: `snapshot schema:${schema.trim()} differs`,
+			ja: `スナップショットのスキーマ ${schema.trim()} が現在の導入チェーンと一致しません`,
+		}),
+		},
+	{
 		pattern: /^billing_mode changed from (.+) to (.+)$/,
 		format: (locale: BackupLogicLocale, ...[from = '', to = '']) => t(locale, {
 			'zh-Hans': `\u8ba1\u8d39\u6a21\u5f0f\u4ece ${formatPolicyValue(from, locale)} \u53d8\u4e3a ${formatPolicyValue(to, locale)}`,
@@ -418,6 +525,15 @@ const LOCALIZED_BACKUP_POLICY_WARNING_PATTERNS: readonly BackupPolicyWarningPatt
 			'zh-Hant': `\u6a21\u578b ${modelName.trim()} \u7684\u4e26\u767c\u63a2\u6e2c\u6216\u7af6\u901f\u53ef\u80fd\u589e\u52a0\u6210\u672c`,
 			en: `model:${modelName.trim()} concurrent probe/race may increase cost`,
 			ja: `\u30e2\u30c7\u30eb ${modelName.trim()} \u306e\u4e26\u5217\u30d7\u30ed\u30fc\u30d6\u3084\u7af6\u4e89\u5b9f\u884c\u306f\u30b3\u30b9\u30c8\u5897\u306b\u3064\u306a\u304c\u308b\u53ef\u80fd\u6027\u304c\u3042\u308a\u307e\u3059`,
+		}),
+	},
+	{
+		pattern: /^route preview diffs: (\d+)$/,
+		format: (locale: BackupLogicLocale, ...[count = '0']) => t(locale, {
+			'zh-Hans': `\u8def\u7531\u9884\u89c8\u53d1\u73b0 ${count.trim()} \u5904\u5dee\u5f02`,
+			'zh-Hant': `\u8def\u7531\u9810\u89bd\u767c\u73fe ${count.trim()} \u8655\u5dee\u7570`,
+			en: `route preview diffs: ${count.trim()}`,
+			ja: `\u30eb\u30fc\u30c8\u30d7\u30ec\u30d3\u30e5\u30fc\u3067 ${count.trim()} \u4ef6\u306e\u5dee\u5206\u304c\u898b\u3064\u304b\u308a\u307e\u3057\u305f`,
 		}),
 	},
 ] as const;
@@ -575,6 +691,93 @@ function formatModelPolicyDiff(item: ModelPolicyDiffLike, locale: BackupLogicLoc
 	return parts.join(' | ');
 }
 
+function formatCredentialTargetType(value: string | undefined, locale: BackupLogicLocale = 'zh-Hans') {
+	switch ((value ?? '').trim()) {
+		case 'channel_key':
+			return t(locale, { 'zh-Hans': '渠道密钥', 'zh-Hant': '渠道金鑰', en: 'channel key', ja: 'チャネルキー' });
+		case 'api_key':
+			return t(locale, { 'zh-Hans': 'API 密钥', 'zh-Hant': 'API 金鑰', en: 'api key', ja: 'API キー' });
+		default:
+			return t(locale, { 'zh-Hans': '凭证', 'zh-Hant': '憑證', en: 'credential', ja: '認証情報' });
+	}
+}
+
+function formatCredentialRebindTarget(item: CredentialRebindTargetLike, locale: BackupLogicLocale = 'zh-Hans') {
+	const parts: string[] = [];
+	parts.push(`${t(locale, { 'zh-Hans': '目标类型', 'zh-Hant': '目標類型', en: 'target', ja: '対象' })}:${formatCredentialTargetType(item.target_type, locale)}`);
+	if (item.channel_name) parts.push(`${t(locale, { 'zh-Hans': '渠道', 'zh-Hant': '渠道', en: 'channel', ja: 'チャネル' })}:${item.channel_name}`);
+	if (item.key_name) parts.push(`${t(locale, { 'zh-Hans': '密钥', 'zh-Hant': '金鑰', en: 'key', ja: 'キー' })}:${item.key_name}`);
+	if (item.source_type) parts.push(`${t(locale, { 'zh-Hans': '来源', 'zh-Hant': '來源', en: 'source', ja: 'ソース' })}:${item.source_type}`);
+	if (item.models?.length) parts.push(`${t(locale, { 'zh-Hans': '模型', 'zh-Hant': '模型', en: 'models', ja: 'モデル' })}:${joinLocalizedList(item.models, locale)}`);
+	if (item.affected_groups?.length) parts.push(`${t(locale, { 'zh-Hans': '影响分组', 'zh-Hant': '影響分組', en: 'groups', ja: 'グループ' })}:${joinLocalizedList(item.affected_groups, locale)}`);
+	if (item.contexts?.length) parts.push(`${t(locale, { 'zh-Hans': '作用范围', 'zh-Hant': '作用範圍', en: 'contexts', ja: '適用範囲' })}:${formatContexts(item.contexts, locale)}`);
+	const warnings = formatWarnings(item.warnings, locale);
+	if (warnings) parts.push(`${t(locale, { 'zh-Hans': '警告', 'zh-Hant': '警告', en: 'warnings', ja: '警告' })}:${warnings}`);
+	return parts.join(' | ');
+}
+
+function formatRouteTargetIssue(item: RouteTargetPreviewIssueLike, locale: BackupLogicLocale = 'zh-Hans') {
+	const parts: string[] = [];
+	if (item.group_name) parts.push(`${t(locale, { 'zh-Hans': '分组', 'zh-Hant': '分組', en: 'group', ja: 'グループ' })}:${item.group_name}`);
+	if (item.channel_name) parts.push(`${t(locale, { 'zh-Hans': '渠道', 'zh-Hant': '渠道', en: 'channel', ja: 'チャネル' })}:${item.channel_name}`);
+	if (item.model) parts.push(`${t(locale, { 'zh-Hans': '模型', 'zh-Hant': '模型', en: 'model', ja: 'モデル' })}:${item.model}`);
+	if (item.resolved_model && item.resolved_model !== item.model) parts.push(`${t(locale, { 'zh-Hans': '解析模型', 'zh-Hant': '解析模型', en: 'resolved', ja: '解決後モデル' })}:${item.resolved_model}`);
+	parts.push(`${t(locale, { 'zh-Hans': '问题类型', 'zh-Hant': '問題類型', en: 'issue', ja: '問題種別' })}:${item.issue_type}`);
+	if (item.reason) parts.push(`${t(locale, { 'zh-Hans': '原因', 'zh-Hant': '原因', en: 'reason', ja: '理由' })}:${item.reason}`);
+	if (item.action) parts.push(`${t(locale, { 'zh-Hans': '建议动作', 'zh-Hant': '建議動作', en: 'action', ja: '対応' })}:${item.action}`);
+	return parts.join(' | ');
+}
+
+function formatRoutePreviewCandidate(item: RoutePreviewCandidateLike, locale: BackupLogicLocale = 'zh-Hans') {
+	const channel = item.channel_name?.trim() || t(locale, {
+		'zh-Hans': '未知渠道',
+		'zh-Hant': '未知渠道',
+		en: 'unknown channel',
+		ja: '不明なチャネル',
+	});
+	const model = (item.resolved_model || item.model || '').trim() || t(locale, {
+		'zh-Hans': '未知模型',
+		'zh-Hant': '未知模型',
+		en: 'unknown model',
+		ja: '不明なモデル',
+	});
+	const parts = [`${channel}:${model}`];
+	if (typeof item.priority === 'number') parts.push(`${t(locale, { 'zh-Hans': '优先级', 'zh-Hant': '優先級', en: 'priority', ja: '優先度' })}:${item.priority}`);
+	if (typeof item.weight === 'number') parts.push(`${t(locale, { 'zh-Hans': '权重', 'zh-Hant': '權重', en: 'weight', ja: '重み' })}:${item.weight}`);
+	if (item.reason) parts.push(`${t(locale, { 'zh-Hans': '原因', 'zh-Hant': '原因', en: 'reason', ja: '理由' })}:${localizeDiagnosticList([item.reason], locale)[0] ?? item.reason}`);
+	return parts.join(' | ');
+}
+
+function formatRoutePreviewCandidateList(candidates: RoutePreviewCandidateLike[] | undefined, locale: BackupLogicLocale = 'zh-Hans') {
+	const items = (candidates ?? []).map((item) => formatRoutePreviewCandidate(item, locale));
+	return joinLocalizedList(items, locale) || t(locale, {
+		'zh-Hans': '无',
+		'zh-Hant': '無',
+		en: 'none',
+		ja: 'なし',
+	});
+}
+
+function formatRoutePreviewDiff(item: RoutePreviewDiffLike, locale: BackupLogicLocale = 'zh-Hans') {
+	const parts: string[] = [];
+	if (item.group_name) parts.push(`${t(locale, { 'zh-Hans': '分组', 'zh-Hant': '分組', en: 'group', ja: 'グループ' })}:${item.group_name}`);
+	if (item.model) parts.push(`${t(locale, { 'zh-Hans': '模型', 'zh-Hant': '模型', en: 'model', ja: 'モデル' })}:${item.model}`);
+	parts.push(`${t(locale, { 'zh-Hans': '当前候选', 'zh-Hant': '目前候選', en: 'before', ja: '現在候補' })}:${formatRoutePreviewCandidateList(item.before_candidates, locale)}`);
+	parts.push(`${t(locale, { 'zh-Hans': '快照候选', 'zh-Hant': '快照候選', en: 'after', ja: 'スナップショット候補' })}:${formatRoutePreviewCandidateList(item.after_candidates, locale)}`);
+	if ((item.removed_candidates ?? []).length > 0) parts.push(`${t(locale, { 'zh-Hans': '将被移除', 'zh-Hant': '將被移除', en: 'removed', ja: '削除候補' })}:${formatRoutePreviewCandidateList(item.removed_candidates, locale)}`);
+	if ((item.added_candidates ?? []).length > 0) parts.push(`${t(locale, { 'zh-Hans': '将被新增', 'zh-Hant': '將被新增', en: 'added', ja: '追加候補' })}:${formatRoutePreviewCandidateList(item.added_candidates, locale)}`);
+	if (item.fallback_changed) parts.push(`${t(locale, { 'zh-Hans': '回退链变化', 'zh-Hant': '回退鏈變化', en: 'fallback changed', ja: 'フォールバック変化' })}:${t(locale, { 'zh-Hans': '是', 'zh-Hant': '是', en: 'yes', ja: 'はい' })}`);
+	const skipReasons = joinLocalizedList(localizeDiagnosticList(item.skip_reasons, locale), locale);
+	if (skipReasons) parts.push(`${t(locale, { 'zh-Hans': '跳过原因', 'zh-Hant': '略過原因', en: 'skip', ja: 'スキップ理由' })}:${skipReasons}`);
+	return parts.join(' | ');
+}
+
+function collectExampleText(items: string[], locale: BackupLogicLocale = 'zh-Hans') {
+	const visible = items.map((item) => item.trim()).filter(Boolean);
+	if (visible.length === 0) return '';
+	return visible.slice(0, 2).join(locale === 'en' ? '; ' : '；');
+}
+
 export function getAliasPreviewItems(previewMappings?: readonly unknown[], locale: BackupLogicLocale = 'zh-Hans') {
 	return (previewMappings ?? []).map((item) => normalizeLocalizedDetailText(formatAliasPreviewMapping(item as AliasPreviewMappingLike, locale), locale));
 }
@@ -595,8 +798,52 @@ export function getUnusedModelMappingItems(previewMappings?: readonly unknown[],
 		.map((item) => normalizeLocalizedDetailText(formatModelMappingTarget(item as ModelMappingPreviewDisplayLike, locale), locale));
 }
 
+export function getCredentialRebindTargetItems(rebindTargets?: readonly unknown[], locale: BackupLogicLocale = 'zh-Hans') {
+	return (rebindTargets ?? []).map((item) => normalizeLocalizedDetailText(formatCredentialRebindTarget(item as CredentialRebindTargetLike, locale), locale));
+}
+
+export function getRouteTargetIssueItems(routeTargetIssues?: readonly unknown[], locale: BackupLogicLocale = 'zh-Hans') {
+	return (routeTargetIssues ?? []).map((item) => normalizeLocalizedDetailText(formatRouteTargetIssue(item as RouteTargetPreviewIssueLike, locale), locale));
+}
+
+export function getRoutePreviewWarningItems(warnings?: readonly unknown[], locale: BackupLogicLocale = 'zh-Hans') {
+	return localizeDiagnosticList((warnings ?? []).map((item) => String(item ?? '')), locale).map((item) => normalizeLocalizedDetailText(item, locale));
+}
+
+export function getRoutePreviewDiffItems(diffs?: readonly unknown[], locale: BackupLogicLocale = 'zh-Hans') {
+	return (diffs ?? []).map((item) => normalizeLocalizedDetailText(formatRoutePreviewDiff(item as RoutePreviewDiffLike, locale), locale));
+}
+
+export function getCompatibilityDiagnosticItems(items?: readonly unknown[], locale: BackupLogicLocale = 'zh-Hans') {
+	return localizeDiagnosticList((items ?? []).map((item) => String(item ?? '').trim()).filter(Boolean), locale)
+		.map((item) => normalizeLocalizedDetailText(item, locale));
+}
+
+export function getCompatibilityNameItems(items?: readonly unknown[], locale: BackupLogicLocale = 'zh-Hans') {
+	return (items ?? [])
+		.map((item) => normalizeLocalizedDetailText(String(item ?? '').trim(), locale))
+		.filter(Boolean);
+}
+
 export function getModelPolicyDiffItems(diffs?: readonly unknown[], locale: BackupLogicLocale = 'zh-Hans') {
 	return (diffs ?? []).map((item) => normalizeLocalizedDetailText(formatModelPolicyDiff(item as ModelPolicyDiffLike, locale), locale));
+}
+
+export function getReplacePrunedBreakdownItems(breakdown: ReplacePrunedBreakdownLike | undefined, locale: BackupLogicLocale = 'zh-Hans') {
+	if (!breakdown) return {
+		channels: [] as string[],
+		groups: [] as string[],
+		settings: [] as string[],
+		llmInfos: [] as string[],
+		apiKeys: [] as string[],
+	};
+	return {
+		channels: getCompatibilityNameItems(breakdown.channels, locale),
+		groups: getCompatibilityNameItems(breakdown.groups, locale),
+		settings: getCompatibilityDiagnosticItems(breakdown.settings, locale),
+		llmInfos: getCompatibilityNameItems(breakdown.models, locale),
+		apiKeys: getCompatibilityNameItems(breakdown.apiKeys, locale),
+	};
 }
 
 export function getCompatibilityCounts(compatibility: CompatibilityLike | undefined): CompatibilityCounts {
@@ -1040,6 +1287,309 @@ export function buildCompatibilitySignalItems(input: CompatibilitySignalItemsInp
 	return items;
 }
 
+export function buildImportCompatibilityGuidanceItems(input: CompatibilityGuidanceItemsInput): CompatibilityGuidanceItem[] {
+	const { compatibility, counts, effectiveMode, kind = 'import' } = input;
+	const locale = input.locale ?? 'zh-Hans';
+	const items: CompatibilityGuidanceItem[] = [];
+	const missingProviderNames = compatibility?.missing_providers ?? [];
+	const missingModelNames = getMissingModelMappingItems(compatibility?.model_mapping_previews, locale);
+	const unusedModelNames = getUnusedModelMappingItems(compatibility?.model_mapping_previews, locale);
+	const credentialTargets = getCredentialRebindTargetItems(compatibility?.credential_rebind_targets, locale);
+	const skippedTargetItems = getCompatibilityDiagnosticItems(compatibility?.skipped_targets, locale);
+	const replacePrunedItems = getReplacePrunedBreakdownItems({
+		channels: compatibility?.replace_pruned_channels,
+		groups: compatibility?.replace_pruned_groups,
+		settings: compatibility?.replace_pruned_settings,
+		models: compatibility?.replace_pruned_llm_infos,
+		apiKeys: compatibility?.replace_pruned_api_keys,
+	}, locale);
+	const replacePrunedExamples = collectExampleText([
+		...replacePrunedItems.channels,
+		...replacePrunedItems.groups,
+		...replacePrunedItems.settings,
+		...replacePrunedItems.llmInfos,
+		...replacePrunedItems.apiKeys,
+	], locale);
+
+	if (
+		counts.conflicts > 0
+		|| counts.routeConflicts > 0
+		|| counts.invalidRouteTargets > 0
+		|| counts.baseURLMismatches > 0
+		|| counts.schemaMismatches > 0
+	) {
+		const segments: string[] = [];
+		if (counts.conflicts > 0) segments.push(t(locale, {
+			'zh-Hans': `${counts.conflicts} 个兼容冲突`,
+			'zh-Hant': `${counts.conflicts} 個相容衝突`,
+			en: `${counts.conflicts} compatibility conflicts`,
+			ja: `${counts.conflicts} 件の互換競合`,
+		}));
+		if (counts.routeConflicts > 0) segments.push(t(locale, {
+			'zh-Hans': `${counts.routeConflicts} 个路由冲突`,
+			'zh-Hant': `${counts.routeConflicts} 個路由衝突`,
+			en: `${counts.routeConflicts} route conflicts`,
+			ja: `${counts.routeConflicts} 件のルート競合`,
+		}));
+		if (counts.invalidRouteTargets > 0) segments.push(t(locale, {
+			'zh-Hans': `${counts.invalidRouteTargets} 个无效路由目标`,
+			'zh-Hant': `${counts.invalidRouteTargets} 個無效路由目標`,
+			en: `${counts.invalidRouteTargets} invalid route targets`,
+			ja: `${counts.invalidRouteTargets} 件の無効なルート対象`,
+		}));
+		if (counts.baseURLMismatches > 0) segments.push(t(locale, {
+			'zh-Hans': `${counts.baseURLMismatches} 个基础地址不匹配`,
+			'zh-Hant': `${counts.baseURLMismatches} 個基礎位址不匹配`,
+			en: `${counts.baseURLMismatches} base-URL mismatches`,
+			ja: `${counts.baseURLMismatches} 件のベース URL 不一致`,
+		}));
+		if (counts.schemaMismatches > 0) segments.push(t(locale, {
+			'zh-Hans': `${counts.schemaMismatches} 个结构不匹配`,
+			'zh-Hant': `${counts.schemaMismatches} 個結構不匹配`,
+			en: `${counts.schemaMismatches} schema mismatches`,
+			ja: `${counts.schemaMismatches} 件のスキーマ不一致`,
+		}));
+		items.push({
+			key: 'blocking-risks',
+			tone: 'danger',
+			title: t(locale, {
+				'zh-Hans': kind === 'rollback' ? '先处理回滚风险' : '先处理阻断风险',
+				'zh-Hant': kind === 'rollback' ? '先處理回滾風險' : '先處理阻斷風險',
+				en: kind === 'rollback' ? 'Resolve rollback risks first' : 'Resolve blocking risks first',
+				ja: kind === 'rollback' ? 'まずロールバックのリスクを解消する' : 'まず阻害リスクを解消する',
+			}),
+			detail: t(locale, {
+				'zh-Hans': kind === 'rollback'
+					? `当前回滚预览里有 ${segments.join('、')}。建议先展开下方冲突和路由明细，修正后再执行回滚。`
+					: `当前预检里有 ${segments.join('、')}。建议先展开下方冲突和路由明细，修正后再应用。`,
+				'zh-Hant': kind === 'rollback'
+					? `目前回滾預覽裡有 ${segments.join('、')}。建議先展開下方衝突與路由明細，修正後再執行回滾。`
+					: `目前預檢裡有 ${segments.join('、')}。建議先展開下方衝突與路由明細，修正後再套用。`,
+				en: kind === 'rollback'
+					? `The current rollback preview still contains ${segments.join(', ')}. Expand the conflict and route details below, fix them, then run the rollback again.`
+					: `The current preview still contains ${segments.join(', ')}. Expand the conflict and route details below, fix them, then apply again.`,
+				ja: kind === 'rollback'
+					? `現在のロールバックプレビューには ${segments.join('、')} が残っています。下の競合とルート詳細を確認し、修正してからロールバックを実行してください。`
+					: `現在のプレビューには ${segments.join('、')} が残っています。下の競合とルート詳細を確認し、修正してから適用してください。`,
+			}),
+		});
+	}
+
+	if (counts.missingProviders > 0 || counts.missingModels > 0) {
+		const examples = collectExampleText([
+			...missingProviderNames.map((item) => String(item)),
+			...missingModelNames,
+		], locale);
+		items.push({
+			key: 'missing-targets',
+			tone: 'warning',
+			title: t(locale, {
+				'zh-Hans': kind === 'rollback' ? '先补齐缺失对象再回滚' : '补齐缺失的渠道或模型',
+				'zh-Hant': kind === 'rollback' ? '先補齊缺失對象再回滾' : '補齊缺失的渠道或模型',
+				en: kind === 'rollback' ? 'Restore missing targets before rollback' : 'Restore missing providers or models',
+				ja: kind === 'rollback' ? 'ロールバック前に不足対象を補う' : '不足しているチャネルやモデルを補う',
+			}),
+			detail: examples
+				? t(locale, {
+					'zh-Hans': kind === 'rollback'
+						? `回滚预览已标出缺失对象，优先处理这些名称：${examples}。`
+						: `预检已标出缺失对象，优先处理这些名称：${examples}。`,
+					'zh-Hant': kind === 'rollback'
+						? `回滾預覽已標出缺失對象，優先處理這些名稱：${examples}。`
+						: `預檢已標出缺失對象，優先處理這些名稱：${examples}。`,
+					en: kind === 'rollback'
+						? `The rollback preview already marked the missing objects. Start with these examples: ${examples}.`
+						: `The preview already marked the missing objects. Start with these examples: ${examples}.`,
+					ja: kind === 'rollback'
+						? `ロールバックプレビューで不足対象が示されています。まずは次の例から対応してください: ${examples}。`
+						: `プレビューで不足対象が示されています。まずは次の例から対応してください: ${examples}。`,
+				})
+				: t(locale, {
+					'zh-Hans': kind === 'rollback' ? '先补齐缺失的渠道、提供商或模型，再重新执行一次回滚预览。' : '先补齐缺失的渠道、提供商或模型，再重新跑一次预检。',
+					'zh-Hant': kind === 'rollback' ? '先補齊缺失的渠道、供應商或模型，再重新執行一次回滾預覽。' : '先補齊缺失的渠道、供應商或模型，再重新跑一次預檢。',
+					en: kind === 'rollback' ? 'Add the missing providers, channels, or models first, then run the rollback preview again.' : 'Add the missing providers, channels, or models first, then run the preview again.',
+					ja: kind === 'rollback' ? '不足しているプロバイダー、チャネル、モデルを補ってから、ロールバックプレビューを再実行してください。' : '不足しているプロバイダー、チャネル、モデルを補ってから、プレビューを再実行してください。',
+				}),
+		});
+	}
+
+	if (counts.credentialRebindTargets > 0) {
+		const examples = collectExampleText(credentialTargets, locale);
+		items.push({
+			key: 'credential-rebind',
+			tone: 'warning',
+			title: t(locale, {
+				'zh-Hans': kind === 'rollback' ? '提前准备回滚后的凭证重绑定' : '提前准备凭证重绑定',
+				'zh-Hant': kind === 'rollback' ? '提前準備回滾後的憑證重綁定' : '提前準備憑證重綁定',
+				en: kind === 'rollback' ? 'Prepare post-rollback credential rebinds' : 'Prepare credential rebinds',
+				ja: kind === 'rollback' ? 'ロールバック後の認証情報再バインドを準備する' : '認証情報の再バインドを準備する',
+			}),
+			detail: examples
+				? t(locale, {
+					'zh-Hans': kind === 'rollback' ? `这些目标在回滚后需要重新绑定凭证：${examples}。` : `这些目标在应用后需要重新绑定凭证：${examples}。`,
+					'zh-Hant': kind === 'rollback' ? `這些目標在回滾後需要重新綁定憑證：${examples}。` : `這些目標在套用後需要重新綁定憑證：${examples}。`,
+					en: kind === 'rollback' ? `These targets will need credential rebinds after rollback: ${examples}.` : `These targets will need credential rebinds after apply: ${examples}.`,
+					ja: kind === 'rollback' ? `ロールバック後に認証情報を再バインドする必要がある対象: ${examples}。` : `適用後に認証情報を再バインドする必要がある対象: ${examples}。`,
+				})
+				: t(locale, {
+					'zh-Hans': kind === 'rollback' ? '执行回滚前先确认哪些渠道密钥或 API 密钥需要重新绑定，避免恢复后目标失效。' : '应用前先确认哪些渠道密钥或 API 密钥需要重新绑定，避免导入后目标失效。',
+					'zh-Hant': kind === 'rollback' ? '執行回滾前先確認哪些渠道金鑰或 API 金鑰需要重新綁定，避免恢復後目標失效。' : '套用前先確認哪些渠道金鑰或 API 金鑰需要重新綁定，避免導入後目標失效。',
+					en: kind === 'rollback' ? 'Review which channel-key or API-key targets need rebinds before rollback, so the restore does not leave them unusable.' : 'Review which channel-key or API-key targets need rebinds before applying, so the import does not leave them unusable.',
+					ja: kind === 'rollback' ? 'ロールバック前に、どのチャネルキーや API キーが再バインドを要するか確認し、復元後に対象が使えなくならないようにしてください。' : '適用前に、どのチャネルキーや API キーが再バインドを要するか確認し、導入後に対象が使えなくならないようにしてください。',
+				}),
+		});
+	}
+
+	if (counts.skippedTargets > 0) {
+		const examples = collectExampleText(skippedTargetItems, locale);
+		items.push({
+			key: 'skipped-targets',
+			tone: 'warning',
+			title: t(locale, {
+				'zh-Hans': kind === 'rollback' ? '确认回滚会保留哪些对象' : '确认哪些对象会被跳过',
+				'zh-Hant': kind === 'rollback' ? '確認回滾會保留哪些對象' : '確認哪些目標會被跳過',
+				en: kind === 'rollback' ? 'Review which targets rollback keeps' : 'Review which targets are skipped',
+				ja: kind === 'rollback' ? 'ロールバックで保持される対象を確認する' : 'どの対象がスキップされるか確認する',
+			}),
+			detail: examples
+				? t(locale, {
+					'zh-Hans': kind === 'rollback' ? `当前回滚会保留或跳过这些对象：${examples}。建议先确认这是否符合本次恢复预期。` : `当前模式会保留或跳过这些对象：${examples}。建议先确认这是否符合本次导入预期。`,
+					'zh-Hant': kind === 'rollback' ? `目前回滾會保留或跳過這些對象：${examples}。建議先確認這是否符合本次恢復預期。` : `目前模式會保留或跳過這些目標：${examples}。建議先確認這是否符合本次導入預期。`,
+					en: kind === 'rollback' ? `This rollback will preserve or skip these targets: ${examples}. Confirm that this matches what you want before restoring.` : `This mode will preserve or skip these targets: ${examples}. Confirm that this matches what you want before applying.`,
+					ja: kind === 'rollback' ? `このロールバックでは次の対象が保持またはスキップされます: ${examples}。復元前に意図どおりか確認してください。` : `このモードでは次の対象が保持またはスキップされます: ${examples}。適用前に意図どおりか確認してください。`,
+				})
+				: t(locale, {
+					'zh-Hans': kind === 'rollback' ? '回滚预览已标出会被保留或跳过的对象，建议先展开下方明细确认再执行回滚。' : '预检已标出会被保留或跳过的对象，建议先展开下方明细确认再应用。',
+					'zh-Hant': kind === 'rollback' ? '回滾預覽已標出會被保留或跳過的對象，建議先展開下方明細確認再執行回滾。' : '預檢已標出會被保留或跳過的目標，建議先展開下方明細確認再套用。',
+					en: kind === 'rollback' ? 'The rollback preview already marked which targets will be preserved or skipped. Review the details below before running rollback.' : 'The preview already marked which targets will be preserved or skipped. Review the details below before applying.',
+					ja: kind === 'rollback' ? 'ロールバックプレビューには保持またはスキップされる対象が示されています。ロールバック前に下の詳細を確認してください。' : 'プレビューには保持またはスキップされる対象が示されています。適用前に下の詳細を確認してください。',
+				}),
+		});
+	}
+
+	if (effectiveMode === 'replace' && counts.replacePrunedTargets > 0) {
+		items.push({
+			key: 'replace-prune',
+			tone: 'warning',
+			title: t(locale, {
+				'zh-Hans': '确认替换会清理哪些当前记录',
+				'zh-Hant': '確認替換會清理哪些目前記錄',
+				en: 'Review which current records replace mode removes',
+				ja: '置換で削除される現在の記録を確認する',
+			}),
+			detail: replacePrunedExamples
+				? t(locale, {
+					'zh-Hans': `替换导入会清理这些当前记录：${replacePrunedExamples}。建议先展开下方结构化清理明细，再决定是否应用。`,
+					'zh-Hant': `替換導入會清理這些目前記錄：${replacePrunedExamples}。建議先展開下方結構化清理明細，再決定是否套用。`,
+					en: `Replace mode will prune these current records: ${replacePrunedExamples}. Expand the structured prune details below before you apply it.`,
+					ja: `置換モードでは次の現在記録が整理対象になります: ${replacePrunedExamples}。適用前に下の構造化プレビューを確認してください。`,
+				})
+				: t(locale, {
+					'zh-Hans': '替换导入会清理当前项目中未被快照保留的记录，建议先展开下方结构化清理明细确认范围。',
+					'zh-Hant': '替換導入會清理目前專案中未被快照保留的記錄，建議先展開下方結構化清理明細確認範圍。',
+					en: 'Replace mode prunes current records that the snapshot does not keep. Review the structured prune details below before applying.',
+					ja: '置換モードではスナップショットに含まれない現在の記録が整理されます。適用前に下の構造化プレビューを確認してください。',
+				}),
+		});
+	}
+
+	if (counts.missingMappingTargets > 0 || counts.unusedModelMappings > 0) {
+		const mappingExamples = collectExampleText([
+			...missingModelNames,
+			...unusedModelNames,
+		], locale);
+		items.push({
+			key: 'model-mappings',
+			tone: 'warning',
+			title: t(locale, {
+				'zh-Hans': effectiveMode === 'map'
+					? (kind === 'rollback' ? '修正模型映射后再回滚' : '修正模型映射后再应用')
+					: (kind === 'rollback' ? '复核回滚用模型映射规则' : '复核模型映射规则'),
+				'zh-Hant': effectiveMode === 'map'
+					? (kind === 'rollback' ? '修正模型映射後再回滾' : '修正模型映射後再套用')
+					: (kind === 'rollback' ? '複核回滾用模型映射規則' : '複核模型映射規則'),
+				en: effectiveMode === 'map'
+					? (kind === 'rollback' ? 'Fix model mappings before rollback' : 'Fix model mappings before apply')
+					: (kind === 'rollback' ? 'Review rollback model mapping rules' : 'Review model mapping rules'),
+				ja: effectiveMode === 'map'
+					? (kind === 'rollback' ? 'ロールバック前にモデルマッピングを修正する' : '適用前にモデルマッピングを修正する')
+					: (kind === 'rollback' ? 'ロールバック用のモデルマッピング規則を確認する' : 'モデルマッピング規則を確認する'),
+			}),
+			detail: mappingExamples
+				? t(locale, {
+					'zh-Hans': `当前映射里已经暴露出需要修正或清理的项目：${mappingExamples}。`,
+					'zh-Hant': `目前映射裡已經暴露出需要修正或清理的項目：${mappingExamples}。`,
+					en: `The current mapping set already shows items to fix or remove: ${mappingExamples}.`,
+					ja: `現在のマッピングには修正または整理が必要な項目があります: ${mappingExamples}。`,
+				})
+				: t(locale, {
+					'zh-Hans': '先把缺失目标和未使用映射清干净，再继续应用当前快照。',
+					'zh-Hant': '先把缺失目標和未使用映射清乾淨，再繼續套用目前快照。',
+					en: 'Clean up missing targets and unused mappings first, then continue with this snapshot.',
+					ja: '不足マッピング先と未使用マッピングを整理してから、このスナップショットを続行してください。',
+				}),
+		});
+	}
+
+	if (
+		counts.routePreviewDiffs > 0
+		|| counts.routePreviewWarnings > 0
+		|| counts.skippedRouteTargetPreviews > 0
+		|| counts.modelPolicyDiffs > 0
+		|| counts.aliasPreviewMappings > 0
+	) {
+		const signals: string[] = [];
+		if (counts.routePreviewDiffs > 0) signals.push(t(locale, {
+			'zh-Hans': `${counts.routePreviewDiffs} 处路由差异`,
+			'zh-Hant': `${counts.routePreviewDiffs} 處路由差異`,
+			en: `${counts.routePreviewDiffs} route diffs`,
+			ja: `${counts.routePreviewDiffs} 件のルート差分`,
+		}));
+		if (counts.routePreviewWarnings > 0) signals.push(t(locale, {
+			'zh-Hans': `${counts.routePreviewWarnings} 条路由预警`,
+			'zh-Hant': `${counts.routePreviewWarnings} 條路由預警`,
+			en: `${counts.routePreviewWarnings} route warnings`,
+			ja: `${counts.routePreviewWarnings} 件のルート警告`,
+		}));
+		if (counts.skippedRouteTargetPreviews > 0) signals.push(t(locale, {
+			'zh-Hans': `${counts.skippedRouteTargetPreviews} 个跳过的路由预览`,
+			'zh-Hant': `${counts.skippedRouteTargetPreviews} 個跳過的路由預覽`,
+			en: `${counts.skippedRouteTargetPreviews} skipped route previews`,
+			ja: `${counts.skippedRouteTargetPreviews} 件のスキップされたルートプレビュー`,
+		}));
+		if (counts.modelPolicyDiffs > 0) signals.push(t(locale, {
+			'zh-Hans': `${counts.modelPolicyDiffs} 条模型策略差异`,
+			'zh-Hant': `${counts.modelPolicyDiffs} 條模型策略差異`,
+			en: `${counts.modelPolicyDiffs} model-policy diffs`,
+			ja: `${counts.modelPolicyDiffs} 件のモデルポリシー差分`,
+		}));
+		if (counts.aliasPreviewMappings > 0) signals.push(t(locale, {
+			'zh-Hans': `${counts.aliasPreviewMappings} 条别名映射预览`,
+			'zh-Hant': `${counts.aliasPreviewMappings} 條別名映射預覽`,
+			en: `${counts.aliasPreviewMappings} alias preview mappings`,
+			ja: `${counts.aliasPreviewMappings} 件のエイリアスプレビュー`,
+		}));
+		items.push({
+			key: 'route-and-policy',
+			tone: 'warning',
+			title: t(locale, {
+				'zh-Hans': kind === 'rollback' ? '复核回滚后的路由与策略差异' : '复核路由与策略差异',
+				'zh-Hant': kind === 'rollback' ? '複核回滾後的路由與策略差異' : '複核路由與策略差異',
+				en: kind === 'rollback' ? 'Review post-rollback route and policy drift' : 'Review route and policy drift',
+				ja: kind === 'rollback' ? 'ロールバック後のルートとポリシー差分を確認する' : 'ルートとポリシーの差分を確認する',
+			}),
+			detail: t(locale, {
+				'zh-Hans': kind === 'rollback' ? `当前回滚预览还提示了 ${signals.join('、')}。建议在执行回滚前把下方路由与策略明细过一遍。` : `当前预检还提示了 ${signals.join('、')}。建议在应用前把下方路由与策略明细过一遍。`,
+				'zh-Hant': kind === 'rollback' ? `目前回滾預覽還提示了 ${signals.join('、')}。建議在執行回滾前把下方路由與策略明細過一遍。` : `目前預檢還提示了 ${signals.join('、')}。建議在套用前把下方路由與策略明細過一遍。`,
+				en: kind === 'rollback' ? `The rollback preview also surfaced ${signals.join(', ')}. Review the route and policy details below before restoring.` : `The preview also surfaced ${signals.join(', ')}. Review the route and policy details below before applying.`,
+				ja: kind === 'rollback' ? `現在のロールバックプレビューでは ${signals.join('、')} も示されています。復元前に下のルートとポリシー詳細を確認してください。` : `現在のプレビューでは ${signals.join('、')} も示されています。適用前に下のルートとポリシー詳細を確認してください。`,
+			}),
+		});
+	}
+
+	return items;
+}
+
 export function getExportSnapshotPresentation(input: {
 	includeSecrets: boolean;
 	includeLogs: boolean;
@@ -1102,43 +1652,6 @@ export function getExportSnapshotPresentation(input: {
 			ja: 'スナップショットに平文の認証情報を含める',
 		}),
 	};
-}
-
-export function getRemainingMigrationToolingItems(locale: BackupLogicLocale = 'zh-Hans'): RemainingMigrationToolingItem[] {
-	return [
-		{ key: 'conflict-handling', label: t(locale, { 'zh-Hans': '冲突处理', 'zh-Hant': '衝突處理', en: 'Conflict handling', ja: '競合処理' }), text: t(locale, { 'zh-Hans': '在当前结构化预览基础上，进一步补充更细致的 replace/map 场景冲突引导。', 'zh-Hant': '在目前結構化預覽基礎上，進一步補充更細緻的 replace/map 場景衝突引導。', en: 'Guided conflict handling for richer replace/map edge cases beyond the current structured preview.', ja: '現在の構造化プレビューを超えて、より複雑な replace/map ケース向けの競合ガイドを補う必要があります。' }) },
-		{ key: 'mapping-editor', label: t(locale, { 'zh-Hans': '映射编辑器', 'zh-Hant': '映射編輯器', en: 'Mapping editor', ja: 'マッピング編集' }), text: t(locale, { 'zh-Hans': '在当前按行填写 remap 的基础上，补充更完整的模型映射编辑能力。', 'zh-Hant': '在目前逐行填寫 remap 的基礎上，補充更完整的模型映射編輯能力。', en: 'Richer model-mapping editor beyond the current line-based remap input.', ja: '現在の行ベース remap 入力よりも扱いやすいモデルマッピング編集機能が必要です。' }) },
-		{ key: 'compare-workflow', label: t(locale, { 'zh-Hans': '对比工作流', 'zh-Hant': '比對工作流', en: 'Compare workflow', ja: '比較フロー' }), text: t(locale, { 'zh-Hans': '在当前快照历史与预览面板基础上，补充多快照对比和更顺畅的差异导航。', 'zh-Hant': '在目前快照歷史與預覽面板基礎上，補充多快照比對與更順暢的差異導覽。', en: 'Multi-snapshot compare workflow with richer diff navigation beyond the current snapshot history list and preview panel.', ja: '現在の履歴一覧とプレビューパネルを超えて、複数スナップショット比較とより豊富な差分ナビゲーションが必要です。' }) },
-		{ key: 'rollback-domains', label: t(locale, { 'zh-Hans': '回滚域控制', 'zh-Hant': '回滾域控制', en: 'Rollback domains', ja: 'ロールバック領域' }), text: t(locale, { 'zh-Hans': '在当前整包快照恢复和选择性范围覆盖之外，补充更细粒度的回滚域编辑。', 'zh-Hant': '在目前整包快照恢復與選擇性範圍覆蓋之外，補充更細粒度的回滾域編輯。', en: 'Granular rollback-domain editing beyond the current full snapshot restore and selective-scope override flow.', ja: '現在の完全復元と選択範囲上書きを超えて、より細かなロールバック領域編集が必要です。' }) },
-		{ key: 'route-diff', label: t(locale, { 'zh-Hans': '路由差异对比', 'zh-Hant': '路由差異比對', en: 'Route diff', ja: 'ルート差分' }), text: t(locale, { 'zh-Hans': '在当前摘要卡和详情列表基础上，补充并排式的路由差异查看能力。', 'zh-Hant': '在目前摘要卡與詳情清單基礎上，補充並排式的路由差異查看能力。', en: 'Side-by-side route diff tooling beyond the current compact summary cards and detail lists.', ja: '現在の要約カードと詳細リストを超えて、並列比較できるルート差分表示が必要です。' }) },
-	].map((item) => ({
-		...item,
-		text: normalizeLocalizedPrimaryCopy(item.text, locale),
-	}));
-}
-
-export function getRemainingMigrationToolingSections(locale: BackupLogicLocale = 'zh-Hans'): RemainingMigrationToolingSection[] {
-	const items = getRemainingMigrationToolingItems(locale);
-	return [
-		{
-			key: 'import-tooling',
-			title: t(locale, { 'zh-Hans': '导入工具补强', 'zh-Hant': '導入工具補強', en: 'Import tooling', ja: 'インポート補助' }),
-			summary: t(locale, { 'zh-Hans': '这些缺口主要集中在导入时的冲突引导和模型映射编辑能力。', 'zh-Hant': '這些缺口主要集中在導入時的衝突引導與模型映射編輯能力。', en: 'These gaps still need guided import conflict resolution and remap editing.', ja: 'これらの不足点は、インポート時の競合ガイドとマッピング編集に集中しています。' }),
-			items: items.slice(0, 2),
-		},
-		{
-			key: 'rollback-tooling',
-			title: t(locale, { 'zh-Hans': '回滚工具补强', 'zh-Hant': '回滾工具補強', en: 'Rollback tooling', ja: 'ロールバック補助' }),
-			summary: t(locale, { 'zh-Hans': '这些缺口主要集中在快照恢复和对比导航的精细化能力。', 'zh-Hant': '這些缺口主要集中在快照恢復與比對導覽的精細化能力。', en: 'These gaps still need richer snapshot recovery and compare navigation.', ja: 'これらの不足点は、スナップショット復元と比較ナビゲーションの強化にあります。' }),
-			items: items.slice(2, 4),
-		},
-		{
-			key: 'route-analysis',
-			title: t(locale, { 'zh-Hans': '路由分析补强', 'zh-Hant': '路由分析補強', en: 'Route analysis', ja: 'ルート分析' }),
-			summary: t(locale, { 'zh-Hans': '这里还需要更丰富的并排式路由差异检查能力。', 'zh-Hant': '這裡還需要更豐富的並排式路由差異檢查能力。', en: 'This gap still needs richer side-by-side route diff inspection.', ja: 'ここでは、より豊富な並列ルート差分の確認機能が必要です。' }),
-			items: items.slice(4),
-		},
-	];
 }
 
 export function getPostImportValidationSummary(postImportValidation: PostImportValidationLike | undefined): PostImportValidationSummary | null {

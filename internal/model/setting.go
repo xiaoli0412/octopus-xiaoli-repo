@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/xurl"
 )
 
 const maxSettingDurationNanos int64 = 1<<63 - 1
@@ -151,31 +153,23 @@ func (s *Setting) Validate() error {
 		if s.Value == "" {
 			return nil
 		}
-		parsedURL, err := url.Parse(s.Value)
-		if err != nil {
-			return fmt.Errorf("proxy URL is invalid: %w", err)
-		}
-		validSchemes := map[string]bool{"http": true, "https": true, "socks": true, "socks5": true}
-		if !validSchemes[parsedURL.Scheme] {
-			return fmt.Errorf("proxy URL scheme must be http, https, socks, or socks5")
-		}
-		if parsedURL.Host == "" {
-			return fmt.Errorf("proxy URL must have a host")
+		if err := xurl.ValidateProxyURL(s.Value, "proxy URL"); err != nil {
+			return err
 		}
 		return nil
 	case SettingKeyAPIBaseURL, SettingKeyAIAutomationBaseURL:
 		if s.Value == "" {
 			return nil
 		}
+		if err := xurl.ValidateAbsoluteHTTPURL(s.Value, "api base URL"); err != nil {
+			return err
+		}
 		parsedURL, err := url.Parse(s.Value)
 		if err != nil {
 			return fmt.Errorf("api base URL is invalid: %w", err)
 		}
-		if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-			return fmt.Errorf("api base URL scheme must be http or https")
-		}
-		if parsedURL.Host == "" {
-			return fmt.Errorf("api base URL must have a host")
+		if parsedURL.User != nil {
+			return fmt.Errorf("api base URL must not include credentials")
 		}
 		return nil
 	case SettingKeyAIAutomationChannelType:
