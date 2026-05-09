@@ -360,7 +360,7 @@ export OCTOPUS_LOG_LEVEL=info
 | [scripts/verify-go-env.ps1](scripts/verify-go-env.ps1) | Windows Go 环境与工作区缓存校验 |
 | [scripts/phase-a-check.ps1](scripts/phase-a-check.ps1) | Windows Phase A 聚合校验入口（`verify-go-env.ps1 -PhaseA` 调用） |
 | [scripts/build-web-static.mjs](scripts/build-web-static.mjs) | 前端静态导出与 `web/out -> static/out` 同步入口 |
-| [scripts/install.sh](scripts/install.sh) | Linux 服务器一键安装入口（默认拉取官方发布镜像并处理端口探测） |
+| [scripts/install.sh](scripts/install.sh) | Linux 服务器一键安装入口（优先拉取 GHCR 官方镜像，失败后回退源码 Docker 构建，并支持已知可用 Linux 二进制兜底） |
 | [scripts/run-frontend-verification-suite.mjs](scripts/run-frontend-verification-suite.mjs) | 前端 no-browser 聚合验证入口 |
 | [scripts/verify-browser-smoke-wrapper-alignment.mjs](scripts/verify-browser-smoke-wrapper-alignment.mjs) | browser smoke wrapper 静态守门 |
 | [scripts/verify-ai-automation-learning-focus.mjs](scripts/verify-ai-automation-learning-focus.mjs) | AI 自动化 learning 断言守门 |
@@ -386,11 +386,23 @@ docker compose up -d
 docker run -d \
   -v /path/to/data:/app/data \
   -p 1088:1088 \
-  ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.16.4
+  ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.18.5
 
 # Linux 服务器可直接使用仓库内安装脚本
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
+
+# 可选：通过环境变量覆盖安装脚本使用的外部端口
+curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | OCTOPUS_PORT=1088 bash
+
+# 若 raw.githubusercontent.com 在目标主机不稳定，可改为两步执行以区分下载与拉镜像问题
+curl -fsSL -o install-octopus.sh https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh
+bash install-octopus.sh
+
+# 若 GHCR 拉取失败且源码 Docker 构建仍受阻，可提供已知可用的 Linux 二进制作为兜底
+OCTOPUS_BINARY_PATH=/root/octopus-linux-amd64 bash install-octopus.sh
 ```
+
+说明：Docker Hub 作为 Octopus 官方安装来源已废弃。安装脚本当前只接受 GHCR 官方镜像或你显式提供的私有 / 代理镜像地址；镜像拉取失败时会先回退到 `main` 分支源码支撑 Docker 构建，必要时还可基于 `OCTOPUS_BINARY_PATH` 指向的已知可用 Linux 二进制继续构建本地 Docker 镜像。
 
 ## 贡献指南
 

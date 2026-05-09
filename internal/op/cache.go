@@ -18,6 +18,9 @@ func InitCache() error {
 	if err := RecoverInterruptedAITasks(ctx); err != nil {
 		return fmt.Errorf("recover interrupted ai tasks error: %v", err)
 	}
+	if err := ImportLegacyActiveAIProfileAsStrategyProfile(ctx); err != nil {
+		return fmt.Errorf("import legacy active ai profile as strategy profile error: %v", err)
+	}
 	if err := settingRefreshCache(ctx); err != nil {
 		return fmt.Errorf("setting refresh cache error: %v", err)
 	}

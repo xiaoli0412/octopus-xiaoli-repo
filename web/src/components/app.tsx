@@ -148,8 +148,8 @@ export function AppContainer() {
                     case 'ai':
                         prefetches.push(
                             queryClient.prefetchQuery({
-                                queryKey: ['ai-automation', 'config'],
-                                queryFn: async () => apiClient.get('/api/v1/ai/config'),
+                                queryKey: ['ai-governance', 'overview'],
+                                queryFn: async () => apiClient.get('/api/v1/ai/overview'),
                             }),
                         );
                         break;

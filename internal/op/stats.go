@@ -406,6 +406,105 @@ type StatsTokenBreakdown struct {
 	CircuitSummaryBasis            string                    `json:"circuit_summary_basis"`
 	ByChannel                      []StatsTokenBreakdownItem `json:"by_channel"`
 	ByModel                        []StatsTokenBreakdownItem `json:"by_model"`
+	ByAPIKey                       []StatsTokenBreakdownItem `json:"by_api_key,omitempty"`
+	ByChannelKey                   []StatsTokenBreakdownItem `json:"by_channel_key,omitempty"`
+}
+
+func StatsTokenBreakdownGetByWindow(window string) StatsTokenBreakdown {
+	switch strings.TrimSpace(window) {
+	case "", "1d":
+		return StatsTokenBreakdownGet()
+	case "12h", "3d", "7d", "30d":
+		return statsTokenBreakdownFromRelayLogs(window)
+	default:
+		return StatsTokenBreakdownGet()
+	}
+}
+
+func statsTokenBreakdownFromRelayLogs(window string) StatsTokenBreakdown {
+	duration := 24 * time.Hour
+	switch window {
+	case "12h":
+		duration = 12 * time.Hour
+	case "3d":
+		duration = 72 * time.Hour
+	case "7d":
+		duration = 7 * 24 * time.Hour
+	case "30d":
+		duration = 30 * 24 * time.Hour
+	}
+	end := int(time.Now().Unix())
+	start := int(time.Now().Add(-duration).Unix())
+	logs, err := RelayLogExport(context.Background(), &start, &end, 5000)
+	if err != nil {
+		return StatsTokenBreakdownGet()
+	}
+	result := StatsTokenBreakdown{EstimatedPriceBasis: "relay_logs_window"}
+	byChannel := map[string]*StatsTokenBreakdownItem{}
+	byModel := map[string]*StatsTokenBreakdownItem{}
+	byAPIKey := map[string]*StatsTokenBreakdownItem{}
+	byChannelKey := map[string]*StatsTokenBreakdownItem{}
+	channelNames := map[int]string{}
+	for _, channel := range channelCache.Values() {
+		channelNames[channel.ID] = channel.Name
+	}
+	apiKeyNames := map[int]string{}
+	for _, key := range apiKeyCache.Values() {
+		apiKeyNames[key.ID] = key.Name
+	}
+	for _, item := range logs {
+		result.TotalInputToken += int64(item.InputTokens)
+		result.TotalOutputToken += int64(item.OutputTokens)
+		totalToken := int64(item.InputTokens + item.OutputTokens)
+		result.TotalToken += totalToken
+		result.EstimatedGatewayTotalCost += item.Cost
+		addBreakdownItem(byChannel, fmt.Sprintf("channel:%d", item.ChannelId), statsFirstNonEmpty(strings.TrimSpace(item.ChannelName), channelNames[item.ChannelId], fmt.Sprintf("Channel %d", item.ChannelId)), int64(item.InputTokens), int64(item.OutputTokens))
+		addBreakdownItem(byModel, fmt.Sprintf("model:%s", strings.TrimSpace(item.ActualModelName)), statsFirstNonEmpty(strings.TrimSpace(item.ActualModelName), strings.TrimSpace(item.RequestModelName), "unknown-model"), int64(item.InputTokens), int64(item.OutputTokens))
+		if item.APIKeyID > 0 {
+			addBreakdownItem(byAPIKey, fmt.Sprintf("api_key:%d", item.APIKeyID), statsFirstNonEmpty(apiKeyNames[item.APIKeyID], fmt.Sprintf("API Key %d", item.APIKeyID)), int64(item.InputTokens), int64(item.OutputTokens))
+		}
+		for _, attempt := range item.Attempts {
+			if attempt.ChannelKeyID <= 0 {
+				continue
+			}
+			addBreakdownItem(byChannelKey, fmt.Sprintf("channel_key:%d", attempt.ChannelKeyID), fmt.Sprintf("%s / Key %d", statsFirstNonEmpty(attempt.ChannelName, item.ChannelName, fmt.Sprintf("Channel %d", attempt.ChannelID)), attempt.ChannelKeyID), int64(item.InputTokens), int64(item.OutputTokens))
+			break
+		}
+	}
+	result.ByChannel = flattenBreakdownItems(byChannel)
+	result.ByModel = flattenBreakdownItems(byModel)
+	result.ByAPIKey = flattenBreakdownItems(byAPIKey)
+	result.ByChannelKey = flattenBreakdownItems(byChannelKey)
+	return result
+}
+
+func addBreakdownItem(target map[string]*StatsTokenBreakdownItem, key, label string, inputToken, outputToken int64) {
+	row, ok := target[key]
+	if !ok {
+		row = &StatsTokenBreakdownItem{Key: key, Label: label}
+		target[key] = row
+	}
+	row.InputToken += inputToken
+	row.OutputToken += outputToken
+	row.TotalToken += inputToken + outputToken
+}
+
+func flattenBreakdownItems(source map[string]*StatsTokenBreakdownItem) []StatsTokenBreakdownItem {
+	items := make([]StatsTokenBreakdownItem, 0, len(source))
+	for _, item := range source {
+		items = append(items, *item)
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].TotalToken > items[j].TotalToken })
+	return items
+}
+
+func statsFirstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func StatsTokenBreakdownGet() StatsTokenBreakdown {

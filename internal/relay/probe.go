@@ -7,6 +7,7 @@ import (
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/price"
 	transformerModel "github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/model"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/log"
 )
 
 func estimateProbeCosts(internalResp *transformerModel.InternalLLMResponse, actualModel string) (float64, float64) {
@@ -42,6 +43,22 @@ func estimateProbeCosts(internalResp *transformerModel.InternalLLMResponse, actu
 	return inputCost, outputCost
 }
 
+func applyProbeUsageToChannelKey(channel *dbmodel.Channel, usedKey dbmodel.ChannelKey, actualModel string, internalResp *transformerModel.InternalLLMResponse, statusCode int) (float64, float64) {
+	inputCost, outputCost := estimateProbeCosts(internalResp, actualModel)
+	if channel == nil || usedKey.ID == 0 {
+		return inputCost, outputCost
+	}
+
+	usedKey.StatusCode = statusCode
+	usedKey.LastUseTimeStamp = time.Now().Unix()
+	usedKey.TotalCost += inputCost + outputCost
+	if err := op.ChannelKeyUpdate(usedKey); err != nil {
+		log.Warnf("failed to update probe success key state: %v", err)
+	}
+
+	return inputCost, outputCost
+}
+
 func recordProbeFailureEvent(channel *dbmodel.Channel, usedKey dbmodel.ChannelKey, actualModel string, statusCode int, duration time.Duration, message string) {
 	if channel == nil {
 		return
@@ -67,14 +84,14 @@ func recordProbeSuccessOutcomes(outcomes []raceOutcome, selectedIndex int) {
 		}
 
 		selected := outcome.index == selectedIndex
-		inputCost, outputCost := estimateProbeCosts(result.InternalResponse, result.ActualModel)
+		inputCost, outputCost := 0.0, 0.0
 		message := "race probe succeeded"
 		status := dbmodel.ProbeEventSuccess
 		if selected {
-			inputCost = 0
-			outputCost = 0
 			message = "race fallback winner"
 			status = dbmodel.ProbeEventSelected
+		} else {
+			inputCost, outputCost = applyProbeUsageToChannelKey(result.Channel, result.UsedKey, result.ActualModel, result.InternalResponse, result.StatusCode)
 		}
 
 		op.ProbeEventAdd(dbmodel.ProbeEvent{

@@ -149,6 +149,7 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 
 	relayLog := model.RelayLog{
 		Time:             m.StartTime.Unix(),
+		APIKeyID:         m.APIKeyID,
 		RequestModelName: m.RequestModel,
 		ChannelName:      channelName,
 		ChannelId:        channelID,

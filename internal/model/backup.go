@@ -191,6 +191,7 @@ type DBImportCompatibilitySummary struct {
 	RouteConflicts          int `json:"route_conflicts"`
 	InvalidRouteTargets     int `json:"invalid_route_targets"`
 	SkippedRoutePreviews    int `json:"skipped_route_target_previews"`
+	RoutePreviewWarnings    int `json:"route_preview_warnings"`
 	RoutePreviewDiffs       int `json:"route_preview_diffs"`
 	BaseURLMismatches       int `json:"base_url_mismatches"`
 	SchemaMismatches        int `json:"schema_mismatches"`
@@ -316,16 +317,31 @@ type DBDump struct {
 	Manifest     DBDumpManifest     `json:"manifest"`
 	LegacyHints  *DBDumpLegacyHints `json:"-"`
 
-	Channels             []Channel               `json:"channels,omitempty"`
-	Users                []User                  `json:"users,omitempty"`
-	ChannelKeys          []ChannelKey            `json:"channel_keys,omitempty"`
-	RouteTargetOverrides []RouteTargetOverride   `json:"route_target_overrides,omitempty"`
-	Groups               []Group                 `json:"groups,omitempty"`
-	GroupItems           []GroupItem             `json:"group_items,omitempty"`
-	LLMInfos             []LLMInfo               `json:"llm_infos,omitempty"`
-	APIKeys              []APIKey                `json:"api_keys,omitempty"`
-	Settings             []Setting               `json:"settings,omitempty"`
-	MigrationRecords     []DBDumpMigrationRecord `json:"migration_records,omitempty"`
+	Channels                      []Channel                      `json:"channels,omitempty"`
+	Users                         []User                         `json:"users,omitempty"`
+	ChannelKeys                   []ChannelKey                   `json:"channel_keys,omitempty"`
+	RouteTargetOverrides          []RouteTargetOverride          `json:"route_target_overrides,omitempty"`
+	Groups                        []Group                        `json:"groups,omitempty"`
+	GroupItems                    []GroupItem                    `json:"group_items,omitempty"`
+	LLMInfos                      []LLMInfo                      `json:"llm_infos,omitempty"`
+	APIKeys                       []APIKey                       `json:"api_keys,omitempty"`
+	Settings                      []Setting                      `json:"settings,omitempty"`
+	MigrationRecords              []DBDumpMigrationRecord        `json:"migration_records,omitempty"`
+	AITasks                       []AITask                       `json:"ai_tasks,omitempty"`
+	AITaskSteps                   []AITaskStep                   `json:"ai_task_steps,omitempty"`
+	AIPromptTemplates             []AIPromptTemplate             `json:"ai_prompt_templates,omitempty"`
+	AIProfiles                    []AIProfile                    `json:"ai_profiles,omitempty"`
+	AIProfileVersions             []AIProfileVersion             `json:"ai_profile_versions,omitempty"`
+	AIGroupingProfiles            []AIGroupingProfile            `json:"ai_grouping_profiles,omitempty"`
+	AIChannelRecognitionProfiles  []AIChannelRecognitionProfile  `json:"ai_channel_recognition_profiles,omitempty"`
+	AIPriceRecognitionProfiles    []AIPriceRecognitionProfile    `json:"ai_price_recognition_profiles,omitempty"`
+	AIModelClassificationProfiles []AIModelClassificationProfile `json:"ai_model_classification_profiles,omitempty"`
+	AIConfigHealthProfiles        []AIConfigHealthProfile        `json:"ai_config_health_profiles,omitempty"`
+	DynamicRouteLearningStates    []DynamicRouteLearningState    `json:"dynamic_route_learning_states,omitempty"`
+	GovernanceSessions            []GovernanceSession            `json:"governance_sessions,omitempty"`
+	GovernanceApplyRuns           []GovernanceApplyRun           `json:"governance_apply_runs,omitempty"`
+	GovernanceRollbackPoints      []GovernanceRollbackPoint      `json:"governance_rollback_points,omitempty"`
+	StrategyProfiles              []StrategyProfile              `json:"strategy_profiles,omitempty"`
 
 	StatsTotal   []StatsTotal   `json:"stats_total,omitempty"`
 	StatsDaily   []StatsDaily   `json:"stats_daily,omitempty"`

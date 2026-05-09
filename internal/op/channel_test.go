@@ -145,7 +145,7 @@ func TestChannelBaseUrlUpdateCopiesInputAndChannelKeySaveDBPersistsCacheUpdates(
 	}
 
 	baseURLs := []model.BaseUrl{{URL: "https://origin.example.com", Delay: 11}}
-	if err := ChannelBaseUrlUpdate(channel.ID, baseURLs); err != nil {
+	if err := ChannelBaseUrlUpdate(channel.ID, baseURLs, ctx); err != nil {
 		t.Fatalf("ChannelBaseUrlUpdate() error = %v", err)
 	}
 	baseURLs[0].URL = "https://mutated.example.com"
@@ -156,6 +156,14 @@ func TestChannelBaseUrlUpdateCopiesInputAndChannelKeySaveDBPersistsCacheUpdates(
 	}
 	if len(cached.BaseUrls) != 1 || cached.BaseUrls[0].URL != "https://origin.example.com" {
 		t.Fatalf("cached base urls = %#v, want preserved copy", cached.BaseUrls)
+	}
+
+	var storedChannel model.Channel
+	if err := db.GetDB().WithContext(ctx).First(&storedChannel, channel.ID).Error; err != nil {
+		t.Fatalf("query stored channel error = %v", err)
+	}
+	if len(storedChannel.BaseUrls) != 1 || storedChannel.BaseUrls[0].URL != "https://origin.example.com" || storedChannel.BaseUrls[0].Delay != 11 {
+		t.Fatalf("stored base urls = %#v, want persisted copy", storedChannel.BaseUrls)
 	}
 
 	updatedKey := cached.Keys[0]
@@ -200,7 +208,7 @@ func TestChannelBaseUrlUpdateRejectsInvalidURL(t *testing.T) {
 		t.Fatalf("ChannelCreate() error = %v", err)
 	}
 
-	if err := ChannelBaseUrlUpdate(channel.ID, []model.BaseUrl{{URL: "ftp://example.com/v1", Delay: 0}}); err == nil {
+	if err := ChannelBaseUrlUpdate(channel.ID, []model.BaseUrl{{URL: "ftp://example.com/v1", Delay: 0}}, ctx); err == nil {
 		t.Fatal("ChannelBaseUrlUpdate() expected invalid base url error")
 	}
 

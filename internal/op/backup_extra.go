@@ -413,6 +413,46 @@ func dumpContainsSecrets(dump *model.DBDump) bool {
 			return true
 		}
 	}
+	for _, row := range dump.AITasks {
+		if aiAutomationSecretJSONContainsVisibleSecret(row.ConfigSnapshotJSON) || aiAutomationSecretJSONContainsVisibleSecret(row.ContextPayloadJSON) || aiAutomationSecretJSONContainsVisibleSecret(row.ResultJSON) {
+			return true
+		}
+	}
+	for _, row := range dump.AITaskSteps {
+		if aiAutomationSecretJSONContainsVisibleSecret(row.InputJSON) || aiAutomationSecretJSONContainsVisibleSecret(row.OutputJSON) {
+			return true
+		}
+	}
+	for _, row := range dump.AIProfileVersions {
+		if aiAutomationSecretJSONContainsVisibleSecret(row.ContentJSON) {
+			return true
+		}
+	}
+	for _, row := range dump.AIGroupingProfiles {
+		if aiAutomationSecretJSONContainsVisibleSecret(row.TypedPayloadJSON) {
+			return true
+		}
+	}
+	for _, row := range dump.AIChannelRecognitionProfiles {
+		if aiAutomationSecretJSONContainsVisibleSecret(row.TypedPayloadJSON) {
+			return true
+		}
+	}
+	for _, row := range dump.AIPriceRecognitionProfiles {
+		if aiAutomationSecretJSONContainsVisibleSecret(row.TypedPayloadJSON) {
+			return true
+		}
+	}
+	for _, row := range dump.AIModelClassificationProfiles {
+		if aiAutomationSecretJSONContainsVisibleSecret(row.TypedPayloadJSON) {
+			return true
+		}
+	}
+	for _, row := range dump.AIConfigHealthProfiles {
+		if aiAutomationSecretJSONContainsVisibleSecret(row.TypedPayloadJSON) {
+			return true
+		}
+	}
 	for _, channel := range dump.Channels {
 		if channelProxyContainsSecret(channel.ChannelProxy) {
 			return true
@@ -509,6 +549,74 @@ func redactDumpSecrets(dump *model.DBDump) {
 				dump.Channels[i].CustomHeader[j].HeaderValue = ""
 			}
 		}
+	}
+}
+
+func aiAutomationSecretJSONContainsVisibleSecret(raw string) bool {
+	if strings.TrimSpace(raw) == "" {
+		return false
+	}
+	var payload any
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return false
+	}
+	return aiAutomationSecretsValueContainsVisibleSecret(payload)
+}
+
+func aiAutomationSecretsValueContainsVisibleSecret(value any) bool {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, nested := range typed {
+			if isAIAutomationSecretKey(key) {
+				secret := strings.TrimSpace(stringFromAny(nested))
+				if secret != "" && secret != aiAutomationRedactedSecret {
+					return true
+				}
+			}
+			if aiAutomationSecretsValueContainsVisibleSecret(nested) {
+				return true
+			}
+		}
+	case []any:
+		for _, item := range typed {
+			if aiAutomationSecretsValueContainsVisibleSecret(item) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func redactAIAutomationDumpSecrets(dump *model.DBDump) {
+	if dump == nil {
+		return
+	}
+	for i := range dump.AITasks {
+		dump.AITasks[i].ConfigSnapshotJSON = redactAIAutomationConfigSnapshotJSON(dump.AITasks[i].ConfigSnapshotJSON)
+		dump.AITasks[i].ContextPayloadJSON = redactAIAutomationSecretJSON(dump.AITasks[i].ContextPayloadJSON)
+		dump.AITasks[i].ResultJSON = redactAIAutomationSecretJSON(dump.AITasks[i].ResultJSON)
+	}
+	for i := range dump.AITaskSteps {
+		dump.AITaskSteps[i].InputJSON = redactAIAutomationSecretJSON(dump.AITaskSteps[i].InputJSON)
+		dump.AITaskSteps[i].OutputJSON = redactAIAutomationSecretJSON(dump.AITaskSteps[i].OutputJSON)
+	}
+	for i := range dump.AIProfileVersions {
+		dump.AIProfileVersions[i].ContentJSON = redactAIAutomationSecretJSON(dump.AIProfileVersions[i].ContentJSON)
+	}
+	for i := range dump.AIGroupingProfiles {
+		dump.AIGroupingProfiles[i].TypedPayloadJSON = redactAIAutomationSecretJSON(dump.AIGroupingProfiles[i].TypedPayloadJSON)
+	}
+	for i := range dump.AIChannelRecognitionProfiles {
+		dump.AIChannelRecognitionProfiles[i].TypedPayloadJSON = redactAIAutomationSecretJSON(dump.AIChannelRecognitionProfiles[i].TypedPayloadJSON)
+	}
+	for i := range dump.AIPriceRecognitionProfiles {
+		dump.AIPriceRecognitionProfiles[i].TypedPayloadJSON = redactAIAutomationSecretJSON(dump.AIPriceRecognitionProfiles[i].TypedPayloadJSON)
+	}
+	for i := range dump.AIModelClassificationProfiles {
+		dump.AIModelClassificationProfiles[i].TypedPayloadJSON = redactAIAutomationSecretJSON(dump.AIModelClassificationProfiles[i].TypedPayloadJSON)
+	}
+	for i := range dump.AIConfigHealthProfiles {
+		dump.AIConfigHealthProfiles[i].TypedPayloadJSON = redactAIAutomationSecretJSON(dump.AIConfigHealthProfiles[i].TypedPayloadJSON)
 	}
 }
 
@@ -628,6 +736,21 @@ func applyImportScopesToDump(dump *model.DBDump, scopes *model.DBImportScopes) {
 	}
 	dump.Users = nil
 	dump.MigrationRecords = nil
+	dump.AITasks = nil
+	dump.AITaskSteps = nil
+	dump.AIPromptTemplates = nil
+	dump.AIProfiles = nil
+	dump.AIProfileVersions = nil
+	dump.AIGroupingProfiles = nil
+	dump.AIChannelRecognitionProfiles = nil
+	dump.AIPriceRecognitionProfiles = nil
+	dump.AIModelClassificationProfiles = nil
+	dump.AIConfigHealthProfiles = nil
+	dump.DynamicRouteLearningStates = nil
+	dump.GovernanceSessions = nil
+	dump.GovernanceApplyRuns = nil
+	dump.GovernanceRollbackPoints = nil
+	dump.StrategyProfiles = nil
 	if !scopes.Routing {
 		dump.Channels = nil
 		dump.ChannelKeys = nil
@@ -672,6 +795,20 @@ func isFullImportScopes(scopes *model.DBImportScopes) bool {
 		return true
 	}
 	return scopes.Routing && scopes.Models && scopes.APIKeys && scopes.Settings && scopes.Stats && scopes.Logs
+}
+
+func isEffectiveFullRollbackScopes(scopes *model.DBImportScopes) bool {
+	if scopes == nil {
+		return true
+	}
+	return scopes.Routing && scopes.Models && scopes.APIKeys && scopes.Settings && scopes.Stats && scopes.Logs
+}
+
+func effectiveRollbackImportScopes(scopes *model.DBImportScopes) *model.DBImportScopes {
+	if isEffectiveFullRollbackScopes(scopes) {
+		return nil
+	}
+	return scopes
 }
 
 func validateImportScopes(scopes *model.DBImportScopes) error {
@@ -1719,6 +1856,29 @@ func createUpsertAll[T any](tx *gorm.DB, rows []T, columns []clause.Column) (int
 	return result.RowsAffected, result.Error
 }
 
+func replaceRowsByIntKey[T any](tx *gorm.DB, rows []T, key string, idExtractor func(T) int) (int64, error) {
+	keepIDs := make([]int, 0, len(rows))
+	seen := make(map[int]struct{}, len(rows))
+	for _, row := range rows {
+		id := idExtractor(row)
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		keepIDs = append(keepIDs, id)
+	}
+	query := tx.Session(&gorm.Session{AllowGlobalUpdate: true})
+	if len(keepIDs) > 0 {
+		query = query.Where(key+" NOT IN ?", keepIDs)
+	}
+	var zero T
+	result := query.Delete(&zero)
+	return result.RowsAffected, result.Error
+}
+
 func createUpsertSettings(tx *gorm.DB, rows []model.Setting) (int64, error) {
 	if len(rows) == 0 {
 		return 0, nil
@@ -1962,12 +2122,17 @@ func buildImportCompatibility(originalDump, dump *model.DBDump, state *currentIm
 			report.ReplacePrunedAPIKeys = buildReplacePrunedAPIKeyNames(state.apiKeysByAPIKey, keepAPIKeys)
 		}
 		if len(report.ReplacePrunedChannels) > 0 || len(report.ReplacePrunedGroups) > 0 || len(report.ReplacePrunedSettings) > 0 || len(report.ReplacePrunedLLMInfos) > 0 || len(report.ReplacePrunedAPIKeys) > 0 {
+			replaceWarnings := make([]string, 0, 2)
+			if !dump.Manifest.ContainsSecrets && apiKeysScopeEnabled {
+				replaceWarnings = append(replaceWarnings, "API key cleanup preview excludes credentials that are absent from this snapshot")
+			}
 			report.ReplacePrunePreview = &model.DBReplacePrunePreview{
 				Channels: append([]string(nil), report.ReplacePrunedChannels...),
 				Groups:   append([]string(nil), report.ReplacePrunedGroups...),
 				Settings: append([]string(nil), report.ReplacePrunedSettings...),
 				LLMInfos: append([]string(nil), report.ReplacePrunedLLMInfos...),
 				APIKeys:  append([]string(nil), report.ReplacePrunedAPIKeys...),
+				Warnings: replaceWarnings,
 			}
 		}
 	}
@@ -2019,6 +2184,7 @@ func buildImportCompatibility(originalDump, dump *model.DBDump, state *currentIm
 	report.Summary.RouteConflicts = len(report.RouteConflicts)
 	report.Summary.InvalidRouteTargets = len(report.InvalidRouteTargets)
 	report.Summary.SkippedRoutePreviews = len(report.SkippedRoutePreviews)
+	report.Summary.RoutePreviewWarnings = len(report.RoutePreviewWarnings)
 	report.Summary.RoutePreviewDiffs = len(report.RoutePreviewDiffs)
 	report.Summary.BaseURLMismatches = len(report.BaseURLMismatches)
 	report.Summary.SchemaMismatches = len(report.SchemaMismatches)
@@ -3229,6 +3395,13 @@ func buildRollbackPreviewWarnings(dump *model.DBDump, compatibility *model.DBImp
 		if compatibility.Summary.RoutePreviewDiffs > 0 {
 			warnings = append(warnings, fmt.Sprintf("route preview diffs: %d", compatibility.Summary.RoutePreviewDiffs))
 		}
+		for _, warning := range compatibility.RoutePreviewWarnings {
+			trimmed := strings.TrimSpace(warning)
+			if trimmed == "" || containsString(warnings, trimmed) {
+				continue
+			}
+			warnings = append(warnings, trimmed)
+		}
 		if compatibility.Summary.BaseURLMismatches > 0 {
 			warnings = append(warnings, fmt.Sprintf("base URL mismatches: %d", compatibility.Summary.BaseURLMismatches))
 		}
@@ -3239,7 +3412,31 @@ func buildRollbackPreviewWarnings(dump *model.DBDump, compatibility *model.DBImp
 	if dump != nil && dump.IncludeLogs {
 		warnings = append(warnings, "includes relay logs")
 	}
+	if dump != nil {
+		if len(dump.Users) > 0 {
+			warnings = append(warnings, fmt.Sprintf("restores admin users: %d", len(dump.Users)))
+		}
+		if len(dump.MigrationRecords) > 0 {
+			warnings = append(warnings, fmt.Sprintf("restores migration records: %d", len(dump.MigrationRecords)))
+		}
+		aiStateRows := len(dump.AITasks) + len(dump.AITaskSteps) + len(dump.AIPromptTemplates) + len(dump.AIProfiles) + len(dump.AIProfileVersions) + len(dump.AIGroupingProfiles) + len(dump.AIChannelRecognitionProfiles) + len(dump.AIPriceRecognitionProfiles) + len(dump.AIModelClassificationProfiles) + len(dump.AIConfigHealthProfiles)
+		if aiStateRows > 0 {
+			warnings = append(warnings, fmt.Sprintf("restores AI automation state rows: %d", aiStateRows))
+		}
+		if len(dump.DynamicRouteLearningStates) > 0 {
+			warnings = append(warnings, fmt.Sprintf("restores dynamic route learning states: %d", len(dump.DynamicRouteLearningStates)))
+		}
+	}
 	return warnings
+}
+
+func containsString(items []string, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }
 
 func collectDumpModelContexts(dump *model.DBDump) map[string][]string {

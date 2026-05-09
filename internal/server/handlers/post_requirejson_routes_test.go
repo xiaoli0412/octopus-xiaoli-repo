@@ -24,8 +24,9 @@ func TestAdminPostRoutesRequireJSONForEmptyBody(t *testing.T) {
 	}
 
 	for _, target := range []string{
-		"/api/v1/ai/profiles/1/activate",
-		"/api/v1/ai/tasks/1/cancel",
+		"/api/v1/ai/sessions/1/replan",
+		"/api/v1/ai/sessions/1/apply",
+		"/api/v1/ai/strategy-profiles/1/activate",
 		"/api/v1/channel/sync",
 		"/api/v1/channel/copilot/device-code",
 		"/api/v1/channel/antigravity/oauth/start",

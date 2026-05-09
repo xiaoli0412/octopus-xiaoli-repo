@@ -4,6 +4,48 @@
 
 ---
 
+## 1.18.5 - 2026-05-10
+
+### ✨ 核心更新
+
+- `AI 自动化` 继续完成从旧任务控制台到治理总控台的换代：前后端治理会话模型、预览与应用链路、策略方案与回滚点继续收口，主页面进一步压缩为更贴近运维面板的工作台布局。
+- 首页统计区完成运维化重排：`趋势 / 排行榜 / 令牌明细` 统一切到更紧凑的面板式交互，补齐 `金额 / 次数 / 令牌` 切换、图表类型切换、按渠道/模型/分发密钥/供应商密钥的中文维度展示，并修复 `window.12h` 一类 locale key 直出问题。
+- `自动化设置` 补齐真正可用的运行入口配置：支持本机默认地址开关、请求地址、请求密钥、请求模型、并发与分发策略联动保存，并修复“选择项保存为 UI 值而不是真实 API key”的错位问题。
+
+### 🔧 稳定性与发布收口
+
+- backup / import / rollback、AI governance、stats token breakdown 与相关 handler / op / no-browser 验证链继续扩展，形成这次 `1.18.5` 的完整后端与前端收口版本。
+- 版本源、前端展示版本、Debian Docker 构建参数、安装脚本默认镜像、README / AGENTS / 手工验收文档中的示例 tag 已统一同步到 `1.18.5` / `v1.18.5`。
+
+### Release Highlights (EN)
+
+- `AI Automation` continues the replacement of the old task console with a governance-first control center. The governance session model, preview/apply flow, saved strategy profiles, rollback points, and the main operator layout were all tightened again for this patch line.
+- The home stats area was rebuilt into a more operations-oriented surface: `Trend`, `Rank`, and `Token Breakdown` now expose cost/request/token switching, chart-mode switching, Chinese-only dimension labels, and fixed the leaked locale-key issue such as `window.12h` rendering directly in the UI.
+- The automation settings dialog now persists usable runtime configuration for local-default endpoint mode, request base URL, request API key, request model, and dispatch/runtime policy controls. It also fixes the earlier mismatch where a UI selection value could be stored instead of the real API key.
+- Release-facing version sources are now synchronized to `1.18.5` / `v1.18.5` across runtime constants, frontend display, Docker build defaults, installer defaults, and release documentation.
+
+## 1.18 - 2026-05-09
+
+### ✨ 核心更新
+
+- `AI Automation` 正式切换到治理工作台口径：后端新增 `overview / sessions / apply-runs / strategy-profiles / expert-presets / learning/summary` 聚合接口，前端重建为单页治理会话工作台，保留 `manual / ai_profile` 非破坏式边界，并把设置页入口收敛为轻量治理摘要卡。
+- 退役旧版 AI 自动化 v1 路径：历史 `/api/v1/ai/config`、`/tasks`、`/profiles`、`/prompt-templates` 等旧入口统一返回 `410 Gone`，明确要求切换到治理会话 endpoints，避免旧 UI 与旧脚本继续误用半废弃协议。
+- Backup / rollback 契约继续补强：补齐 AI automation 相关快照内容、replace-prune 与 compatibility 细节、回滚 compare/preview 信息，以及更完整的后端测试覆盖，确保治理数据与备份链路一起进入正式发布面。
+
+### 🔧 发布与验证
+
+- 修复并对齐前端发布守门：`verify-ai-config-profile-summary.mjs` 已从旧 `config-source-logic.ts` 依赖迁移到当前治理版设置卡与 API 契约校验，`test:screenshot-no-browser` 再次恢复可发布状态。
+- 本轮已通过的关键门槛包括 `go build ./...`、治理与 backup 相关 Go tests、`tsc --noEmit`、`pnpm --dir web run build:static`，以及完整 `pnpm --dir web run test:screenshot-no-browser`。
+- 正式发布版本升级为 `1.18` / `v1.18`，`VERSION`、后端版本常量、前端展示版本、Debian Docker 构建默认版本、安装脚本默认镜像，以及 README / 手工验收 / 仓库说明中的示例 tag 已统一同步。
+
+### Release Highlights (EN)
+
+- `AI Automation` now ships as a governance workspace instead of the earlier task-console shape. The backend exposes `overview`, `sessions`, `apply-runs`, `strategy-profiles`, `expert-presets`, and `learning/summary`, while the frontend is rebuilt around governance sessions with the `manual / ai_profile` safety boundary preserved.
+- Legacy AI automation v1 endpoints are now explicitly retired with `410 Gone` responses so old task/profile/template routes cannot silently drift against the new governance contract.
+- Backup and rollback coverage was extended to include AI automation state, richer replace-prune and compatibility details, and stronger backend test coverage, so governance data is releasable together with the backup chain.
+- The frontend release gate was realigned by moving `verify-ai-config-profile-summary.mjs` off the deleted `config-source-logic.ts` helper and onto the current governance settings card plus API contract. `test:screenshot-no-browser`, `build:static`, `tsc`, governance-related Go tests, and `go build ./...` all pass again in this release run.
+- The formal release version is now `1.18` / `v1.18`, synchronized across runtime version constants, frontend display, Debian Docker build defaults, installer defaults, and release-facing documentation.
+
 ## 1.17.1 - 2026-05-07
 
 ### 🐛 发布后修复

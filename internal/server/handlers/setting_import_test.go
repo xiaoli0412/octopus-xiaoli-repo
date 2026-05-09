@@ -3,9 +3,11 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 )
 
 func TestExportDBDefaultsToFullSnapshotAndCanExplicitlyRedactSecrets(t *testing.T) {
@@ -784,6 +787,108 @@ func TestImportDBApplyWithSameTokenAndOptionsInMapModeSucceeds(t *testing.T) {
 	}
 }
 
+func TestImportDBDryRunWithJSONBodyAndQueryOptionsProducesMatchingPreviewDigest(t *testing.T) {
+	setupHandlerTest(t)
+	dump := testImportPreviewDump(`https://json-query-preview-token.example.com`)
+	modelMappings := marshalHandlerJSONField(t, map[string]string{`legacy-model`: `gpt-4o`})
+	importScopes := marshalHandlerJSONField(t, model.DBImportScopes{Settings: true})
+
+	dryRunTarget := `/api/v1/setting/import?dry_run=true&mode=map&model_mappings=` + url.QueryEscape(modelMappings) + `&import_scopes=` + url.QueryEscape(importScopes)
+	dryRunRecorder := performJSONHandlerRequest(t, http.MethodPost, dryRunTarget, dump, importDB)
+	if dryRunRecorder.Code != http.StatusOK {
+		t.Fatalf(`dry-run status = %d, want %d, body = %s`, dryRunRecorder.Code, http.StatusOK, dryRunRecorder.Body.String())
+	}
+	dryRunResponse := decodeHandlerResponse(t, dryRunRecorder)
+	var dryRunResult model.DBImportResult
+	if err := json.Unmarshal(dryRunResponse.Data, &dryRunResult); err != nil {
+		t.Fatalf(`json.Unmarshal(dryRunResult) error = %v`, err)
+	}
+	if strings.TrimSpace(dryRunResult.PreviewToken) == `` {
+		t.Fatalf(`preview_token = %q, want non-empty`, dryRunResult.PreviewToken)
+	}
+	expectedDigest, err := buildImportPreviewDigest(dump, model.DBImportModeMap, model.DBImportOptions{
+		ModelMappings: map[string]string{`legacy-model`: `gpt-4o`},
+		ImportScopes:  &model.DBImportScopes{Settings: true},
+	})
+	if err != nil {
+		t.Fatalf(`buildImportPreviewDigest() error = %v`, err)
+	}
+	if err := verifyImportPreviewToken(dryRunResult.PreviewToken, expectedDigest); err != nil {
+		t.Fatalf(`verifyImportPreviewToken() error = %v, want nil`, err)
+	}
+	if stored, err := op.SettingGetString(model.SettingKeyAPIBaseURL); err != nil {
+		t.Fatalf(`SettingGetString(api_base_url) error = %v`, err)
+	} else if stored != `http://localhost:1088` {
+		t.Fatalf(`api_base_url = %q, want unchanged after dry-run`, stored)
+	}
+}
+
+func TestImportDBReplaceApplyAcceptsPreviewTokenFromJSONQuery(t *testing.T) {
+	setupHandlerTest(t)
+	dump := testImportPreviewDump(`https://json-query-replace.example.com`)
+
+	dryRunRecorder := performJSONHandlerRequest(t, http.MethodPost, `/api/v1/setting/import?dry_run=true&mode=replace`, dump, importDB)
+	if dryRunRecorder.Code != http.StatusOK {
+		t.Fatalf(`dry-run status = %d, want %d, body = %s`, dryRunRecorder.Code, http.StatusOK, dryRunRecorder.Body.String())
+	}
+	dryRunResponse := decodeHandlerResponse(t, dryRunRecorder)
+	var dryRunResult model.DBImportResult
+	if err := json.Unmarshal(dryRunResponse.Data, &dryRunResult); err != nil {
+		t.Fatalf(`json.Unmarshal(dryRunResult) error = %v`, err)
+	}
+	if strings.TrimSpace(dryRunResult.PreviewToken) == `` {
+		t.Fatalf(`preview_token = %q, want non-empty`, dryRunResult.PreviewToken)
+	}
+
+	applyTarget := `/api/v1/setting/import?dry_run=false&mode=replace&preview_token=` + url.QueryEscape(dryRunResult.PreviewToken)
+	applyRecorder := performJSONHandlerRequest(t, http.MethodPost, applyTarget, dump, importDB)
+	if applyRecorder.Code != http.StatusOK {
+		t.Fatalf(`apply status = %d, want %d, body = %s`, applyRecorder.Code, http.StatusOK, applyRecorder.Body.String())
+	}
+	applyResponse := decodeHandlerResponse(t, applyRecorder)
+	var applyResult model.DBImportResult
+	if err := json.Unmarshal(applyResponse.Data, &applyResult); err != nil {
+		t.Fatalf(`json.Unmarshal(applyResult) error = %v`, err)
+	}
+	if applyResult.DryRun {
+		t.Fatalf(`applyResult.DryRun = true, want false`)
+	}
+	if got := applyResult.RowsAffected[`settings`]; got != 1 {
+		t.Fatalf(`rows_affected[settings] = %d, want 1`, got)
+	}
+	if strings.TrimSpace(applyResult.PreviewToken) != `` {
+		t.Fatalf(`applyResult.PreviewToken = %q, want empty on apply`, applyResult.PreviewToken)
+	}
+	stored, err := op.SettingGetString(model.SettingKeyAPIBaseURL)
+	if err != nil {
+		t.Fatalf(`SettingGetString(api_base_url) error = %v`, err)
+	}
+	if stored != `https://json-query-replace.example.com` {
+		t.Fatalf(`api_base_url = %q, want imported JSON body value`, stored)
+	}
+}
+
+func TestImportPreviewDigestStableForSameMapModeOptions(t *testing.T) {
+	setupHandlerTest(t)
+	dump := testImportPreviewDump(`https://digest-stable.example.com`)
+	options := model.DBImportOptions{
+		ModelMappings: map[string]string{`legacy-model`: `gpt-4o`},
+		ImportScopes:  &model.DBImportScopes{Settings: true},
+	}
+
+	first, err := buildImportPreviewDigest(dump, model.DBImportModeMap, options)
+	if err != nil {
+		t.Fatalf(`buildImportPreviewDigest(first) error = %v`, err)
+	}
+	second, err := buildImportPreviewDigest(dump, model.DBImportModeMap, options)
+	if err != nil {
+		t.Fatalf(`buildImportPreviewDigest(second) error = %v`, err)
+	}
+	if first != second {
+		t.Fatalf(`digest mismatch for same map options: %q != %q`, first, second)
+	}
+}
+
 func TestImportDBRejectsOversizedMultipartPayload(t *testing.T) {
 	setupHandlerTest(t)
 	dump := testImportPreviewDump(`https://oversized-multipart.example.com`)
@@ -1143,6 +1248,75 @@ func TestImportDBDryRunWithoutImportScopesStillDefaultsToFullScope(t *testing.T)
 	}
 }
 
+func TestImportDBReturnsErrorWhenCacheRefreshFailsAfterApply(t *testing.T) {
+	setupHandlerTest(t)
+	dump := testImportPreviewDump(`https://cache-refresh-fail.example.com`)
+
+	originalRefresh := refreshCachesAfterMutableSettingOperation
+	refreshCachesAfterMutableSettingOperation = func() error {
+		return errors.New(`cache refresh boom`)
+	}
+	t.Cleanup(func() {
+		refreshCachesAfterMutableSettingOperation = originalRefresh
+	})
+
+	recorder := performImportMultipartHandlerRequest(t, `/api/v1/setting/import?dry_run=false&mode=incremental`, dump, nil)
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf(`status = %d, want %d, body = %s`, recorder.Code, http.StatusInternalServerError, recorder.Body.String())
+	}
+	response := decodeHandlerResponse(t, recorder)
+	if !strings.Contains(response.Message, `import succeeded but cache refresh failed`) {
+		t.Fatalf(`message = %q, want import cache refresh failure`, response.Message)
+	}
+
+	stored, err := op.SettingGetString(model.SettingKeyAPIBaseURL)
+	if err != nil {
+		t.Fatalf(`SettingGetString(api_base_url) error = %v`, err)
+	}
+	if stored != `https://cache-refresh-fail.example.com` {
+		t.Fatalf(`api_base_url = %q, want persisted import change`, stored)
+	}
+}
+
+func TestImportDBSyncsMutableSettingTasksAfterApply(t *testing.T) {
+	setupHandlerTest(t)
+
+	dump := &model.DBDump{
+		Version: 1,
+		Manifest: model.DBDumpManifest{
+			SchemaVersion:   `v1`,
+			ExportSource:    `octopus`,
+			ContainsSecrets: true,
+		},
+		Settings: []model.Setting{
+			{Key: model.SettingKeyStatsSaveInterval, Value: `17`},
+			{Key: model.SettingKeyModelInfoUpdateInterval, Value: `31`},
+			{Key: model.SettingKeySyncLLMInterval, Value: `29`},
+		},
+	}
+
+	called := 0
+	originalSync := syncMutableSettingTasksAfterCacheRefresh
+	syncMutableSettingTasksAfterCacheRefresh = func() error {
+		called++
+		assertStoredSettingValue(t, model.SettingKeyStatsSaveInterval, `17`)
+		assertStoredSettingValue(t, model.SettingKeyModelInfoUpdateInterval, `31`)
+		assertStoredSettingValue(t, model.SettingKeySyncLLMInterval, `29`)
+		return nil
+	}
+	t.Cleanup(func() {
+		syncMutableSettingTasksAfterCacheRefresh = originalSync
+	})
+
+	recorder := performImportMultipartHandlerRequest(t, `/api/v1/setting/import?dry_run=false&mode=incremental`, dump, nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf(`status = %d, want %d, body = %s`, recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	if called != 1 {
+		t.Fatalf(`task sync hook called %d times, want 1`, called)
+	}
+}
+
 func TestRollbackImportSnapshotRejectsEmptyImportScopesObject(t *testing.T) {
 	setupHandlerTest(t)
 
@@ -1221,6 +1395,143 @@ func TestRollbackImportSnapshotWithoutImportScopesStillDefaultsToFullScope(t *te
 	}
 	if _, ok := result[`applied_scopes`]; ok {
 		t.Fatalf(`applied_scopes = %#v, want omitted full-scope default`, result[`applied_scopes`])
+	}
+}
+
+func TestRollbackImportSnapshotReturnsErrorWhenCacheRefreshFails(t *testing.T) {
+	setupHandlerTest(t)
+
+	importDump := &model.DBDump{
+		Version: 1,
+		Manifest: model.DBDumpManifest{
+			SchemaVersion:   `v1`,
+			ExportSource:    `octopus`,
+			ContainsSecrets: true,
+		},
+		Settings: []model.Setting{{Key: model.SettingKeyAPIBaseURL, Value: `https://snapshot-before-refresh-fail.example.com`}},
+	}
+	importRecorder := performImportMultipartHandlerRequest(t, `/api/v1/setting/import?dry_run=false&mode=incremental`, importDump, nil)
+	if importRecorder.Code != http.StatusOK {
+		t.Fatalf(`import status = %d, want %d, body = %s`, importRecorder.Code, http.StatusOK, importRecorder.Body.String())
+	}
+	if err := db.GetDB().Model(&model.Setting{}).Where(`key = ?`, model.SettingKeyAPIBaseURL).Update(`value`, `https://mutated-after-import.example.com`).Error; err != nil {
+		t.Fatalf(`mutate setting error = %v`, err)
+	}
+
+	listRecorder := performJSONHandlerRequest(t, http.MethodGet, `/api/v1/setting/import-snapshots`, nil, listImportSnapshots)
+	if listRecorder.Code != http.StatusOK {
+		t.Fatalf(`list status = %d, want %d, body = %s`, listRecorder.Code, http.StatusOK, listRecorder.Body.String())
+	}
+	listResponse := decodeHandlerResponse(t, listRecorder)
+	var snapshots []model.DBImportSnapshotInfo
+	if err := json.Unmarshal(listResponse.Data, &snapshots); err != nil {
+		t.Fatalf(`json.Unmarshal(snapshots) error = %v`, err)
+	}
+	if len(snapshots) == 0 {
+		t.Fatalf(`snapshots = %#v, want at least one snapshot`, snapshots)
+	}
+
+	originalRefresh := refreshCachesAfterMutableSettingOperation
+	refreshCachesAfterMutableSettingOperation = func() error {
+		return errors.New(`cache refresh boom`)
+	}
+	t.Cleanup(func() {
+		refreshCachesAfterMutableSettingOperation = originalRefresh
+	})
+
+	recorder := performJSONHandlerRequest(t, http.MethodPost, `/api/v1/setting/rollback-import-snapshot`, map[string]any{
+		`snapshot_name`: snapshots[0].SnapshotName,
+	}, rollbackImportSnapshot)
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf(`status = %d, want %d, body = %s`, recorder.Code, http.StatusInternalServerError, recorder.Body.String())
+	}
+	response := decodeHandlerResponse(t, recorder)
+	if !strings.Contains(response.Message, `rollback import snapshot succeeded but cache refresh failed`) {
+		t.Fatalf(`message = %q, want rollback cache refresh failure`, response.Message)
+	}
+
+	stored, err := op.SettingGetString(model.SettingKeyAPIBaseURL)
+	if err != nil {
+		t.Fatalf(`SettingGetString(api_base_url) error = %v`, err)
+	}
+	if stored != `http://localhost:1088` {
+		t.Fatalf(`api_base_url = %q, want rollback-applied pre-import value`, stored)
+	}
+}
+
+func TestRollbackImportSnapshotSyncsMutableSettingTasksAfterApply(t *testing.T) {
+	setupHandlerTest(t)
+
+	seedDump := &model.DBDump{
+		Version: 1,
+		Manifest: model.DBDumpManifest{
+			SchemaVersion:   `v1`,
+			ExportSource:    `octopus`,
+			ContainsSecrets: true,
+		},
+		Settings: []model.Setting{
+			{Key: model.SettingKeyStatsSaveInterval, Value: `17`},
+			{Key: model.SettingKeyModelInfoUpdateInterval, Value: `31`},
+			{Key: model.SettingKeySyncLLMInterval, Value: `29`},
+		},
+	}
+	seedRecorder := performImportMultipartHandlerRequest(t, `/api/v1/setting/import?dry_run=false&mode=incremental`, seedDump, nil)
+	if seedRecorder.Code != http.StatusOK {
+		t.Fatalf(`seed import status = %d, want %d, body = %s`, seedRecorder.Code, http.StatusOK, seedRecorder.Body.String())
+	}
+
+	rollbackDump := &model.DBDump{
+		Version: 1,
+		Manifest: model.DBDumpManifest{
+			SchemaVersion:   `v1`,
+			ExportSource:    `octopus`,
+			ContainsSecrets: true,
+		},
+		Settings: []model.Setting{
+			{Key: model.SettingKeyStatsSaveInterval, Value: `7`},
+			{Key: model.SettingKeyModelInfoUpdateInterval, Value: `13`},
+			{Key: model.SettingKeySyncLLMInterval, Value: `11`},
+		},
+	}
+	rollbackImportRecorder := performImportMultipartHandlerRequest(t, `/api/v1/setting/import?dry_run=false&mode=incremental`, rollbackDump, nil)
+	if rollbackImportRecorder.Code != http.StatusOK {
+		t.Fatalf(`rollback import status = %d, want %d, body = %s`, rollbackImportRecorder.Code, http.StatusOK, rollbackImportRecorder.Body.String())
+	}
+
+	called := 0
+	originalSync := syncMutableSettingTasksAfterCacheRefresh
+	syncMutableSettingTasksAfterCacheRefresh = func() error {
+		called++
+		assertStoredSettingValue(t, model.SettingKeyStatsSaveInterval, `17`)
+		assertStoredSettingValue(t, model.SettingKeyModelInfoUpdateInterval, `31`)
+		assertStoredSettingValue(t, model.SettingKeySyncLLMInterval, `29`)
+		return nil
+	}
+	t.Cleanup(func() {
+		syncMutableSettingTasksAfterCacheRefresh = originalSync
+	})
+
+	listRecorder := performJSONHandlerRequest(t, http.MethodGet, `/api/v1/setting/import-snapshots`, nil, listImportSnapshots)
+	if listRecorder.Code != http.StatusOK {
+		t.Fatalf(`list status = %d, want %d, body = %s`, listRecorder.Code, http.StatusOK, listRecorder.Body.String())
+	}
+	listResponse := decodeHandlerResponse(t, listRecorder)
+	var snapshots []model.DBImportSnapshotInfo
+	if err := json.Unmarshal(listResponse.Data, &snapshots); err != nil {
+		t.Fatalf(`json.Unmarshal(snapshots) error = %v`, err)
+	}
+	if len(snapshots) == 0 {
+		t.Fatalf(`snapshots = %#v, want at least one snapshot`, snapshots)
+	}
+
+	recorder := performJSONHandlerRequest(t, http.MethodPost, `/api/v1/setting/rollback-import-snapshot`, map[string]any{
+		`snapshot_name`: snapshots[0].SnapshotName,
+	}, rollbackImportSnapshot)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf(`status = %d, want %d, body = %s`, recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	if called != 1 {
+		t.Fatalf(`task sync hook called %d times, want 1`, called)
 	}
 }
 
@@ -1366,4 +1677,16 @@ func cloneHandlerFormFields(input map[string]string) map[string]string {
 		cloned[key] = value
 	}
 	return cloned
+}
+
+func assertStoredSettingValue(t *testing.T, key model.SettingKey, want string) {
+	t.Helper()
+
+	stored, err := op.SettingGetString(key)
+	if err != nil {
+		t.Fatalf(`SettingGetString(%s) error = %v`, key, err)
+	}
+	if stored != want {
+		t.Fatalf(`setting %s = %q, want %q`, key, stored, want)
+	}
 }

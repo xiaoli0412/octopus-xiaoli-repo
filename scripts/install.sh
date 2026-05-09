@@ -5,7 +5,8 @@ set -euo pipefail
 DEFAULT_PORT="1088"
 DEFAULT_DATA_DIR="./data"
 DEFAULT_CONTAINER_NAME="octopus"
-DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.17.1"
+DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.18.5"
+DEFAULT_REPO_REF="${DEFAULT_IMAGE##*:}"
 
 OCTOPUS_PORT_INPUT="${OCTOPUS_PORT:-${DEFAULT_PORT}}"
 OCTOPUS_DATA_DIR_INPUT="${OCTOPUS_DATA_DIR:-${DEFAULT_DATA_DIR}}"
@@ -87,6 +88,24 @@ build_and_start_from_source() {
         OCTOPUS_CONTAINER_NAME="$container_name" \
         docker compose up -d
     )
+
+    verify_running_container "$container_name" \
+        "Source-build container failed to stay running. Showing the latest logs for ${container_name}:" \
+        "Octopus source-build container exited right after startup. Check the logs above, especially data directory permissions, build drift, or compose/runtime overrides."
+}
+
+verify_running_container() {
+    local container_name="$1"
+    local log_hint="$2"
+    local fail_message="$3"
+
+    if [[ "$(docker inspect -f '{{.State.Running}}' "$container_name" 2>/dev/null || printf 'false')" == "true" ]]; then
+        return 0
+    fi
+
+    write_warn "$log_hint"
+    docker logs --tail 80 "$container_name" >&2 || true
+    fail "$fail_message"
 }
 
 build_and_start_from_uploaded_binary() {
@@ -142,7 +161,8 @@ EOF
     chown -R 10001:10001 "$data_dir" || true
 
     docker rm -f "$container_name" >/dev/null 2>&1 || true
-    docker run -d \
+    local container_id
+    container_id="$(docker run -d \
         --name "$container_name" \
         --restart unless-stopped \
         -p "${external_port}:1088" \
@@ -154,9 +174,12 @@ EOF
         -e DATA_DIR=/app/data \
         -e PUID=10001 \
         -e PGID=10001 \
-        -e ALLOW_ROOT_FALLBACK_ON_DATA_DIR_ERROR=true \
         -v "${data_dir}:/app/data" \
-        "$image_tag"
+        "$image_tag")"
+
+    verify_running_container "$container_name" \
+        "Binary-fallback container failed to stay running. Showing the latest logs for ${container_name}:" \
+        "Octopus binary-fallback container exited right after startup. Fix the data directory permissions or set ALLOW_ROOT_FALLBACK_ON_DATA_DIR_ERROR=true explicitly if you need a temporary compatibility escape hatch."
 }
 
 validate_image_source() {
@@ -301,7 +324,7 @@ EXTERNAL_PORT="$(resolve_external_port "$OCTOPUS_PORT_INPUT")"
 warn_if_raw_download_host_is_unstable
 
 REPO_URL="${OCTOPUS_REPO_URL:-https://github.com/xiaoli0412/octopus-xiaoli-repo.git}"
-REPO_REF="${OCTOPUS_REPO_REF:-main}"
+REPO_REF="${OCTOPUS_REPO_REF:-${DEFAULT_REPO_REF}}"
 REPO_DIR="${OCTOPUS_REPO_DIR:-octopus-xiaoli-repo}"
 BINARY_PATH="${OCTOPUS_BINARY_PATH:-}"
 BINARY_IMAGE_TAG="${OCTOPUS_BINARY_IMAGE_TAG:-octopus-local:installer-fallback}"
@@ -352,11 +375,9 @@ CONTAINER_ID="$(docker run -d \
     -v "${OCTOPUS_DATA_DIR_INPUT}:/app/data" \
     "$PULLED_IMAGE")"
 
-if [[ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_ID" 2>/dev/null || printf 'false')" != "true" ]]; then
-    write_warn "Container failed to stay running. Showing the latest logs for ${OCTOPUS_CONTAINER_NAME_INPUT}:"
-    docker logs --tail 80 "$OCTOPUS_CONTAINER_NAME_INPUT" >&2 || true
-    fail "Octopus container exited right after startup. Check the logs above, especially data directory permissions or registry/image overrides."
-fi
+verify_running_container "$OCTOPUS_CONTAINER_NAME_INPUT" \
+    "Container failed to stay running. Showing the latest logs for ${OCTOPUS_CONTAINER_NAME_INPUT}:" \
+    "Octopus container exited right after startup. Check the logs above, especially data directory permissions or registry/image overrides."
 
 write_info "Octopus is starting"
 write_info "UI: http://127.0.0.1:${EXTERNAL_PORT}"

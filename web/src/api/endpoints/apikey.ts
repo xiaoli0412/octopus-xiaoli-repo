@@ -41,6 +41,33 @@ export interface APIKeyAuthStatus {
 	auth_mode: 'api_key';
 }
 
+export async function loginAPIKeySession(
+	apiKey: string,
+	persistAuth: (apiKey: string, status: APIKeyAuthStatus) => void,
+): Promise<APIKeyAuthStatus> {
+	const trimmedKey = apiKey.trim();
+	const response = await fetch(buildApiUrl('/api/v1/apikey/login'), {
+		method: 'GET',
+		headers: {
+			Authorization: `Bearer ${trimmedKey}`,
+		},
+	});
+	const contentType = response.headers.get('content-type') || '';
+	const isJson = contentType.includes('application/json');
+	const payload = isJson ? await response.json() : await response.text();
+	if (!response.ok) {
+		const message = typeof payload === 'object' && payload && 'message' in payload && typeof payload.message === 'string'
+			? payload.message
+			: (typeof payload === 'string' ? payload : response.statusText);
+		throw new Error(message || 'API key login failed');
+	}
+	const data = typeof payload === 'object' && payload && 'data' in payload
+		? (payload.data as APIKeyAuthStatus)
+		: (payload as APIKeyAuthStatus);
+	persistAuth(trimmedKey, data);
+	return data;
+}
+
 /**
  * API Key 登录 Hook（服务端校验成功后再落本地认证状态）
  */
@@ -48,29 +75,7 @@ export function useAPIKeyLogin() {
     const { setAPIKeyAuth, logout } = useAuthStore();
 
     return useMutation({
-        mutationFn: async (apiKey: string) => {
-			const trimmedKey = apiKey.trim();
-			const response = await fetch(buildApiUrl('/api/v1/apikey/login'), {
-				method: 'GET',
-				headers: {
-					Authorization: `Bearer ${trimmedKey}`,
-				},
-			});
-			const contentType = response.headers.get('content-type') || '';
-			const isJson = contentType.includes('application/json');
-			const payload = isJson ? await response.json() : await response.text();
-			if (!response.ok) {
-				const message = typeof payload === 'object' && payload && 'message' in payload && typeof payload.message === 'string'
-					? payload.message
-					: (typeof payload === 'string' ? payload : response.statusText);
-				throw new Error(message || 'API key login failed');
-			}
-			const data = typeof payload === 'object' && payload && 'data' in payload
-				? (payload.data as APIKeyAuthStatus)
-				: (payload as APIKeyAuthStatus);
-			setAPIKeyAuth(trimmedKey, data);
-			return data;
-        },
+		mutationFn: async (apiKey: string) => loginAPIKeySession(apiKey, setAPIKeyAuth),
         onError: (error) => {
             logout();
             logger.error('API Key 登录失败:', error);

@@ -36,6 +36,7 @@ type RelayLog struct {
 	DynamicRoutingConfidence    float64          `json:"dynamic_routing_confidence,omitempty"`
 	DynamicRoutingFallback      bool             `json:"dynamic_routing_fallback,omitempty"`
 	DynamicRoutingRecommended   string           `json:"dynamic_routing_recommended,omitempty"`
+	APIKeyID                    int              `json:"api_key_id,omitempty"`
 	ChannelId                   int              `json:"channel"`                         // 实际使用的渠道ID
 	ChannelName                 string           `json:"channel_name"`                    // 渠道名称
 	ActualModelName             string           `json:"actual_model_name"`               // 实际使用模型名称

@@ -1,383 +1,452 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../client';
 
-export interface AIAutomationConfigValues {
-    base_url: string;
-    api_key?: string;
-    channel_type: string;
-    model: string;
-    use_local_default: boolean;
+export interface AIGovernanceExecutionSource {
+	mode: 'manual' | 'ai_profile';
+	base_url: string;
+	channel_type: string;
+	model: string;
+	use_local_default: boolean;
+	label: string;
 }
 
-export interface AIAutomationProfileRef {
-    id: number;
-    name: string;
-    domain: string;
-    version: number;
-    status: string;
-    confidence: number;
-    explanation?: string;
-    updated_at: string;
+export interface AIGovernanceLearningSummary {
+	enabled: boolean;
+	sample_count: number;
+	top_target?: string;
+	last_sample_at?: number;
+	top_score?: number;
 }
 
-export interface AIAutomationConfig {
-    enabled: boolean;
-    base_url: string;
-    api_key?: string;
-    channel_type: string;
-    model: string;
-    use_local_default: boolean;
-    default_selection_policy: string;
-    requested_config_source_mode: 'manual' | 'ai_profile';
-    config_source_mode: 'manual' | 'ai_profile';
-    requested_active_ai_profile_id: number;
-    active_ai_profile_id: number;
-    requested_active_ai_profile?: AIAutomationProfileRef;
-    active_ai_profile?: AIAutomationProfileRef;
-    source_fallback_reason?: string;
-    dynamic_routing_learning_enabled: boolean;
-    manual_config?: AIAutomationConfigValues;
-    effective_config?: AIAutomationConfigValues;
+export interface GovernanceSessionSummary {
+	id: number;
+	goal: string;
+	scope: string;
+	expert_preset_id: string;
+	status: string;
+	current_stage: string;
+	operator_summary: string;
+	risk_summary: string;
+	confidence: number;
+	mutation_count: number;
+	can_apply: boolean;
+	created_at: string;
+	updated_at: string;
+	applied_at?: string;
 }
 
-export interface AIAutomationConfigUpdateRequest {
-    enabled?: boolean;
-    base_url?: string;
-    api_key?: string;
-    channel_type?: string;
-    model?: string;
-    use_local_default?: boolean;
+export interface GovernanceFindingView {
+	severity: string;
+	title: string;
+	detail: string;
 }
 
-export interface AIModelCandidate {
-    name: string;
-    source: string;
-    channel_id?: number;
-    channel_name?: string;
-    available: boolean;
-    free_likely: boolean;
-    success_rate: number;
-    avg_latency_ms: number;
-    recommended: boolean;
-    reason: string;
+export interface GovernanceDecisionView {
+	title: string;
+	summary: string;
 }
 
-export interface AIModelsFetchResult {
-    source: string;
-    candidates: AIModelCandidate[];
-    selected_name: string;
-    policy: string;
+export interface GovernanceGroupUpsertMutation {
+	group_name: string;
+	mode: number;
 }
 
-export interface AIPromptTemplate {
-    id: number;
-    name: string;
-    source: 'builtin' | 'custom';
-    task_type: string;
-    domain: string;
-    prompt: string;
-    work_requirement: string;
-    enabled: boolean;
+export interface GovernanceGroupItemMutation {
+	group_name: string;
+	channel_id: number;
+	model_name: string;
+	priority?: number;
+	weight?: number;
+	channel_key_id?: number;
 }
 
-export interface CreateAIPromptTemplateRequest {
-    name: string;
-    task_type: string;
-    domain?: string;
-    prompt: string;
-    work_requirement?: string;
-    enabled?: boolean;
+export interface GovernanceGroupItemReorderMutation {
+	group_name: string;
+	items: GovernanceGroupItemMutation[];
 }
 
-export interface AITaskStep {
-    id: number;
-    task_id: number;
-    step_key: string;
-    name: string;
-    status: string;
-    message: string;
-    input_json?: string;
-    output_json?: string;
-    checkpoint_state?: string;
-    retry_count?: number;
-    sort_order: number;
+export interface GovernanceRouteTargetOverrideMutation {
+	channel_id: number;
+	channel_key_id: number;
+	model_name: string;
+	billing_mode?: string;
+	probe_policy?: string;
+	probe_interval_seconds?: number;
+	probe_concurrency_limit?: number;
 }
 
-export interface AITask {
-    id: number;
-    type: string;
-    input_text: string;
-    context_scope: string;
-    status: string;
-    progress: number;
-    error_message: string;
-    result_profile_id?: number;
-    result_summary: string;
-    result_json?: string;
-    config_snapshot_json?: string;
-    context_payload_json?: string;
-    prompt_text?: string;
-    selected_model?: string;
-    model_reason?: string;
-    resume_token?: string;
-    resume_state?: string;
-    executor_version?: string;
-    last_heartbeat_at?: string;
-    attempt_count?: number;
-    created_at: string;
-    updated_at: string;
-    steps?: AITaskStep[];
+export interface GovernanceStrategyProfileActivateMutation {
+	strategy_profile_id: number;
 }
 
-export interface AITaskListParams {
-    page?: number;
-    page_size?: number;
-    status?: string;
-    type?: string;
-    profile_domain?: string;
-    keyword?: string;
-    created_from?: string;
-    created_to?: string;
+export interface GovernanceLLMPriceUpsertMutation {
+	name: string;
+	canonical_name?: string;
+	input: number;
+	output: number;
+	cache_read: number;
+	cache_write: number;
+	official_input: number;
+	official_output: number;
+	official_cache_read: number;
+	official_cache_write: number;
+	billing_mode?: string;
+	probe_policy?: string;
+	probe_interval_seconds?: number;
+	probe_concurrency_limit?: number;
+	source?: string;
 }
 
-export interface AITaskListResult {
-    items: AITask[];
-    total: number;
-    page: number;
-    page_size: number;
+export interface GovernanceSettingMutation {
+	key: string;
+	value: string;
 }
 
-export interface AIAutomationTaskConfigSnapshot {
-    base_url?: string;
-    api_key?: string;
-    channel_type?: string;
-    model?: string;
-    use_local_default?: boolean;
-    tool_keys?: string[];
+export interface GovernanceRuntimePolicyView {
+	strategy: string;
+	dispatch_mode: string;
+	max_parallel_runs: number;
+	double_review_enabled: boolean;
+	fallback_to_deterministic: boolean;
+	degraded_to_deterministic: boolean;
+	label?: string;
 }
 
-export interface CreateAITaskRequest {
-    type: string;
-    input_text: string;
-    context_scope?: string;
-    prompt_template_ids?: number[];
-    custom_prompt?: string;
-    config_snapshot?: AIAutomationTaskConfigSnapshot;
+export interface GovernanceMutation {
+	type: string;
+	summary: string;
+	group_upsert?: GovernanceGroupUpsertMutation;
+	group_item_attach?: GovernanceGroupItemMutation;
+	group_item_detach?: GovernanceGroupItemMutation;
+	group_item_reorder?: GovernanceGroupItemReorderMutation;
+	route_target_override_upsert?: GovernanceRouteTargetOverrideMutation;
+	route_target_override_delete?: GovernanceRouteTargetOverrideMutation;
+	llm_price_upsert?: GovernanceLLMPriceUpsertMutation;
+	dynamic_routing_setting_set?: GovernanceSettingMutation;
+	runtime_policy_set?: GovernanceRuntimePolicyView;
+	strategy_profile_activate?: GovernanceStrategyProfileActivateMutation;
 }
 
-
-export interface AITaskArtifacts {
-    task_id: number;
-    config_snapshot_json?: string;
-    config_snapshot?: AIAutomationTaskConfigSnapshot;
-    context_payload_json?: string;
-    context_payload?: unknown;
-    result_json?: string;
-    result_payload?: unknown;
-    prompt_text?: string;
-    selected_model?: string;
-    model_reason?: string;
-    resume_state?: string;
-    steps?: AITaskStep[];
-}
-export interface AIProfile {
-    id: number;
-    domain: string;
-    name: string;
-    version: number;
-    status: string;
-    confidence: number;
-    explanation: string;
-    source_task_id?: number;
-    migration_status?: string;
-    migration_error?: string;
-    domain_payload_type?: string;
-    domain_payload?: Record<string, unknown>;
-    created_at: string;
-    updated_at: string;
-    versions?: AIProfileVersion[];
+export interface GovernanceDomainPlanView {
+	key: string;
+	title: string;
+	summary: string;
+	status: string;
+	finding_count: number;
+	mutation_count: number;
+	findings?: GovernanceFindingView[];
+	mutations?: GovernanceMutation[];
 }
 
-export interface AIProfileVersion {
-    id: number;
-    profile_id: number;
-    version: number;
-    content_json: string;
-    explanation: string;
-    created_at: string;
+export interface GovernancePlanView {
+	findings: GovernanceFindingView[];
+	decisions: GovernanceDecisionView[];
+	mutations: GovernanceMutation[];
+	domains?: GovernanceDomainPlanView[];
+	risk_summary: string;
+	confidence: number;
+	operator_summary: string;
+}
+
+export interface GovernancePreviewImpactCounts {
+	groups: number;
+	items: number;
+	overrides: number;
+	profiles: number;
+}
+
+export interface GovernancePreviewView {
+	headline: string;
+	summary_lines: string[];
+	impact_counts: GovernancePreviewImpactCounts;
+	risk_notes: string[];
+	apply_blockers: string[];
+	can_apply: boolean;
+	mutation_count: number;
+	mutations: GovernanceMutation[];
+}
+
+export interface GovernanceApplyAuditItem {
+	mutation_type: string;
+	summary: string;
+	status: string;
+	message: string;
+}
+
+export interface GovernanceApplyAudit {
+	summary: string;
+	items: GovernanceApplyAuditItem[];
+}
+
+export interface GovernanceApplyRunView {
+	id: number;
+	session_id: number;
+	status: string;
+	result_summary: string;
+	error_message?: string;
+	audit: GovernanceApplyAudit;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface GovernanceSnapshotSummary {
+	channels: number;
+	enabled_channels: number;
+	groups: number;
+	group_items: number;
+	route_target_overrides: number;
+	models: number;
+	missing_prices?: number;
+	active_source_mode: string;
+	active_source_label: string;
+	highlights: string[];
+}
+
+export interface GovernanceRollbackPointView {
+	id: number;
+	session_id: number;
+	apply_run_id?: number;
+	snapshot_checksum: string;
+	summary: string;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface GovernanceSessionDetail extends GovernanceSessionSummary {
+	plan: GovernancePlanView;
+	preview: GovernancePreviewView;
+	snapshot_checksum: string;
+	apply_runs: GovernanceApplyRunView[];
+	rollback_points?: GovernanceRollbackPointView[];
+	snapshot_summary: GovernanceSnapshotSummary;
+}
+
+export interface StrategyProfileSummary {
+	id: number;
+	name: string;
+	summary: string;
+	status: string;
+	source_session_id?: number;
+	activated_at?: string;
+	is_active: boolean;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface ExpertPresetView {
+	id: string;
+	name: string;
+	description: string;
+	review_depth: string;
+	create_managed_group: boolean;
+	sync_bindings: boolean;
+	cleanup_stale: boolean;
+}
+
+export interface AIGovernanceOverview {
+	enabled: boolean;
+	execution_source: AIGovernanceExecutionSource;
+	runtime_policy: GovernanceRuntimePolicyView;
+	managed_group_name: string;
+	learning: AIGovernanceLearningSummary;
+	active_strategy_profile?: StrategyProfileSummary;
+	recent_session?: GovernanceSessionSummary;
+}
+
+export interface GovernanceSessionCreateRequest {
+	goal: string;
+	expert_preset_id?: string;
+}
+
+export interface GovernanceStrategyProfileCreateRequest {
+	session_id: number;
+	name: string;
+}
+
+export interface GovernanceRollbackRequest {
+	rollback_point_id?: number;
 }
 
 export interface DynamicRouteLearningState {
-    id: number;
-    channel_id: number;
-    channel_key_id: number;
-    model_name: string;
-    success_count: number;
-    failure_count: number;
-    fallback_count: number;
-    race_winner_count: number;
-    latency_ms_ewma: number;
-    score: number;
-    confidence: number;
-    last_sample_at: number;
+	id: number;
+	channel_id: number;
+	channel_key_id: number;
+	model_name: string;
+	success_count: number;
+	failure_count: number;
+	fallback_count: number;
+	race_winner_count: number;
+	latency_ms_ewma: number;
+	score: number;
+	confidence: number;
+	last_sample_at: number;
 }
 
 export interface DynamicRouteLearningListResult {
-    enabled: boolean;
-    states: DynamicRouteLearningState[];
+	enabled: boolean;
+	states: DynamicRouteLearningState[];
 }
 
-function compactQueryParams(params: AITaskListParams): Record<string, string | number | boolean> {
-    return Object.fromEntries(
-        Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')
-    ) as Record<string, string | number | boolean>;
+export function useAIGovernanceOverview() {
+	return useQuery({
+		queryKey: ['ai-governance', 'overview'],
+		queryFn: () => apiClient.get<AIGovernanceOverview>('/api/v1/ai/overview'),
+	});
 }
 
-export function useAIAutomationConfig() {
-    return useQuery({
-        queryKey: ['ai-automation', 'config'],
-        queryFn: () => apiClient.get<AIAutomationConfig>('/api/v1/ai/config'),
-    });
+export function useGovernanceSessions() {
+	return useQuery({
+		queryKey: ['ai-governance', 'sessions'],
+		queryFn: () => apiClient.get<GovernanceSessionSummary[]>('/api/v1/ai/sessions'),
+	});
 }
 
-export function useUpdateAIAutomationConfig() {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: (data: AIAutomationConfigUpdateRequest) => apiClient.post<AIAutomationConfig>('/api/v1/ai/config', data),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai-automation', 'config'] }),
-    });
+export function useGovernanceSession(id?: number) {
+	return useQuery({
+		queryKey: ['ai-governance', 'session', id],
+		queryFn: () => apiClient.get<GovernanceSessionDetail>(`/api/v1/ai/sessions/${id}`),
+		enabled: typeof id === 'number' && id > 0,
+	});
 }
 
-export function useFetchAIModels() {
-    return useMutation({
-        mutationFn: (data: { base_url?: string; api_key?: string; channel_type?: string; use_local_default?: boolean }) => apiClient.post<AIModelsFetchResult>('/api/v1/ai/models/fetch', data),
-    });
+export function useCreateGovernanceSession() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (data: GovernanceSessionCreateRequest) => apiClient.post<GovernanceSessionDetail>('/api/v1/ai/sessions', data),
+		onSuccess: (session) => {
+			queryClient.invalidateQueries({ queryKey: ['ai-governance', 'overview'] });
+			queryClient.invalidateQueries({ queryKey: ['ai-governance', 'sessions'] });
+			queryClient.setQueryData(['ai-governance', 'session', session.id], session);
+		},
+	});
 }
 
-export function useAIPromptTemplates() {
-    return useQuery({
-        queryKey: ['ai-automation', 'prompt-templates'],
-        queryFn: () => apiClient.get<AIPromptTemplate[]>('/api/v1/ai/prompt-templates'),
-    });
+export function useReplanGovernanceSession() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (id: number) => apiClient.post<GovernanceSessionDetail>(`/api/v1/ai/sessions/${id}/replan`, {}),
+		onSuccess: (session) => {
+			queryClient.invalidateQueries({ queryKey: ['ai-governance', 'overview'] });
+			queryClient.invalidateQueries({ queryKey: ['ai-governance', 'sessions'] });
+			queryClient.setQueryData(['ai-governance', 'session', session.id], session);
+		},
+	});
 }
 
-export function useCreateAIPromptTemplate() {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: (data: CreateAIPromptTemplateRequest) => apiClient.post<AIPromptTemplate>('/api/v1/ai/prompt-templates', data),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai-automation', 'prompt-templates'] }),
-    });
+export function useApplyGovernanceSession() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (id: number) => apiClient.post<GovernanceSessionDetail>(`/api/v1/ai/sessions/${id}/apply`, {}),
+		onSuccess: (session) => {
+			queryClient.invalidateQueries({ queryKey: ['ai-governance', 'overview'] });
+			queryClient.invalidateQueries({ queryKey: ['ai-governance', 'sessions'] });
+			queryClient.invalidateQueries({ queryKey: ['ai-governance', 'strategy-profiles'] });
+			queryClient.setQueryData(['ai-governance', 'session', session.id], session);
+		},
+	});
 }
 
-export function useCreateAITask() {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: (data: CreateAITaskRequest) => apiClient.post<AITask>('/api/v1/ai/tasks', data),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai-automation'] }),
-    });
+export function useRollbackGovernanceSession() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({ id, rollback_point_id }: { id: number; rollback_point_id?: number }) => apiClient.post<GovernanceSessionDetail>(`/api/v1/ai/sessions/${id}/rollback`, { rollback_point_id }),
+		onSuccess: (session) => {
+			queryClient.invalidateQueries({ queryKey: ['ai-governance', 'overview'] });
+			queryClient.invalidateQueries({ queryKey: ['ai-governance', 'sessions'] });
+			queryClient.invalidateQueries({ queryKey: ['ai-governance', 'rollback-points'] });
+			queryClient.setQueryData(['ai-governance', 'session', session.id], session);
+		},
+	});
 }
 
-export function useAITask(id?: number) {
-    return useQuery({
-        queryKey: ['ai-automation', 'task', id],
-        queryFn: () => apiClient.get<AITask>(`/api/v1/ai/tasks/${id}`),
-        enabled: !!id,
-        refetchInterval: (query) => {
-            const task = query.state.data;
-            if (!task) return 1500;
-            return task.status === 'pending' || task.status === 'running' || task.status === 'recoverable' ? 1500 : false;
-        },
-    });
+export function useGovernanceApplyRuns(id?: number) {
+	return useQuery({
+		queryKey: ['ai-governance', 'apply-runs', id],
+		queryFn: () => apiClient.get<GovernanceApplyRunView[]>(`/api/v1/ai/sessions/${id}/apply-runs`),
+		enabled: typeof id === 'number' && id > 0,
+	});
 }
 
-
-export function useAITaskArtifacts(id?: number) {
-    return useQuery({
-        queryKey: ['ai-automation', 'task-artifacts', id],
-        queryFn: () => apiClient.get<AITaskArtifacts>(`/api/v1/ai/tasks/${id}/artifacts`),
-        enabled: !!id,
-    });
-}
-export function useAITasks(params: AITaskListParams) {
-    return useQuery({
-        queryKey: ['ai-automation', 'tasks', params],
-        queryFn: () => apiClient.get<AITaskListResult>('/api/v1/ai/tasks', compactQueryParams(params)),
-        refetchInterval: (query) => {
-            const hasRunning = query.state.data?.items?.some((task) => task.status === 'pending' || task.status === 'running' || task.status === 'recoverable');
-            return hasRunning ? 3000 : false;
-        },
-    });
+export function useGovernanceRollbackPoints(sessionID?: number) {
+	return useQuery({
+		queryKey: ['ai-governance', 'rollback-points', sessionID],
+		queryFn: () => apiClient.get<GovernanceRollbackPointView[]>(sessionID ? `/api/v1/ai/rollback-points?session_id=${sessionID}` : '/api/v1/ai/rollback-points'),
+	});
 }
 
-
-export function useRetryAITask() {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: (id: number) => apiClient.post<AITask>(`/api/v1/ai/tasks/${id}/retry`, {}),
-        onSuccess: (task) => {
-            queryClient.invalidateQueries({ queryKey: ['ai-automation', 'task', task.id] });
-            queryClient.invalidateQueries({ queryKey: ['ai-automation'] });
-        },
-    });
-}
-export function useCancelAITask() {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: (id: number) => apiClient.post<AITask>(`/api/v1/ai/tasks/${id}/cancel`, {}),
-        onSuccess: (_task, id) => {
-            queryClient.invalidateQueries({ queryKey: ['ai-automation', 'task', id] });
-            queryClient.invalidateQueries({ queryKey: ['ai-automation'] });
-        },
-    });
+export function useStrategyProfiles() {
+	return useQuery({
+		queryKey: ['ai-governance', 'strategy-profiles'],
+		queryFn: () => apiClient.get<StrategyProfileSummary[]>('/api/v1/ai/strategy-profiles'),
+	});
 }
 
-export function useAIProfiles() {
-    return useQuery({
-        queryKey: ['ai-automation', 'profiles'],
-        queryFn: () => apiClient.get<AIProfile[]>('/api/v1/ai/profiles'),
-    });
+export function useCreateStrategyProfile() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (data: GovernanceStrategyProfileCreateRequest) => apiClient.post<StrategyProfileSummary>('/api/v1/ai/strategy-profiles', data),
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ai-governance', 'strategy-profiles'] }),
+	});
 }
 
-export function useAIProfile(id?: number) {
-    return useQuery({
-        queryKey: ['ai-automation', 'profile', id],
-        queryFn: () => apiClient.get<AIProfile>(`/api/v1/ai/profiles/${id}`),
-        enabled: !!id,
-    });
+export function useActivateStrategyProfile() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (id: number) => apiClient.post<StrategyProfileSummary>(`/api/v1/ai/strategy-profiles/${id}/activate`, {}),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['ai-governance', 'overview'] });
+			queryClient.invalidateQueries({ queryKey: ['ai-governance', 'strategy-profiles'] });
+		},
+	});
 }
 
-export function useActivateAIProfile() {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: (id: number) => apiClient.post<AIProfile>(`/api/v1/ai/profiles/${id}/activate`, {}),
-        onSuccess: (profile) => {
-            queryClient.invalidateQueries({ queryKey: ['ai-automation', 'profiles'] });
-            queryClient.invalidateQueries({ queryKey: ['ai-automation', 'config'] });
-            queryClient.invalidateQueries({ queryKey: ['ai-automation', 'profile', profile.id] });
-            queryClient.invalidateQueries({ queryKey: ['settings', 'list'] });
-        },
-    });
+export function useExpertPresets() {
+	return useQuery({
+		queryKey: ['ai-governance', 'expert-presets'],
+		queryFn: () => apiClient.get<ExpertPresetView[]>('/api/v1/ai/expert-presets'),
+	});
+}
+
+export function useGovernanceRuntimePolicy() {
+	return useQuery({
+		queryKey: ['ai-governance', 'runtime-policy'],
+		queryFn: () => apiClient.get<GovernanceRuntimePolicyView>('/api/v1/ai/runtime-policy'),
+	});
+}
+
+export function useUpdateGovernanceRuntimePolicy() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (data: GovernanceRuntimePolicyView) => apiClient.post<GovernanceRuntimePolicyView>('/api/v1/ai/runtime-policy', data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['ai-governance', 'overview'] });
+			queryClient.invalidateQueries({ queryKey: ['ai-governance', 'runtime-policy'] });
+		},
+	});
+}
+
+export function useAIGovernanceLearningSummary() {
+	return useQuery({
+		queryKey: ['ai-governance', 'learning-summary'],
+		queryFn: () => apiClient.get<AIGovernanceLearningSummary>('/api/v1/ai/learning/summary'),
+	});
 }
 
 export function useDynamicRouteLearning() {
-    return useQuery({
-        queryKey: ['ai-automation', 'dynamic-route-learning'],
-        queryFn: () => apiClient.get<DynamicRouteLearningListResult>('/api/v1/dynamic-routing/learning'),
-        refetchInterval: 30000,
-    });
+	return useQuery({
+		queryKey: ['dynamic-routing', 'learning'],
+		queryFn: () => apiClient.get<DynamicRouteLearningListResult>('/api/v1/dynamic-routing/learning'),
+	});
 }
 
 export function useResetDynamicRouteLearning() {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: () => apiClient.post<null>('/api/v1/dynamic-routing/learning/reset', {}),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['ai-automation', 'dynamic-route-learning'] });
-            queryClient.invalidateQueries({ queryKey: ['ai-automation', 'config'] });
-            queryClient.invalidateQueries({ queryKey: ['settings', 'list'] });
-        },
-    });
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: () => apiClient.post<null>('/api/v1/dynamic-routing/learning/reset', {}),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['dynamic-routing', 'learning'] });
+			queryClient.invalidateQueries({ queryKey: ['ai-governance', 'overview'] });
+			queryClient.invalidateQueries({ queryKey: ['ai-governance', 'learning-summary'] });
+		},
+	});
 }
-
-
-

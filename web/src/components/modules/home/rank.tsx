@@ -1,148 +1,168 @@
 'use client';
 
-import { useChannelList } from '@/api/endpoints/channel';
 import { useMemo } from 'react';
+import { Award, Medal, TrendingUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { TrendingUp } from 'lucide-react';
-import { Tabs, TabsList, TabsTrigger, TabsContents, TabsContent } from '@/components/animate-ui/components/animate/tabs';
-import { useStatsTokenBreakdown } from '@/api/endpoints/stats';
 
-type SortMode = 'cost' | 'count';
+import { useChannelList } from '@/api/endpoints/channel';
+import { useStatsTokenBreakdown } from '@/api/endpoints/stats';
+import { AnimatedNumber } from '@/components/common/AnimatedNumber';
+import { Tabs, TabsContent, TabsContents, TabsList, TabsTrigger } from '@/components/animate-ui/components/animate/tabs';
+import { cn } from '@/lib/utils';
+
+type SortMode = 'cost' | 'count' | 'token';
 type ChannelData = NonNullable<ReturnType<typeof useChannelList>['data']>[number];
 
+type RankedChannel = {
+	id: number;
+	name: string;
+	summary: string;
+	value: string;
+	unit?: string;
+	rawValue: number;
+};
+
+function rankIcon(rank: number) {
+	if (rank === 1) return <Award className="size-4 text-[color:var(--chart-2)]" />;
+	if (rank === 2) return <Medal className="size-4 text-[color:var(--chart-4)]" />;
+	if (rank === 3) return <Medal className="size-4 text-[color:var(--chart-5)]" />;
+	return <span className="text-base font-semibold tabular-nums text-muted-foreground">{rank}</span>;
+}
+
 export function Rank() {
-    const { data: channelData } = useChannelList();
-    const { data: tokenBreakdown } = useStatsTokenBreakdown();
-    const t = useTranslations('home.rank');
+	const { data: channelData } = useChannelList();
+	const { data: tokenBreakdown } = useStatsTokenBreakdown();
+	const t = useTranslations('home.rank');
 
-    const tokenByChannel = useMemo(() => {
-        const map = new Map<number, { value: string; unit: string }>();
-        for (const item of tokenBreakdown?.by_channel ?? []) {
-            const matched = item.key.match(/^channel:(\d+)$/);
-            if (!matched) continue;
-            const id = Number.parseInt(matched[1], 10);
-            if (!Number.isFinite(id)) continue;
-            map.set(id, {
-                value: item.total_token.formatted.value,
-                unit: item.total_token.formatted.unit,
-            });
-        }
-        return map;
-    }, [tokenBreakdown?.by_channel]);
+	const tokenByChannel = useMemo(() => {
+		const map = new Map<number, { value: string; unit: string; raw: number }>();
+		for (const item of tokenBreakdown?.by_channel ?? []) {
+			const matched = item.key.match(/^channel:(\d+)$/);
+			if (!matched) continue;
+			const id = Number.parseInt(matched[1], 10);
+			if (!Number.isFinite(id)) continue;
+			map.set(id, {
+				value: item.total_token.formatted.value,
+				unit: item.total_token.formatted.unit,
+				raw: item.total_token.raw,
+			});
+		}
+		return map;
+	}, [tokenBreakdown?.by_channel]);
 
-    const rankedByCost = useMemo<ChannelData[]>(() => {
-        if (!channelData) return [];
-        return [...channelData].sort((a, b) => b.formatted.total_cost.raw - a.formatted.total_cost.raw);
-    }, [channelData]);
+	const costItems = useMemo<RankedChannel[]>(() => {
+		if (!channelData) return [];
+		return [...channelData]
+			.sort((a, b) => b.formatted.total_cost.raw - a.formatted.total_cost.raw)
+			.slice(0, 8)
+			.map((channel) => ({
+				id: channel.raw.id,
+				name: channel.raw.name,
+				summary: `${t('requestCount')} ${channel.formatted.request_count.formatted.value}${channel.formatted.request_count.formatted.unit}`,
+				value: channel.formatted.total_cost.formatted.value,
+				unit: channel.formatted.total_cost.formatted.unit,
+				rawValue: channel.formatted.total_cost.raw,
+			}));
+	}, [channelData, t]);
 
-    const rankedByCount = useMemo<ChannelData[]>(() => {
-        if (!channelData) return [];
-        return [...channelData].sort((a, b) => b.formatted.request_count.raw - a.formatted.request_count.raw);
-    }, [channelData]);
+	const countItems = useMemo<RankedChannel[]>(() => {
+		if (!channelData) return [];
+		return [...channelData]
+			.sort((a, b) => b.formatted.request_count.raw - a.formatted.request_count.raw)
+			.slice(0, 8)
+			.map((channel) => {
+				const successCount = channel.formatted.request_success.raw;
+				const failedCount = channel.formatted.request_failed.raw;
+				const totalCount = successCount + failedCount;
+				const successRate = totalCount > 0 ? (successCount / totalCount) * 100 : 0;
+				return {
+					id: channel.raw.id,
+					name: channel.raw.name,
+					summary: `${t('successRate')} ${successRate.toFixed(1)}%`,
+					value: channel.formatted.request_count.formatted.value,
+					unit: channel.formatted.request_count.formatted.unit,
+					rawValue: channel.formatted.request_count.raw,
+				};
+			});
+	}, [channelData, t]);
 
-    const getMedalEmoji = (rank: number): string => {
-        switch (rank) {
-            case 1: return '🥇';
-            case 2: return '🥈';
-            case 3: return '🥉';
-            default: return '';
-        }
-    };
+	const tokenItems = useMemo<RankedChannel[]>(() => {
+		if (!channelData) return [];
+		return [...channelData]
+			.sort((a, b) => (tokenByChannel.get(b.raw.id)?.raw ?? 0) - (tokenByChannel.get(a.raw.id)?.raw ?? 0))
+			.slice(0, 8)
+			.map((channel) => {
+				const token = tokenByChannel.get(channel.raw.id);
+				return {
+					id: channel.raw.id,
+					name: channel.raw.name,
+					summary: `${t('requestCount')} ${channel.formatted.request_count.formatted.value}${channel.formatted.request_count.formatted.unit}`,
+					value: token?.value ?? '0.00',
+					unit: token?.unit,
+					rawValue: token?.raw ?? 0,
+				};
+			});
+	}, [channelData, t, tokenByChannel]);
 
-    const renderList = (channels: ChannelData[], mode: SortMode) => {
-        if (channels.length === 0) {
-            return (
-                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                    <TrendingUp className="w-12 h-12 mb-3 opacity-30" />
-                    <p className="text-sm">{t('noData')}</p>
-                </div>
-            );
-        }
-        return (
-            <div className="space-y-2.5 max-h-[340px] overflow-y-auto">
-                {channels.map((channel, index) => {
-                    const rank = index + 1;
-                    const medal = getMedalEmoji(rank);
-                    const channelToken = tokenByChannel.get(channel.raw.id);
+	function renderList(items: RankedChannel[]) {
+		if (items.length === 0) {
+			return (
+				<div className="flex min-h-[17rem] flex-col items-center justify-center rounded-3xl border border-dashed border-border/60 bg-background/40 text-muted-foreground">
+					<TrendingUp className="mb-3 size-10 opacity-30" />
+					<div className="text-sm">{t('noData')}</div>
+				</div>
+			);
+		}
 
-                    return (
-                        <div
-                            key={channel.raw.id}
-                            className="rounded-2xl border border-border/50 bg-muted/20 px-3 py-2.5 transition-colors hover:bg-accent/5"
-                        >
-                            <div className="grid grid-cols-[auto,minmax(0,1fr),auto] items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-lg shrink-0">
-                                    {medal || rank}
-                                </div>
+		return (
+			<div className="max-h-[22rem] space-y-2 overflow-y-auto pr-1">
+				{items.map((item, index) => {
+					const rank = index + 1;
+					return (
+						<div key={item.id} className="rounded-2xl border border-border/60 bg-background/45 px-3.5 py-3 transition hover:border-primary/20 hover:bg-background/70">
+							<div className="grid grid-cols-[auto,minmax(0,1fr),auto] items-center gap-3">
+								<div className="flex h-8 w-8 items-center justify-center rounded-xl border border-border/50 bg-card/70">
+									{rankIcon(rank)}
+								</div>
+								<div className="min-w-0">
+									<div className="break-all text-sm font-medium text-foreground">{item.name}</div>
+									<div className="mt-1 text-[11px] text-muted-foreground">{item.summary}</div>
+								</div>
+								<div className="text-right">
+									<div className={cn('text-lg font-semibold tabular-nums text-foreground', rank <= 3 ? 'text-primary' : undefined)}>
+										<AnimatedNumber value={item.value} />
+										{item.unit ? <span className="ml-1 text-xs text-muted-foreground">{item.unit}</span> : null}
+									</div>
+								</div>
+							</div>
+						</div>
+					);
+				})}
+			</div>
+		);
+	}
 
-                                <div className="min-w-0">
-                                    <p className="font-medium text-sm truncate">{channel.raw.name}</p>
-                                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                                        {mode === 'count' ? (() => {
-                                            const successCount = channel.formatted.request_success.raw;
-                                            const failedCount = channel.formatted.request_failed.raw;
-                                            const totalCount = successCount + failedCount;
-                                            const successRate = totalCount > 0 ? (successCount / totalCount) * 100 : 0;
+	return (
+		<section data-testid="home-rank-section" className="rounded-3xl border border-card-border bg-card p-4 text-card-foreground sm:p-5">
+			<Tabs defaultValue="cost">
+				<div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+					<div>
+						<div className="text-lg font-semibold text-foreground">{t('title')}</div>
+						<div className="mt-1 text-xs leading-5 text-muted-foreground">{t('subtitle')}</div>
+					</div>
+					<TabsList className="w-fit bg-background/60">
+						<TabsTrigger value="cost">{t('sortByCost')}</TabsTrigger>
+						<TabsTrigger value="count">{t('sortByCount')}</TabsTrigger>
+						<TabsTrigger value="token">{t('sortByToken')}</TabsTrigger>
+					</TabsList>
+				</div>
 
-                                            return <span>{t('successRate')}: {successRate.toFixed(1)}%</span>;
-                                        })() : <span>{t('requestCount')}: {channel.formatted.request_count.formatted.value}{channel.formatted.request_count.formatted.unit}</span>}
-                                        <span>{t('channelUsage')}: {channelToken ? `${channelToken.value}${channelToken.unit}` : '--'}</span>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-1 text-right shrink-0">
-                                    {mode === 'count' ? (
-                                        <div className="flex items-center gap-1 text-sm font-medium tabular-nums">
-                                            <span className="text-accent">
-                                                {channel.formatted.request_success.formatted.value}
-                                                <span className="text-xs text-muted-foreground">
-                                                    {channel.formatted.request_success.formatted.unit}
-                                                </span>
-                                            </span>
-                                            <span className="text-muted-foreground/40 font-light">/</span>
-                                            <span className="text-destructive">
-                                                {channel.formatted.request_failed.formatted.value}
-                                                <span className="text-xs text-muted-foreground">
-                                                    {channel.formatted.request_failed.formatted.unit}
-                                                </span>
-                                            </span>
-                                        </div>
-                                    ) : (
-                                        <span className="font-semibold text-base">
-                                            {channel.formatted.total_cost.formatted.value}
-                                            <span className="text-xs text-muted-foreground">
-                                                {channel.formatted.total_cost.formatted.unit}
-                                            </span>
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        );
-    };
-
-    return (
-        <div data-testid="home-rank-section" className="rounded-3xl bg-card text-card-foreground border-card-border border p-4">
-            <Tabs defaultValue="cost">
-                <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-base">{t('title')}</h3>
-                    <TabsList>
-                        <TabsTrigger value="cost">{t('sortByCost')}</TabsTrigger>
-                        <TabsTrigger value="count">{t('sortByCount')}</TabsTrigger>
-                    </TabsList>
-                </div>
-                <TabsContents>
-                    <TabsContent value="cost">
-                        {renderList(rankedByCost, 'cost')}
-                    </TabsContent>
-                    <TabsContent value="count">
-                        {renderList(rankedByCount, 'count')}
-                    </TabsContent>
-                </TabsContents>
-            </Tabs>
-        </div>
-    );
+				<TabsContents className="mt-4">
+					<TabsContent value="cost">{renderList(costItems)}</TabsContent>
+					<TabsContent value="count">{renderList(countItems)}</TabsContent>
+					<TabsContent value="token">{renderList(tokenItems)}</TabsContent>
+				</TabsContents>
+			</Tabs>
+		</section>
+	);
 }

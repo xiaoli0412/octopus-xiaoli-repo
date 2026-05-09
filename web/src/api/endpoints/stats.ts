@@ -111,6 +111,8 @@ export interface StatsTokenBreakdown {
     circuit_summary_basis?: string;
     by_channel: StatsTokenBreakdownItem[];
     by_model: StatsTokenBreakdownItem[];
+    by_api_key?: StatsTokenBreakdownItem[];
+    by_channel_key?: StatsTokenBreakdownItem[];
 }
 
 export interface StatsTokenBreakdownFormatted {
@@ -144,6 +146,8 @@ export interface StatsTokenBreakdownFormatted {
     circuit_summary_basis?: string;
     by_channel: StatsTokenBreakdownFormattedItem[];
     by_model: StatsTokenBreakdownFormattedItem[];
+    by_api_key?: StatsTokenBreakdownFormattedItem[];
+    by_channel_key?: StatsTokenBreakdownFormattedItem[];
 }
 
 export interface StatsDynamicRoutingSummary {
@@ -286,11 +290,13 @@ export function useStatsAPIKey() {
     });
 }
 
-export function useStatsTokenBreakdown() {
+export type StatsTokenWindow = '12h' | '1d' | '3d' | '7d' | '30d';
+
+export function useStatsTokenBreakdown(window: StatsTokenWindow = '1d') {
     return useQuery({
-        queryKey: ['stats', 'token-breakdown'],
+        queryKey: ['stats', 'token-breakdown', window],
         queryFn: async () => {
-            return apiClient.get<StatsTokenBreakdown>('/api/v1/stats/token-breakdown');
+            return apiClient.get<StatsTokenBreakdown>(`/api/v1/stats/token-breakdown?window=${window}`);
         },
         select: (data): StatsTokenBreakdownFormatted => ({
             total_input_token: formatCount(data.total_input_token),
@@ -329,6 +335,20 @@ export function useStatsTokenBreakdown() {
                 total_token: formatCount(item.total_token),
             })),
             by_model: data.by_model.map((item) => ({
+                key: item.key,
+                label: item.label,
+                input_token: formatCount(item.input_token),
+                output_token: formatCount(item.output_token),
+                total_token: formatCount(item.total_token),
+            })),
+            by_api_key: data.by_api_key?.map((item) => ({
+                key: item.key,
+                label: item.label,
+                input_token: formatCount(item.input_token),
+                output_token: formatCount(item.output_token),
+                total_token: formatCount(item.total_token),
+            })),
+            by_channel_key: data.by_channel_key?.map((item) => ({
                 key: item.key,
                 label: item.label,
                 input_token: formatCount(item.input_token),

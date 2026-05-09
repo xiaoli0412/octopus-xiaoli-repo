@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/xurl"
@@ -42,6 +43,13 @@ const (
 	SettingKeyAIAutomationUseLocalDefault   SettingKey = "ai_automation_use_local_default"
 	SettingKeyConfigSourceMode              SettingKey = "config_source_mode"
 	SettingKeyActiveAIProfileID             SettingKey = "active_ai_profile_id"
+	SettingKeyAIGovernanceManagedGroupName  SettingKey = "ai_governance_managed_group_name"
+	SettingKeyActiveStrategyProfileID       SettingKey = "active_strategy_profile_id"
+	SettingKeyAIRuntimeStrategy             SettingKey = "ai_runtime_strategy"
+	SettingKeyAIRuntimeDispatchMode         SettingKey = "ai_runtime_dispatch_mode"
+	SettingKeyAIRuntimeMaxParallelRuns      SettingKey = "ai_runtime_max_parallel_runs"
+	SettingKeyAIRuntimeDoubleReviewEnabled  SettingKey = "ai_runtime_double_review_enabled"
+	SettingKeyAIRuntimeFallbackDeterministic SettingKey = "ai_runtime_fallback_to_deterministic"
 	SettingKeyForcePasswordChange           SettingKey = "force_password_change"
 )
 
@@ -90,6 +98,13 @@ func DefaultSettings() []Setting {
 		{Key: SettingKeyAIAutomationUseLocalDefault, Value: "true"},
 		{Key: SettingKeyConfigSourceMode, Value: ConfigSourceModeManual},
 		{Key: SettingKeyActiveAIProfileID, Value: "0"},
+		{Key: SettingKeyAIGovernanceManagedGroupName, Value: "AI Governance Managed"},
+		{Key: SettingKeyActiveStrategyProfileID, Value: "0"},
+		{Key: SettingKeyAIRuntimeStrategy, Value: "highest_success_rate"},
+		{Key: SettingKeyAIRuntimeDispatchMode, Value: "single_best"},
+		{Key: SettingKeyAIRuntimeMaxParallelRuns, Value: "2"},
+		{Key: SettingKeyAIRuntimeDoubleReviewEnabled, Value: "false"},
+		{Key: SettingKeyAIRuntimeFallbackDeterministic, Value: "true"},
 		{Key: SettingKeyForcePasswordChange, Value: "false"},
 	}
 }
@@ -108,7 +123,9 @@ func (s *Setting) Validate() error {
 		SettingKeyRaceChannelBudget,
 		SettingKeyRaceKeyBudget,
 		SettingKeyRaceProbeBudget,
-		SettingKeyActiveAIProfileID:
+		SettingKeyActiveAIProfileID,
+		SettingKeyActiveStrategyProfileID,
+		SettingKeyAIRuntimeMaxParallelRuns:
 		v, err := validateSettingNonNegativeInt(s.Value)
 		if err != nil {
 			return err
@@ -130,6 +147,8 @@ func (s *Setting) Validate() error {
 		SettingKeyDynamicRoutingLearningEnabled,
 		SettingKeyAIAutomationEnabled,
 		SettingKeyAIAutomationUseLocalDefault,
+		SettingKeyAIRuntimeDoubleReviewEnabled,
+		SettingKeyAIRuntimeFallbackDeterministic,
 		SettingKeyForcePasswordChange:
 		if s.Value != "true" && s.Value != "false" {
 			return fmt.Errorf("setting value must be true or false")
@@ -148,6 +167,20 @@ func (s *Setting) Validate() error {
 			return nil
 		default:
 			return fmt.Errorf("setting value must be one of shadow-ai, hybrid, metrics-only, strict-mechanism, or incident-safe")
+		}
+	case SettingKeyAIRuntimeStrategy:
+		switch s.Value {
+		case "highest_success_rate", "balanced_latency", "cost_first":
+			return nil
+		default:
+			return fmt.Errorf("setting value must be one of highest_success_rate, balanced_latency, or cost_first")
+		}
+	case SettingKeyAIRuntimeDispatchMode:
+		switch s.Value {
+		case "single_best", "bounded_parallel", "round_robin_review":
+			return nil
+		default:
+			return fmt.Errorf("setting value must be one of single_best, bounded_parallel, or round_robin_review")
 		}
 	case SettingKeyProxyURL:
 		if s.Value == "" {
@@ -180,6 +213,11 @@ func (s *Setting) Validate() error {
 			return fmt.Errorf("setting value must be openai-compatible, openai, anthropic, or gemini")
 		}
 	case SettingKeyAIAutomationModel, SettingKeyAIAutomationAPIKey:
+		return nil
+	case SettingKeyAIGovernanceManagedGroupName:
+		if strings.TrimSpace(s.Value) == "" {
+			return fmt.Errorf("managed group name cannot be empty")
+		}
 		return nil
 	case SettingKeyAuthTokenSecret:
 		if s.Value == "" {

@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dlclark/regexp2"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/client"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/log"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/xstrings"
-	"github.com/dlclark/regexp2"
 )
 
 func ChannelHttpClient(channel *model.Channel) (*http.Client, error) {
@@ -54,7 +54,9 @@ func ChannelBaseUrlDelayUpdate(channel *model.Channel, ctx context.Context) {
 		})
 	}
 	if len(newBaseUrls) > 0 {
-		op.ChannelBaseUrlUpdate(channel.ID, newBaseUrls)
+		if err := op.ChannelBaseUrlUpdate(channel.ID, newBaseUrls, ctx); err != nil {
+			log.Warnf("failed to persist base url delays (channel=%d): %v", channel.ID, err)
+		}
 	}
 }
 

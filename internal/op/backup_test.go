@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -170,6 +171,160 @@ func TestDBExportAllExcludesInternalAuthTokenSecret(t *testing.T) {
 		if setting.Key == model.SettingKeyAuthTokenSecret {
 			t.Fatalf("dump.Settings leaked internal auth token secret: %#v", dump.Settings)
 		}
+	}
+}
+
+func TestDBExportAllIncludesAIAutomationStateAndRedactsSecretsWhenRequested(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	profile, err := AIProfileCreate(model.AIProfile{
+		Domain:      model.AIProfileDomainGrouping,
+		Name:        "backup-profile",
+		Status:      model.AIProfileStatusReady,
+		Confidence:  0.9,
+		Explanation: "profile explanation",
+	}, `{"config":{"base_url":"https://profile.example/v1","api_key":"profile-secret-key","channel_type":"openai","model":"gpt-4o"},"domain_payload":{"typed_config":{"api_key":"typed-secret-key"}}}`, ctx)
+	if err != nil {
+		t.Fatalf("AIProfileCreate() error = %v", err)
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&model.AIPromptTemplate{Name: "backup template", Source: model.AIPromptTemplateSourceCustom, TaskType: model.AIAutomationTaskTypeGroupSuggestion, Domain: model.AIProfileDomainGrouping, Prompt: "prompt", Enabled: true}).Error; err != nil {
+		t.Fatalf("create prompt template error = %v", err)
+	}
+	task := model.AITask{
+		Type:               model.AIAutomationTaskTypeNaturalLanguage,
+		InputText:          "backup task",
+		Status:             model.AITaskStatusSucceeded,
+		ConfigSnapshotJSON: `{"base_url":"https://task.example/v1","api_key":"task-secret-key","channel_type":"openai","model":"gpt-4o"}`,
+		ContextPayloadJSON: `{"config":{"api_key":"context-secret-key"}}`,
+		ResultJSON:         `{"summary":"ok","config":{"api_key":"result-secret-key"}}`,
+		PromptText:         "task prompt",
+		SelectedModel:      "gpt-4o",
+		ResumeState:        model.AITaskResumeStateCompleted,
+		ExecutorVersion:    "test",
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&task).Error; err != nil {
+		t.Fatalf("create ai task error = %v", err)
+	}
+	step := model.AITaskStep{TaskID: task.ID, StepKey: "call_ai", Name: "调用 AI", Status: model.AITaskStepStatusSucceeded, OutputJSON: `{"api_key":"step-secret-key"}`, SortOrder: 1}
+	if err := db.GetDB().WithContext(ctx).Create(&step).Error; err != nil {
+		t.Fatalf("create ai task step error = %v", err)
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&model.DynamicRouteLearningState{ChannelID: 1, ChannelKeyID: 2, ModelName: "gpt-4o", SuccessCount: 3, Score: 0.7, Confidence: 0.5}).Error; err != nil {
+		t.Fatalf("create dynamic route learning state error = %v", err)
+	}
+
+	fullDump, err := DBExportAll(ctx, false, false, true)
+	if err != nil {
+		t.Fatalf("DBExportAll(includeSecrets=true) error = %v", err)
+	}
+	if len(fullDump.AITasks) != 1 || len(fullDump.AITaskSteps) != 1 || len(fullDump.AIPromptTemplates) != 1 || len(fullDump.AIProfiles) != 1 || len(fullDump.AIProfileVersions) != 1 || len(fullDump.AIGroupingProfiles) != 1 || len(fullDump.DynamicRouteLearningStates) != 1 {
+		t.Fatalf("full dump missing ai automation state: tasks=%d steps=%d templates=%d profiles=%d versions=%d typed=%d learning=%d", len(fullDump.AITasks), len(fullDump.AITaskSteps), len(fullDump.AIPromptTemplates), len(fullDump.AIProfiles), len(fullDump.AIProfileVersions), len(fullDump.AIGroupingProfiles), len(fullDump.DynamicRouteLearningStates))
+	}
+	if !strings.Contains(fullDump.AITasks[0].ConfigSnapshotJSON, "task-secret-key") || !strings.Contains(fullDump.AITasks[0].ContextPayloadJSON, "context-secret-key") || !strings.Contains(fullDump.AITasks[0].ResultJSON, "result-secret-key") {
+		t.Fatalf("full dump ai task secrets not preserved: %#v", fullDump.AITasks[0])
+	}
+	if !strings.Contains(fullDump.AIProfileVersions[0].ContentJSON, "profile-secret-key") {
+		t.Fatalf("full dump ai profile version missing secret content: %s", fullDump.AIProfileVersions[0].ContentJSON)
+	}
+	if !strings.Contains(fullDump.AIGroupingProfiles[0].TypedPayloadJSON, "typed-secret-key") {
+		t.Fatalf("full dump typed profile missing secret content: %s", fullDump.AIGroupingProfiles[0].TypedPayloadJSON)
+	}
+
+	redactedDump, err := DBExportAll(ctx, false, false, false)
+	if err != nil {
+		t.Fatalf("DBExportAll(includeSecrets=false) error = %v", err)
+	}
+	if redactedDump.Manifest.ContainsSecrets {
+		t.Fatalf("redacted dump Manifest.ContainsSecrets = true, want false")
+	}
+	for _, raw := range []string{redactedDump.AITasks[0].ConfigSnapshotJSON, redactedDump.AITasks[0].ContextPayloadJSON, redactedDump.AITasks[0].ResultJSON, redactedDump.AIProfileVersions[0].ContentJSON, redactedDump.AIGroupingProfiles[0].TypedPayloadJSON} {
+		if strings.Contains(raw, "secret-key") {
+			t.Fatalf("redacted dump leaked ai secret payload: %s", raw)
+		}
+		if !strings.Contains(raw, aiAutomationRedactedSecret) {
+			t.Fatalf("redacted dump payload = %s, want redaction marker", raw)
+		}
+	}
+	if redactedDump.AIProfiles[0].ID != profile.ID {
+		t.Fatalf("redacted ai profile id = %d, want %d", redactedDump.AIProfiles[0].ID, profile.ID)
+	}
+}
+
+func TestDBExportAllIncludesGovernanceState(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	now := time.Now().UTC().Truncate(time.Second)
+	session := model.GovernanceSession{
+		Goal:             "governance backup",
+		Scope:            model.GovernanceScopeRoutingGrouping,
+		ExpertPresetID:   model.GovernanceExpertPresetBalanced,
+		Status:           model.GovernanceSessionStatusReady,
+		CurrentStage:     model.GovernanceStageCompleted,
+		OperatorSummary:  "session summary",
+		RiskSummary:      "risk summary",
+		Confidence:       0.88,
+		SnapshotChecksum: "checksum-1",
+		SnapshotJSON:     `{"channels":1}`,
+		PlanJSON:         `{"mutations":[]}`,
+		PreviewJSON:      `{"can_apply":true}`,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&session).Error; err != nil {
+		t.Fatalf("create governance session error = %v", err)
+	}
+	applyRun := model.GovernanceApplyRun{
+		SessionID:     session.ID,
+		Status:        model.GovernanceApplyRunStatusSucceeded,
+		ResultSummary: "Applied governance changes",
+		AuditJSON:     `{"summary":"ok"}`,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&applyRun).Error; err != nil {
+		t.Fatalf("create governance apply run error = %v", err)
+	}
+	rollbackPoint := model.GovernanceRollbackPoint{
+		SessionID:        session.ID,
+		ApplyRunID:       &applyRun.ID,
+		SnapshotChecksum: "checksum-rollback",
+		SnapshotJSON:     `{"channels":1}`,
+		Summary:          "rollback point",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&rollbackPoint).Error; err != nil {
+		t.Fatalf("create governance rollback point error = %v", err)
+	}
+	strategyProfile := model.StrategyProfile{
+		Name:          "governance strategy",
+		Summary:       "strategy summary",
+		Status:        model.StrategyProfileStatusActive,
+		SourceSessionID: &session.ID,
+		MutationsJSON: `[{"type":"group_upsert"}]`,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+		ActivatedAt:   &now,
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&strategyProfile).Error; err != nil {
+		t.Fatalf("create strategy profile error = %v", err)
+	}
+
+	dump, err := DBExportAll(ctx, false, false, true)
+	if err != nil {
+		t.Fatalf("DBExportAll() error = %v", err)
+	}
+	if len(dump.GovernanceSessions) != 1 || dump.GovernanceSessions[0].Goal != session.Goal {
+		t.Fatalf("governance_sessions = %#v, want exported session", dump.GovernanceSessions)
+	}
+	if len(dump.GovernanceApplyRuns) != 1 || dump.GovernanceApplyRuns[0].ResultSummary != applyRun.ResultSummary {
+		t.Fatalf("governance_apply_runs = %#v, want exported apply run", dump.GovernanceApplyRuns)
+	}
+	if len(dump.GovernanceRollbackPoints) != 1 || dump.GovernanceRollbackPoints[0].Summary != rollbackPoint.Summary {
+		t.Fatalf("governance_rollback_points = %#v, want exported rollback point", dump.GovernanceRollbackPoints)
+	}
+	if len(dump.StrategyProfiles) != 1 || dump.StrategyProfiles[0].Name != strategyProfile.Name {
+		t.Fatalf("strategy_profiles = %#v, want exported strategy profile", dump.StrategyProfiles)
 	}
 }
 
@@ -2012,6 +2167,9 @@ func TestDBImportIncrementalDryRunReportsInvalidRouteTargetForUndeclaredModel(t 
 	if !containsWarning(res.Compatibility.RoutePreviewWarnings, "invalid route targets: 1") {
 		t.Fatalf("route_preview_warnings = %#v, want invalid route target warning", res.Compatibility.RoutePreviewWarnings)
 	}
+	if got := res.Compatibility.Summary.RoutePreviewWarnings; got != len(res.Compatibility.RoutePreviewWarnings) {
+		t.Fatalf("summary.route_preview_warnings = %d, want %d", got, len(res.Compatibility.RoutePreviewWarnings))
+	}
 }
 
 func TestDBImportIncrementalDryRunReportsInvalidRouteTargetForMissingKey(t *testing.T) {
@@ -2101,6 +2259,9 @@ func TestDBImportIncrementalDryRunReportsSkippedRouteTargetPreviewInSkipMode(t *
 	}
 	if !containsWarning(res.Compatibility.RoutePreviewWarnings, "skipped route target previews: 1") {
 		t.Fatalf("route_preview_warnings = %#v, want skipped route target preview warning", res.Compatibility.RoutePreviewWarnings)
+	}
+	if got := res.Compatibility.Summary.RoutePreviewWarnings; got != len(res.Compatibility.RoutePreviewWarnings) {
+		t.Fatalf("summary.route_preview_warnings = %d, want %d", got, len(res.Compatibility.RoutePreviewWarnings))
 	}
 }
 
@@ -2301,6 +2462,160 @@ func TestDBRollbackLatestImportSnapshotRestoresPreviousState(t *testing.T) {
 	}
 	if dumpMigrationRecordVersionsContain(storedDumpAfterRollback.MigrationRecords, 999) {
 		t.Fatalf("stored dump after rollback migration records = %#v, do not want imported version 999", storedDumpAfterRollback.MigrationRecords)
+	}
+}
+
+func TestDBRollbackLatestImportSnapshotRestoresGovernanceState(t *testing.T) {
+	ctx := setupOpTestDB(t)
+	now := time.Now().UTC().Truncate(time.Second)
+
+	originalSession := model.GovernanceSession{
+		Goal:             "before rollback governance",
+		Scope:            model.GovernanceScopeRoutingGrouping,
+		ExpertPresetID:   model.GovernanceExpertPresetBalanced,
+		Status:           model.GovernanceSessionStatusApplied,
+		CurrentStage:     model.GovernanceStageCompleted,
+		OperatorSummary:  "before summary",
+		RiskSummary:      "before risk",
+		Confidence:       0.75,
+		SnapshotChecksum: "before-checksum",
+		SnapshotJSON:     `{"before":true}`,
+		PlanJSON:         `{"before":true}`,
+		PreviewJSON:      `{"can_apply":false}`,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&originalSession).Error; err != nil {
+		t.Fatalf("create original governance session error = %v", err)
+	}
+	originalApplyRun := model.GovernanceApplyRun{
+		SessionID:     originalSession.ID,
+		Status:        model.GovernanceApplyRunStatusSucceeded,
+		ResultSummary: "before apply",
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&originalApplyRun).Error; err != nil {
+		t.Fatalf("create original governance apply run error = %v", err)
+	}
+	originalRollbackPoint := model.GovernanceRollbackPoint{
+		SessionID:        originalSession.ID,
+		ApplyRunID:       &originalApplyRun.ID,
+		SnapshotChecksum: "before-rollback",
+		SnapshotJSON:     `{"before":true}`,
+		Summary:          "before rollback point",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&originalRollbackPoint).Error; err != nil {
+		t.Fatalf("create original governance rollback point error = %v", err)
+	}
+	originalStrategyProfile := model.StrategyProfile{
+		Name:          "before strategy",
+		Summary:       "before strategy summary",
+		Status:        model.StrategyProfileStatusActive,
+		MutationsJSON: `[{"type":"group_upsert"}]`,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+		ActivatedAt:   &now,
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&originalStrategyProfile).Error; err != nil {
+		t.Fatalf("create original strategy profile error = %v", err)
+	}
+
+	importedApplyRunID := 9101
+	importDump := &model.DBDump{
+		Version: dbDumpVersion,
+		Manifest: model.DBDumpManifest{
+			SchemaVersion:   "v1",
+			ExportSource:    "octopus",
+			ContainsSecrets: true,
+		},
+		GovernanceSessions: []model.GovernanceSession{{
+			ID:               9001,
+			Goal:             "imported governance",
+			Scope:            model.GovernanceScopeRoutingGrouping,
+			ExpertPresetID:   model.GovernanceExpertPresetDeepReview,
+			Status:           model.GovernanceSessionStatusReady,
+			CurrentStage:     model.GovernanceStageCompleted,
+			OperatorSummary:  "imported summary",
+			RiskSummary:      "imported risk",
+			Confidence:       0.91,
+			SnapshotChecksum: "imported-checksum",
+			SnapshotJSON:     `{"imported":true}`,
+			PlanJSON:         `{"imported":true}`,
+			PreviewJSON:      `{"can_apply":true}`,
+			CreatedAt:        now.Add(time.Minute),
+			UpdatedAt:        now.Add(time.Minute),
+		}},
+		GovernanceApplyRuns: []model.GovernanceApplyRun{{
+			ID:            importedApplyRunID,
+			SessionID:     9001,
+			Status:        model.GovernanceApplyRunStatusRunning,
+			ResultSummary: "imported apply",
+			CreatedAt:     now.Add(time.Minute),
+			UpdatedAt:     now.Add(time.Minute),
+		}},
+		GovernanceRollbackPoints: []model.GovernanceRollbackPoint{{
+			ID:               9201,
+			SessionID:        9001,
+			ApplyRunID:       &importedApplyRunID,
+			SnapshotChecksum: "imported-rollback",
+			SnapshotJSON:     `{"imported":true}`,
+			Summary:          "imported rollback point",
+			CreatedAt:        now.Add(time.Minute),
+			UpdatedAt:        now.Add(time.Minute),
+		}},
+		StrategyProfiles: []model.StrategyProfile{{
+			ID:            9301,
+			Name:          "imported strategy",
+			Summary:       "imported strategy summary",
+			Status:        model.StrategyProfileStatusReady,
+			MutationsJSON: `[{"type":"runtime_policy_set"}]`,
+			CreatedAt:     now.Add(time.Minute),
+			UpdatedAt:     now.Add(time.Minute),
+		}},
+	}
+
+	if _, err := DBImportIncremental(ctx, importDump, model.DBImportModeIncremental, false); err != nil {
+		t.Fatalf("DBImportIncremental(import governance) error = %v", err)
+	}
+
+	rollbackRes, err := DBRollbackLatestImportSnapshot(ctx)
+	if err != nil {
+		t.Fatalf("DBRollbackLatestImportSnapshot() error = %v", err)
+	}
+	if rollbackRes == nil || rollbackRes.Result == nil {
+		t.Fatalf("rollback result = %#v, want populated result", rollbackRes)
+	}
+
+	var sessions []model.GovernanceSession
+	if err := db.GetDB().WithContext(ctx).Order("id asc").Find(&sessions).Error; err != nil {
+		t.Fatalf("query governance sessions after rollback error = %v", err)
+	}
+	if len(sessions) != 1 || sessions[0].Goal != originalSession.Goal {
+		t.Fatalf("governance sessions after rollback = %#v, want original state restored", sessions)
+	}
+	var applyRuns []model.GovernanceApplyRun
+	if err := db.GetDB().WithContext(ctx).Order("id asc").Find(&applyRuns).Error; err != nil {
+		t.Fatalf("query governance apply runs after rollback error = %v", err)
+	}
+	if len(applyRuns) != 1 || applyRuns[0].ResultSummary != originalApplyRun.ResultSummary {
+		t.Fatalf("governance apply runs after rollback = %#v, want original state restored", applyRuns)
+	}
+	var rollbackPoints []model.GovernanceRollbackPoint
+	if err := db.GetDB().WithContext(ctx).Order("id asc").Find(&rollbackPoints).Error; err != nil {
+		t.Fatalf("query governance rollback points after rollback error = %v", err)
+	}
+	if len(rollbackPoints) != 1 || rollbackPoints[0].Summary != originalRollbackPoint.Summary {
+		t.Fatalf("governance rollback points after rollback = %#v, want original state restored", rollbackPoints)
+	}
+	var strategyProfiles []model.StrategyProfile
+	if err := db.GetDB().WithContext(ctx).Order("id asc").Find(&strategyProfiles).Error; err != nil {
+		t.Fatalf("query strategy profiles after rollback error = %v", err)
+	}
+	if len(strategyProfiles) != 1 || strategyProfiles[0].Name != originalStrategyProfile.Name {
+		t.Fatalf("strategy profiles after rollback = %#v, want original state restored", strategyProfiles)
 	}
 }
 
@@ -3050,6 +3365,325 @@ func TestDBRollbackImportSnapshotCanRestoreOnlySelectedScopes(t *testing.T) {
 	}
 }
 
+func TestDBRollbackImportSnapshotFullRestoreReplacesAIAutomationState(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	if err := db.GetDB().WithContext(ctx).Create(&model.AIPromptTemplate{Name: "before-template", Source: model.AIPromptTemplateSourceCustom, TaskType: model.AIAutomationTaskTypeGroupSuggestion, Domain: model.AIProfileDomainGrouping, Prompt: "before", Enabled: true}).Error; err != nil {
+		t.Fatalf("create before prompt template error = %v", err)
+	}
+	beforeProfile, err := AIProfileCreate(model.AIProfile{Domain: model.AIProfileDomainGrouping, Name: "before-profile", Status: model.AIProfileStatusReady}, `{"config":{"base_url":"https://before.example/v1","api_key":"before-secret-key"}}`, ctx)
+	if err != nil {
+		t.Fatalf("AIProfileCreate(before) error = %v", err)
+	}
+	beforeTask := model.AITask{Type: model.AIAutomationTaskTypeNaturalLanguage, InputText: "before task", Status: model.AITaskStatusSucceeded, ConfigSnapshotJSON: `{"api_key":"before-task-secret"}`, PromptText: "before", SelectedModel: "gpt-4o", ResumeState: model.AITaskResumeStateCompleted, ExecutorVersion: "before"}
+	if err := db.GetDB().WithContext(ctx).Create(&beforeTask).Error; err != nil {
+		t.Fatalf("create before ai task error = %v", err)
+	}
+	beforeStep := model.AITaskStep{TaskID: beforeTask.ID, StepKey: "call_ai", Name: "调用 AI", Status: model.AITaskStepStatusSucceeded, SortOrder: 1}
+	if err := db.GetDB().WithContext(ctx).Create(&beforeStep).Error; err != nil {
+		t.Fatalf("create before ai task step error = %v", err)
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&model.DynamicRouteLearningState{ChannelID: 1, ChannelKeyID: 1, ModelName: "before-model", SuccessCount: 1, Score: 0.2}).Error; err != nil {
+		t.Fatalf("create before dynamic learning state error = %v", err)
+	}
+
+	if _, err := DBImportIncremental(ctx, &model.DBDump{
+		Version:  dbDumpVersion,
+		Manifest: model.DBDumpManifest{SchemaVersion: "v1", ExportSource: "octopus", ContainsSecrets: true},
+		Channels: []model.Channel{{ID: 1, Name: "history-import-a", Enabled: true, Model: "gpt-4o"}},
+	}, model.DBImportModeIncremental, false); err != nil {
+		t.Fatalf("DBImportIncremental() error = %v", err)
+	}
+
+	snapshots, err := DBListImportSnapshots()
+	if err != nil {
+		t.Fatalf("DBListImportSnapshots() error = %v", err)
+	}
+	if len(snapshots) == 0 {
+		t.Fatalf("snapshot list = %#v, want at least one snapshot", snapshots)
+	}
+	historicalSnapshot := snapshots[0]
+
+	if err := db.GetDB().WithContext(ctx).Create(&model.AIPromptTemplate{Name: "after-template", Source: model.AIPromptTemplateSourceCustom, TaskType: model.AIAutomationTaskTypeGroupSuggestion, Domain: model.AIProfileDomainGrouping, Prompt: "after", Enabled: true}).Error; err != nil {
+		t.Fatalf("create after prompt template error = %v", err)
+	}
+	afterProfile, err := AIProfileCreate(model.AIProfile{Domain: model.AIProfileDomainGrouping, Name: "after-profile", Status: model.AIProfileStatusReady}, `{"config":{"base_url":"https://after.example/v1","api_key":"after-secret-key"}}`, ctx)
+	if err != nil {
+		t.Fatalf("AIProfileCreate(after) error = %v", err)
+	}
+	afterTask := model.AITask{Type: model.AIAutomationTaskTypeNaturalLanguage, InputText: "after task", Status: model.AITaskStatusSucceeded, ConfigSnapshotJSON: `{"api_key":"after-task-secret"}`, PromptText: "after", SelectedModel: "gpt-4o", ResumeState: model.AITaskResumeStateCompleted, ExecutorVersion: "after"}
+	if err := db.GetDB().WithContext(ctx).Create(&afterTask).Error; err != nil {
+		t.Fatalf("create after ai task error = %v", err)
+	}
+	afterStep := model.AITaskStep{TaskID: afterTask.ID, StepKey: "call_ai", Name: "调用 AI", Status: model.AITaskStepStatusSucceeded, SortOrder: 1}
+	if err := db.GetDB().WithContext(ctx).Create(&afterStep).Error; err != nil {
+		t.Fatalf("create after ai task step error = %v", err)
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&model.DynamicRouteLearningState{ChannelID: 2, ChannelKeyID: 2, ModelName: "after-model", SuccessCount: 5, Score: 0.9}).Error; err != nil {
+		t.Fatalf("create after dynamic learning state error = %v", err)
+	}
+
+	rollbackRes, err := DBRollbackImportSnapshot(ctx, historicalSnapshot.SnapshotName, nil)
+	if err != nil {
+		t.Fatalf("DBRollbackImportSnapshot() error = %v", err)
+	}
+	if rollbackRes == nil || rollbackRes.Result == nil {
+		t.Fatalf("rollback result = %#v, want nested result", rollbackRes)
+	}
+
+	var promptTemplates []model.AIPromptTemplate
+	if err := db.GetDB().WithContext(ctx).Order("name asc").Find(&promptTemplates).Error; err != nil {
+		t.Fatalf("query prompt templates error = %v", err)
+	}
+	promptTemplateNames := make([]string, 0, len(promptTemplates))
+	for _, row := range promptTemplates {
+		promptTemplateNames = append(promptTemplateNames, row.Name)
+	}
+	sort.Strings(promptTemplateNames)
+	if strings.Join(promptTemplateNames, ",") != "before-template" {
+		t.Fatalf("prompt templates after rollback = %#v, want only before-template", promptTemplateNames)
+	}
+
+	profiles, err := AIProfileList(ctx)
+	if err != nil {
+		t.Fatalf("AIProfileList() error = %v", err)
+	}
+	profileNames := make([]string, 0, len(profiles))
+	for _, row := range profiles {
+		profileNames = append(profileNames, row.Name)
+	}
+	sort.Strings(profileNames)
+	if strings.Join(profileNames, ",") != "before-profile" {
+		t.Fatalf("profiles after rollback = %#v, want only before-profile", profileNames)
+	}
+	if profiles[0].ID != beforeProfile.ID {
+		t.Fatalf("restored profile id = %d, want %d", profiles[0].ID, beforeProfile.ID)
+	}
+
+	var tasks []model.AITask
+	if err := db.GetDB().WithContext(ctx).Order("id asc").Find(&tasks).Error; err != nil {
+		t.Fatalf("query ai tasks error = %v", err)
+	}
+	if len(tasks) != 1 || tasks[0].InputText != "before task" {
+		t.Fatalf("ai tasks after rollback = %#v, want only before task", tasks)
+	}
+	var steps []model.AITaskStep
+	if err := db.GetDB().WithContext(ctx).Order("id asc").Find(&steps).Error; err != nil {
+		t.Fatalf("query ai task steps error = %v", err)
+	}
+	if len(steps) != 1 || steps[0].TaskID != beforeTask.ID {
+		t.Fatalf("ai task steps after rollback = %#v, want only before task step", steps)
+	}
+
+	learning, err := DynamicRouteLearningList(ctx)
+	if err != nil {
+		t.Fatalf("DynamicRouteLearningList() error = %v", err)
+	}
+	if len(learning.States) != 1 || learning.States[0].ModelName != "before-model" {
+		t.Fatalf("dynamic learning states after rollback = %#v, want only before-model", learning.States)
+	}
+	if afterProfile.ID == profiles[0].ID {
+		t.Fatalf("after profile id %d unexpectedly survived rollback", afterProfile.ID)
+	}
+}
+
+func TestDBRollbackImportSnapshotExplicitFullScopesRestoresUsersMigrationRecordsAndAIAutomationState(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	beforeUser := model.User{Username: "before-admin", Password: "before-hash"}
+	if err := db.GetDB().WithContext(ctx).Create(&beforeUser).Error; err != nil {
+		t.Fatalf("create before user error = %v", err)
+	}
+	beforeTask := model.AITask{Type: model.AIAutomationTaskTypeNaturalLanguage, InputText: "before explicit full scope task", Status: model.AITaskStatusSucceeded, ConfigSnapshotJSON: `{"api_key":"before-secret"}`, PromptText: "before", SelectedModel: "gpt-4o", ResumeState: model.AITaskResumeStateCompleted, ExecutorVersion: "before"}
+	if err := db.GetDB().WithContext(ctx).Create(&beforeTask).Error; err != nil {
+		t.Fatalf("create before ai task error = %v", err)
+	}
+	beforeStep := model.AITaskStep{TaskID: beforeTask.ID, StepKey: "call_ai", Name: "调用 AI", Status: model.AITaskStepStatusSucceeded, SortOrder: 1}
+	if err := db.GetDB().WithContext(ctx).Create(&beforeStep).Error; err != nil {
+		t.Fatalf("create before ai task step error = %v", err)
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&model.DynamicRouteLearningState{ChannelID: 1, ChannelKeyID: 1, ModelName: "before-explicit-full-model", SuccessCount: 2, Score: 0.6}).Error; err != nil {
+		t.Fatalf("create before dynamic learning state error = %v", err)
+	}
+	migrationRecordsBeforeImport := []migrate.MigrationRecord{{Version: 51, Status: migrate.MigrationRecordStatusSuccess}}
+	for _, row := range migrationRecordsBeforeImport {
+		if err := db.GetDB().WithContext(ctx).Create(&row).Error; err != nil {
+			t.Fatalf("create before migration record error = %v", err)
+		}
+	}
+
+	if _, _, err := savePreImportSnapshot(ctx); err != nil {
+		t.Fatalf("savePreImportSnapshot() historical snapshot error = %v", err)
+	}
+	historicalSnapshot, _, err := loadLatestImportSnapshot()
+	if err != nil {
+		t.Fatalf("loadLatestImportSnapshot() historical snapshot error = %v", err)
+	}
+
+	afterUser := model.User{Username: "after-admin", Password: "after-hash"}
+	if err := db.GetDB().WithContext(ctx).Create(&afterUser).Error; err != nil {
+		t.Fatalf("create after user error = %v", err)
+	}
+	afterTask := model.AITask{Type: model.AIAutomationTaskTypeNaturalLanguage, InputText: "after explicit full scope task", Status: model.AITaskStatusSucceeded, ConfigSnapshotJSON: `{"api_key":"after-secret"}`, PromptText: "after", SelectedModel: "gpt-4o", ResumeState: model.AITaskResumeStateCompleted, ExecutorVersion: "after"}
+	if err := db.GetDB().WithContext(ctx).Create(&afterTask).Error; err != nil {
+		t.Fatalf("create after ai task error = %v", err)
+	}
+	afterStep := model.AITaskStep{TaskID: afterTask.ID, StepKey: "call_ai", Name: "调用 AI", Status: model.AITaskStepStatusSucceeded, SortOrder: 1}
+	if err := db.GetDB().WithContext(ctx).Create(&afterStep).Error; err != nil {
+		t.Fatalf("create after ai task step error = %v", err)
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&model.DynamicRouteLearningState{ChannelID: 2, ChannelKeyID: 2, ModelName: "after-explicit-full-model", SuccessCount: 9, Score: 0.95}).Error; err != nil {
+		t.Fatalf("create after dynamic learning state error = %v", err)
+	}
+	afterMigrationRecords := []migrate.MigrationRecord{{Version: 52, Status: migrate.MigrationRecordStatusSuccess}, {Version: 53, Status: migrate.MigrationRecordStatusSuccess}}
+	for _, row := range afterMigrationRecords {
+		if err := db.GetDB().WithContext(ctx).Create(&row).Error; err != nil {
+			t.Fatalf("create after migration record error = %v", err)
+		}
+	}
+
+	fullScopes := &model.DBImportScopes{Routing: true, Models: true, APIKeys: true, Settings: true, Stats: true, Logs: true}
+	rollbackRes, err := DBRollbackImportSnapshot(ctx, historicalSnapshot.SnapshotName, fullScopes)
+	if err != nil {
+		t.Fatalf("DBRollbackImportSnapshot(explicit full scopes) error = %v", err)
+	}
+	if rollbackRes == nil || rollbackRes.Result == nil {
+		t.Fatalf("rollback result = %#v, want nested result", rollbackRes)
+	}
+	if rollbackRes.AppliedScopes == nil || !rollbackRes.AppliedScopes.Routing || !rollbackRes.AppliedScopes.Models || !rollbackRes.AppliedScopes.APIKeys || !rollbackRes.AppliedScopes.Settings || !rollbackRes.AppliedScopes.Stats || !rollbackRes.AppliedScopes.Logs {
+		t.Fatalf("applied_scopes = %#v, want explicit full scopes preserved", rollbackRes.AppliedScopes)
+	}
+
+	var users []model.User
+	if err := db.GetDB().WithContext(ctx).Order("username asc").Find(&users).Error; err != nil {
+		t.Fatalf("query users error = %v", err)
+	}
+	usernames := make([]string, 0, len(users))
+	for _, row := range users {
+		usernames = append(usernames, row.Username)
+	}
+	sort.Strings(usernames)
+	if strings.Join(usernames, ",") != "admin,before-admin" {
+		t.Fatalf("users after explicit full-scope rollback = %#v, want admin and before-admin", usernames)
+	}
+
+	var tasks []model.AITask
+	if err := db.GetDB().WithContext(ctx).Order("id asc").Find(&tasks).Error; err != nil {
+		t.Fatalf("query ai tasks error = %v", err)
+	}
+	if len(tasks) != 1 || tasks[0].InputText != beforeTask.InputText {
+		t.Fatalf("ai tasks after explicit full-scope rollback = %#v, want only historical task", tasks)
+	}
+
+	var steps []model.AITaskStep
+	if err := db.GetDB().WithContext(ctx).Order("id asc").Find(&steps).Error; err != nil {
+		t.Fatalf("query ai task steps error = %v", err)
+	}
+	if len(steps) != 1 || steps[0].TaskID != beforeTask.ID {
+		t.Fatalf("ai task steps after explicit full-scope rollback = %#v, want only historical step", steps)
+	}
+
+	learning, err := DynamicRouteLearningList(ctx)
+	if err != nil {
+		t.Fatalf("DynamicRouteLearningList() error = %v", err)
+	}
+	if len(learning.States) != 1 || learning.States[0].ModelName != "before-explicit-full-model" {
+		t.Fatalf("dynamic learning states after explicit full-scope rollback = %#v, want only historical state", learning.States)
+	}
+
+	var migrationRecords []migrate.MigrationRecord
+	if err := db.GetDB().WithContext(ctx).Order("version asc").Find(&migrationRecords).Error; err != nil {
+		t.Fatalf("query migration records error = %v", err)
+	}
+	if len(migrationRecords) != len(migrationRecordsBeforeImport) || migrationRecords[0].Version != migrationRecordsBeforeImport[0].Version {
+		t.Fatalf("migration records after explicit full-scope rollback = %#v, want %#v", migrationRecords, migrationRecordsBeforeImport)
+	}
+}
+
+func TestDBPreviewRollbackImportSnapshotExplicitFullScopesMatchesFullRestoreWarnings(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	beforeUser := model.User{Username: "preview-before-admin", Password: "before-hash"}
+	if err := db.GetDB().WithContext(ctx).Create(&beforeUser).Error; err != nil {
+		t.Fatalf("create before user error = %v", err)
+	}
+	beforeTask := model.AITask{Type: model.AIAutomationTaskTypeNaturalLanguage, InputText: "preview before full task", Status: model.AITaskStatusSucceeded, ConfigSnapshotJSON: `{"api_key":"preview-before-secret"}`, PromptText: "before", SelectedModel: "gpt-4o", ResumeState: model.AITaskResumeStateCompleted, ExecutorVersion: "before"}
+	if err := db.GetDB().WithContext(ctx).Create(&beforeTask).Error; err != nil {
+		t.Fatalf("create before ai task error = %v", err)
+	}
+	beforeStep := model.AITaskStep{TaskID: beforeTask.ID, StepKey: "call_ai", Name: "调用 AI", Status: model.AITaskStepStatusSucceeded, SortOrder: 1}
+	if err := db.GetDB().WithContext(ctx).Create(&beforeStep).Error; err != nil {
+		t.Fatalf("create before ai task step error = %v", err)
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&model.DynamicRouteLearningState{ChannelID: 1, ChannelKeyID: 1, ModelName: "preview-before-full-model", SuccessCount: 3, Score: 0.7}).Error; err != nil {
+		t.Fatalf("create before dynamic learning state error = %v", err)
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&migrate.MigrationRecord{Version: 81, Status: migrate.MigrationRecordStatusSuccess}).Error; err != nil {
+		t.Fatalf("create before migration record error = %v", err)
+	}
+
+	if _, _, err := savePreImportSnapshot(ctx); err != nil {
+		t.Fatalf("savePreImportSnapshot() historical snapshot error = %v", err)
+	}
+	historicalSnapshot, _, err := loadLatestImportSnapshot()
+	if err != nil {
+		t.Fatalf("loadLatestImportSnapshot() historical snapshot error = %v", err)
+	}
+
+	afterUser := model.User{Username: "preview-after-admin", Password: "after-hash"}
+	if err := db.GetDB().WithContext(ctx).Create(&afterUser).Error; err != nil {
+		t.Fatalf("create after user error = %v", err)
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&model.AITask{Type: model.AIAutomationTaskTypeNaturalLanguage, InputText: "preview after full task", Status: model.AITaskStatusSucceeded, ConfigSnapshotJSON: `{"api_key":"preview-after-secret"}`, PromptText: "after", SelectedModel: "gpt-4o", ResumeState: model.AITaskResumeStateCompleted, ExecutorVersion: "after"}).Error; err != nil {
+		t.Fatalf("create after ai task error = %v", err)
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&model.DynamicRouteLearningState{ChannelID: 2, ChannelKeyID: 2, ModelName: "preview-after-full-model", SuccessCount: 9, Score: 0.95}).Error; err != nil {
+		t.Fatalf("create after dynamic learning state error = %v", err)
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&migrate.MigrationRecord{Version: 82, Status: migrate.MigrationRecordStatusSuccess}).Error; err != nil {
+		t.Fatalf("create after migration record error = %v", err)
+	}
+
+	fullScopes := &model.DBImportScopes{Routing: true, Models: true, APIKeys: true, Settings: true, Stats: true, Logs: true}
+	preview, err := DBPreviewRollbackImportSnapshot(ctx, historicalSnapshot.SnapshotName, fullScopes)
+	if err != nil {
+		t.Fatalf("DBPreviewRollbackImportSnapshot(explicit full scopes) error = %v", err)
+	}
+	if preview == nil {
+		t.Fatal("preview = nil, want result")
+	}
+	if preview.AppliedScopes == nil || !preview.AppliedScopes.Routing || !preview.AppliedScopes.Models || !preview.AppliedScopes.APIKeys || !preview.AppliedScopes.Settings || !preview.AppliedScopes.Stats || !preview.AppliedScopes.Logs {
+		t.Fatalf("applied_scopes = %#v, want explicit full scopes preserved", preview.AppliedScopes)
+	}
+	if got := preview.RowsSummary["users"]; got != 2 {
+		t.Fatalf("rows_summary[users] = %d, want 2", got)
+	}
+	if got := preview.RowsSummary["migration_records"]; got != 1 {
+		t.Fatalf("rows_summary[migration_records] = %d, want 1", got)
+	}
+	if got := preview.RowsSummary["ai_tasks"]; got != 1 {
+		t.Fatalf("rows_summary[ai_tasks] = %d, want 1", got)
+	}
+	if got := preview.RowsSummary["dynamic_route_learning_states"]; got != 1 {
+		t.Fatalf("rows_summary[dynamic_route_learning_states] = %d, want 1", got)
+	}
+	if !containsWarning(preview.PreviewWarnings, "restores admin users: 2") {
+		t.Fatalf("preview.preview_warnings = %#v, want admin user restore warning", preview.PreviewWarnings)
+	}
+	if !containsWarning(preview.PreviewWarnings, "restores migration records: 1") {
+		t.Fatalf("preview.preview_warnings = %#v, want migration record restore warning", preview.PreviewWarnings)
+	}
+	if !containsWarning(preview.PreviewWarnings, "restores AI automation state rows: 2") {
+		t.Fatalf("preview.preview_warnings = %#v, want AI automation restore warning", preview.PreviewWarnings)
+	}
+	if !containsWarning(preview.PreviewWarnings, "restores dynamic route learning states: 1") {
+		t.Fatalf("preview.preview_warnings = %#v, want dynamic learning restore warning", preview.PreviewWarnings)
+	}
+	if got := preview.Compatibility.Summary.ReplacePrunedChannels; got != 0 {
+		t.Fatalf("preview.compatibility.summary.replace_pruned_channels = %d, want 0 for explicit full restore preview", got)
+	}
+}
+
 func TestDBRollbackImportSnapshotRejectsPathTraversal(t *testing.T) {
 	ctx := setupOpTestDB(t)
 
@@ -3205,6 +3839,9 @@ func TestDBPreviewRollbackImportSnapshotBuildsCompatibilityAndRowsSummary(t *tes
 	}
 	if !containsWarning(preview.PreviewWarnings, "route preview diffs") {
 		t.Fatalf("preview.preview_warnings = %#v, want route preview warning", preview.PreviewWarnings)
+	}
+	if !containsWarning(preview.PreviewWarnings, "invalid route targets") && !containsWarning(preview.PreviewWarnings, "skipped route target previews") {
+		t.Fatalf("preview.preview_warnings = %#v, want route preview compatibility warning", preview.PreviewWarnings)
 	}
 	if !containsWarning(preview.PreviewWarnings, "base URL mismatches") {
 		t.Fatalf("preview.preview_warnings = %#v, want base URL mismatch warning", preview.PreviewWarnings)

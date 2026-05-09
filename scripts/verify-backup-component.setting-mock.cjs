@@ -37,8 +37,23 @@ module.exports = {
 							rows_affected: { channels: 1 },
 							dry_run: true,
 							mode: payload.mode,
+							warnings: ['legacy warning: review before apply'],
 							compatibility: { conflicts: ['channel conflict'] },
 						}
+						: payload.file?.name === 'snapshot-map-summary-only.json'
+							? {
+								rows_affected: { channels: 1, groups: 1 },
+								preview_token: 'preview-token-map-summary-only',
+								dry_run: true,
+								mode: payload.mode,
+								compatibility: {
+									summary: {
+										credential_rebind_targets: 1,
+										channel_key_rebind_targets: 1,
+										api_key_rebind_targets: 1,
+									},
+								},
+							}
 						: payload.mode === 'map'
 					? {
 						rows_affected: { channels: 1, groups: 1 },
@@ -130,38 +145,51 @@ module.exports = {
 										target_exists: true,
 									},
 								],
-								credential_rebind_targets: [
-									{
-										target_type: 'channel_key',
-										channel_name: 'Primary',
-										key_name: 'key-1',
-										models: ['legacy-model'],
-										affected_groups: ['group-a'],
-									},
-								],
+							credential_rebind_targets: [
+								{
+									target_type: 'channel_key',
+									channel_name: 'Primary',
+									key_name: 'key-1',
+									models: ['legacy-model'],
+									affected_groups: ['group-a'],
+								},
+								{
+									target_type: 'api_key',
+									key_name: 'client-key-1',
+									affected_groups: ['group-b'],
+								},
+							],
+							summary: {
+								credential_rebind_targets: 1,
+								channel_key_rebind_targets: 1,
+								api_key_rebind_targets: 1,
 							},
-						}
+						},
+					}
 						: payload.mode === 'replace'
 							? {
 								rows_affected: { channels: 1, groups: 1, api_keys: 1 },
 								preview_token: 'preview-token-replace',
 								dry_run: true,
 								mode: payload.mode,
-								compatibility: {
-									conflicts: ['replace conflict'],
-									credential_rebind_targets: [
-										{
-											target_type: 'channel_key',
-											channel_name: 'Primary',
-											key_name: 'key-1',
-											models: ['gpt-4o'],
-											affected_groups: ['group-a'],
-										},
-									],
-									replace_pruned_channels: ['legacy-channel'],
-									replace_pruned_groups: ['legacy-group'],
-									replace_pruned_settings: ['proxy_url'],
-									replace_pruned_llm_infos: ['legacy-model'],
+						compatibility: {
+							conflicts: ['replace conflict'],
+							credential_rebind_targets: [
+								{
+									target_type: 'channel_key',
+									channel_name: 'Primary',
+									key_name: 'key-1',
+									models: ['gpt-4o'],
+									affected_groups: ['group-a'],
+								},
+							],
+							replace_prune_preview: {
+								warnings: ['API key cleanup preview excludes credentials that are absent from this snapshot'],
+							},
+							replace_pruned_channels: ['legacy-channel'],
+							replace_pruned_groups: ['legacy-group'],
+							replace_pruned_settings: ['proxy_url'],
+							replace_pruned_llm_infos: ['legacy-model'],
 									replace_pruned_api_keys: ['client-key'],
 								},
 							}
@@ -170,6 +198,7 @@ module.exports = {
 							preview_token: 'preview-token-1',
 							dry_run: true,
 							mode: payload.mode,
+							warnings: ['legacy warning: review before apply'],
 							compatibility: { conflicts: ['channel conflict'] },
 						};
 					state.importDBState.data = dryRunResult;
@@ -225,7 +254,22 @@ module.exports = {
 				const { snapshotName, importScopes } = payload;
 				state.previewRollbackCalls.push({ snapshotName, importScopes });
 				setIsPending(true);
-				const previewResult = {
+				const previewResult = snapshotName === 'snapshot-summary-only'
+					? {
+						snapshot_name: snapshotName,
+						applied_scopes: importScopes,
+						manifest: { contains_secrets: true, schema_version: '10' },
+						rows_summary: { channels: 1 },
+						preview_warnings: [],
+						compatibility: {
+							summary: {
+								credential_rebind_targets: 1,
+								channel_key_rebind_targets: 1,
+								api_key_rebind_targets: 1,
+							},
+						},
+					}
+					: {
 					snapshot_name: snapshotName,
 					applied_scopes: importScopes,
 					manifest: { contains_secrets: true, schema_version: '10' },
@@ -241,7 +285,16 @@ module.exports = {
 							key_name: 'key-1',
 							models: ['gpt-4o'],
 							affected_groups: ['group-a'],
+						}, {
+							target_type: 'api_key',
+							key_name: 'rollback-client-key',
+							affected_groups: ['group-b'],
 						}],
+						summary: {
+							credential_rebind_targets: 1,
+							channel_key_rebind_targets: 1,
+							api_key_rebind_targets: 1,
+						},
 						missing_providers: ['rollback-provider'],
 						affected_groups: ['group-a'],
 						affected_channels: ['Primary'],
@@ -270,7 +323,7 @@ module.exports = {
 							fallback_changed: true,
 						}],
 					},
-				};
+					};
 				if (state.previewRollbackDeferred) {
 					const deferred = state.previewRollbackDeferred;
 					state.previewRollbackDeferred = null;

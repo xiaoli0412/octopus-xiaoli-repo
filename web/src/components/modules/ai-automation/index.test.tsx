@@ -1,398 +1,348 @@
-import * as React from 'react';
+import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AIAutomation } from './index';
-import { AI_AUTOMATION_FOCUS_TARGET_STORAGE_KEY } from './focus-target';
 
 const state = vi.hoisted(() => ({
-  config: {
-    enabled: true,
-    base_url: 'http://127.0.0.1:8080/v1',
-    api_key: '',
-    channel_type: 'openai-compatible',
-    model: 'gpt-free',
-    use_local_default: true,
-    default_selection_policy: 'free-success-latency',
-    requested_config_source_mode: 'manual' as 'manual' | 'ai_profile',
-    config_source_mode: 'manual' as 'manual' | 'ai_profile',
-    requested_active_ai_profile_id: 11,
-    active_ai_profile_id: 11,
-    requested_active_ai_profile: { id: 11, domain: 'grouping', name: 'AI Profile A', version: 1, status: 'ready', confidence: 0.92, explanation: 'profile-a', updated_at: '2026-04-24T00:00:00Z' },
-    active_ai_profile: { id: 11, domain: 'grouping', name: 'AI Profile A', version: 1, status: 'ready', confidence: 0.92, explanation: 'profile-a', updated_at: '2026-04-24T00:00:00Z' },
-    source_fallback_reason: '',
-    dynamic_routing_learning_enabled: true,
-    manual_config: {
-      base_url: 'http://127.0.0.1:8080/v1',
-      api_key: '',
-      channel_type: 'openai-compatible',
-      model: 'gpt-free',
-      use_local_default: true,
-    },
-    effective_config: {
-      base_url: 'http://127.0.0.1:8080/v1',
-      api_key: '',
-      channel_type: 'openai-compatible',
-      model: 'gpt-free',
-      use_local_default: true,
-    },
-  },
-  promptTemplates: [
-    { id: 1, name: 'Builtin Group', source: 'builtin', task_type: 'group_suggestion', domain: 'grouping', prompt: 'builtin prompt', work_requirement: '', enabled: true },
-    { id: 2, name: 'Builtin NL', source: 'builtin', task_type: 'natural_language', domain: 'general', prompt: 'nl prompt', work_requirement: '', enabled: true },
-  ],
-  profiles: [
-    { id: 11, domain: 'grouping', name: 'AI Profile A', version: 1, status: 'ready', confidence: 0.92, explanation: 'profile-a', created_at: '2026-04-24T00:00:00Z', updated_at: '2026-04-24T00:00:00Z' },
-    { id: 12, domain: 'pricing', name: 'AI Profile B', version: 1, status: 'ready', confidence: 0.73, explanation: 'profile-b', created_at: '2026-04-24T00:00:00Z', updated_at: '2026-04-24T00:00:00Z' },
-  ],
-  profileDetails: {
-    11: { id: 11, domain: 'grouping', name: 'AI Profile A', version: 1, status: 'ready', confidence: 0.92, explanation: 'profile-a', migration_status: 'typed_backfilled', domain_payload: { summary: 'group summary' }, versions: [{ id: 101, profile_id: 11, version: 1, content_json: '{"groups":["alpha"]}', explanation: 'v1', created_at: '2026-04-24T00:00:00Z' }], created_at: '2026-04-24T00:00:00Z', updated_at: '2026-04-24T00:00:00Z' },
-    12: { id: 12, domain: 'pricing', name: 'AI Profile B', version: 1, status: 'ready', confidence: 0.73, explanation: 'profile-b', versions: [{ id: 102, profile_id: 12, version: 1, content_json: '{"prices":["beta"]}', explanation: 'v1', created_at: '2026-04-24T00:00:00Z' }], created_at: '2026-04-24T00:00:00Z', updated_at: '2026-04-24T00:00:00Z' },
-  } as Record<number, unknown>,
-  latestTask: undefined as undefined | { id: number; status: string; progress: number; result_summary: string; result_json?: string; error_message: string; steps: Array<{ id: number; name: string; status: string; message: string }>; selected_model?: string; updated_at?: string; type?: string },
-  taskHistory: { items: [{ id: 601, type: 'group_suggestion', status: 'succeeded', progress: 100, result_summary: 'history task', error_message: '', created_at: '2026-04-24T00:00:00Z', updated_at: '2026-04-24T00:00:00Z' }], total: 1, page: 1, page_size: 8 },
-  learning: {
-    enabled: true,
-    states: [
-      { id: 301, channel_id: 7, channel_key_id: 3, model_name: 'gpt-free', success_count: 9, failure_count: 1, fallback_count: 2, race_winner_count: 6, latency_ms_ewma: 180, score: 0.88, confidence: 0.81, last_sample_at: 1713900000 },
-    ],
-  },
-  modelCandidates: [
-    { name: 'gpt-free', source: 'local', channel_name: 'Local Octopus', available: true, free_likely: true, success_rate: 0.97, avg_latency_ms: 220, recommended: true, reason: 'free and healthy' },
-  ],
-  updateConfigMutateAsync: vi.fn(),
-  fetchModelsMutateAsync: vi.fn(),
-  createPromptTemplateMutateAsync: vi.fn(),
-  createTaskMutateAsync: vi.fn(),
-  activateProfileMutateAsync: vi.fn(),
-  resetLearningMutate: vi.fn(),
-  setSettingMutate: vi.fn(),
-  configRefetch: vi.fn(),
-  learningRefetch: vi.fn(),
-  toastSuccess: vi.fn(),
-  toastError: vi.fn(),
-  toastWarning: vi.fn(),
-  scrollIntoViewMock: vi.fn(),
+	overview: {
+		enabled: true,
+		execution_source: { mode: 'manual', base_url: 'http://127.0.0.1:1088/v1', channel_type: 'openai-compatible', model: 'gpt-4o', use_local_default: true, label: 'Manual AI endpoint' },
+		runtime_policy: { strategy: 'balanced_latency', dispatch_mode: 'single_best', max_parallel_runs: 2, double_review_enabled: false, fallback_to_deterministic: true, degraded_to_deterministic: false },
+		managed_group_name: 'AI Governance Managed',
+		learning: { enabled: true, sample_count: 6, top_target: 'gpt-4o / ch#1 / key#2', last_sample_at: 1715100000, top_score: 0.91 },
+		recent_session: { id: 91, goal: '整理当前路由', scope: 'routing_grouping', expert_preset_id: 'balanced', status: 'ready', current_stage: 'completed', operator_summary: 'recent summary', risk_summary: 'recent risk', confidence: 0.88, mutation_count: 4, can_apply: true, created_at: '2026-05-09T08:00:00Z', updated_at: '2026-05-09T08:05:00Z' },
+	},
+	sessions: [
+		{ id: 91, goal: '整理当前路由', scope: 'routing_grouping', expert_preset_id: 'balanced', status: 'ready', current_stage: 'completed', operator_summary: 'Normalize managed group', risk_summary: 'Explicit apply required', confidence: 0.88, mutation_count: 4, can_apply: true, created_at: '2026-05-09T08:00:00Z', updated_at: '2026-05-09T08:05:00Z' },
+	],
+	sessionDetail: {
+		id: 91,
+		goal: '整理当前路由',
+		scope: 'routing_grouping',
+		expert_preset_id: 'balanced',
+		status: 'ready',
+		current_stage: 'completed',
+		operator_summary: 'Governance reviewed 3 channels and prepared 4 controlled mutations.',
+		risk_summary: 'Explicit apply is required.',
+		confidence: 0.88,
+		mutation_count: 4,
+		can_apply: true,
+		created_at: '2026-05-09T08:00:00Z',
+		updated_at: '2026-05-09T08:05:00Z',
+		snapshot_checksum: 'checksum-91',
+		snapshot_summary: { channels: 3, enabled_channels: 3, groups: 2, group_items: 5, route_target_overrides: 1, models: 2, active_source_mode: 'manual', active_source_label: 'Manual AI endpoint', highlights: ['3 channels / 3 enabled', '2 groups / 5 group items'] },
+		plan: {
+			findings: [
+				{ severity: 'warning', title: 'Model gpt-4o is scattered', detail: 'Consolidate gpt-4o into the managed governance group.' },
+			],
+			decisions: [
+				{ title: 'Curate managed routing group', summary: 'Refresh ordering and clean stale entries.' },
+			],
+			mutations: [
+				{ type: 'group_upsert', summary: 'Create or update group AI Governance Managed', group_upsert: { group_name: 'AI Governance Managed', mode: 3 } },
+				{ type: 'group_item_attach', summary: 'Attach gpt-4o from channel #1', group_item_attach: { group_name: 'AI Governance Managed', channel_id: 1, model_name: 'gpt-4o', priority: 1, weight: 1 } },
+			],
+			risk_summary: 'Explicit apply is required.',
+			confidence: 0.88,
+			operator_summary: 'Governance reviewed 3 channels and prepared 4 controlled mutations.',
+		},
+		preview: {
+			headline: 'Governance reviewed 3 channels and prepared 4 controlled mutations.',
+			summary_lines: ['1 findings / 1 decisions', '4 typed mutations staged'],
+			impact_counts: { groups: 1, items: 3, overrides: 0, profiles: 0 },
+			risk_notes: ['Apply is explicit and transactional.'],
+			apply_blockers: [],
+			can_apply: true,
+			mutation_count: 2,
+			mutations: [
+				{ type: 'group_upsert', summary: 'Create or update group AI Governance Managed', group_upsert: { group_name: 'AI Governance Managed', mode: 3 } },
+				{ type: 'group_item_attach', summary: 'Attach gpt-4o from channel #1', group_item_attach: { group_name: 'AI Governance Managed', channel_id: 1, model_name: 'gpt-4o', priority: 1, weight: 1 } },
+			],
+		},
+		apply_runs: [
+			{ id: 31, session_id: 91, status: 'succeeded', result_summary: 'Applied governance changes', created_at: '2026-05-09T08:10:00Z', updated_at: '2026-05-09T08:10:03Z', audit: { summary: 'Applied governance plan', items: [{ mutation_type: 'group_upsert', summary: 'Create or update group AI Governance Managed', status: 'succeeded', message: '' }] } },
+		],
+	},
+	presets: [
+		{ id: 'balanced', name: 'Balanced governance', description: 'Default routing and grouping governance.', review_depth: 'standard', create_managed_group: true, sync_bindings: true, cleanup_stale: true },
+		{ id: 'deep_review', name: 'Deep review', description: 'Extra cleanup and drift visibility.', review_depth: 'deep', create_managed_group: true, sync_bindings: true, cleanup_stale: true },
+	],
+	profiles: [
+		{ id: 1, name: 'Managed routing baseline', summary: 'Imported from session 91', status: 'ready', is_active: false, created_at: '2026-05-09T08:00:00Z', updated_at: '2026-05-09T08:00:00Z' },
+	],
+	rollbackPoints: [
+		{ id: 501, session_id: 91, snapshot_checksum: 'rollback-checksum', summary: 'Rollback point before apply #31', created_at: '2026-05-09T08:09:00Z', updated_at: '2026-05-09T08:09:00Z' },
+	],
+	apiKeys: [
+		{ id: 7, name: 'Primary API Key', api_key: 'sk-test', enabled: true },
+	],
+	learningSummary: { enabled: true, sample_count: 6, top_target: 'gpt-4o / ch#1 / key#2', last_sample_at: 1715100000, top_score: 0.91 },
+	createSessionMutateAsync: vi.fn(),
+	replanSessionMutateAsync: vi.fn(),
+	applySessionMutateAsync: vi.fn(),
+	rollbackSessionMutateAsync: vi.fn(),
+	createProfileMutateAsync: vi.fn(),
+	activateProfileMutateAsync: vi.fn(),
+	updateRuntimePolicyMutateAsync: vi.fn(),
+	setSettingMutateAsync: vi.fn(),
+	toastSuccess: vi.fn(),
+	toastError: vi.fn(),
 }));
 
 vi.mock('next-intl', () => ({
-  useTranslations: (namespace?: string) => (key: string, values?: Record<string, unknown>) => {
-    if (!values) return `${namespace}.${key}`;
-    return `${namespace}.${key}:${JSON.stringify(values)}`;
-  },
-}));
-
-vi.mock('@/components/common/Toast', () => ({
-  toast: {
-    success: state.toastSuccess,
-    error: state.toastError,
-    warning: state.toastWarning,
-  },
+	useTranslations: (namespace?: string) => (key: string) => namespace ? `${namespace}.${key}` : key,
 }));
 
 vi.mock('@/components/common/PageWrapper', () => ({
-  PageWrapper: ({ children, className, 'data-testid': testId }: { children: React.ReactNode; className?: string; 'data-testid'?: string }) => <div className={className} data-testid={testId}>{children}</div>,
+	PageWrapper: ({ children, className, 'data-testid': testId }: { children: React.ReactNode; className?: string; 'data-testid'?: string }) => <div className={className} data-testid={testId}>{children}</div>,
 }));
 
 vi.mock('@/components/ui/button', () => ({
-  Button: ({ children, type = 'button', onClick, disabled, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button type={type} onClick={onClick} disabled={disabled} {...props}>{children}</button>,
+	Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props}>{children}</button>,
 }));
 
 vi.mock('@/components/ui/input', () => ({
-  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+	Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
 }));
 
-vi.mock('@/components/ui/badge', () => ({
-  Badge: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>,
-}));
-
-vi.mock('@/components/ui/progress', () => ({
-  Progress: ({ value }: { value?: number }) => <div data-testid="progress">{value ?? 0}</div>,
-}));
-
-vi.mock('@/components/ui/card', () => ({
-  Card: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <section {...props}>{children}</section>,
-  CardHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  CardTitle: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  CardDescription: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-  CardContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-}));
-
-vi.mock('@/components/ui/switch', () => ({
-  Switch: ({ checked, onCheckedChange, ...props }: { checked?: boolean; onCheckedChange?: (value: boolean) => void } & React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button type="button" role="switch" aria-checked={checked ? 'true' : 'false'} onClick={() => onCheckedChange?.(!checked)} {...props}>switch</button>
-  ),
+vi.mock('@/components/ui/dialog', () => ({
+	Dialog: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+	DialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+	DialogDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+	DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+	DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock('@/components/ui/select', async () => {
-  const React = await import('react');
-  type SelectItemLikeProps = { children?: React.ReactNode; value?: string };
-  const SelectContext = React.createContext<{ items: Array<{ label: string; value: string }>; onValueChange?: (value: string) => void; value?: string }>({ items: [], onValueChange: undefined, value: undefined });
+	const React = await import('react');
+	type SelectItemLikeProps = { children?: React.ReactNode; value?: string };
+	const SelectContext = React.createContext<{
+		items: Array<{ label: string; value: string }>;
+		onValueChange?: (value: string) => void;
+		value?: string;
+	}>({ items: [], onValueChange: undefined, value: undefined });
 
-  function collectItems(children: React.ReactNode, items: Array<{ label: string; value: string }> = []) {
-    React.Children.forEach(children, (child) => {
-      if (!React.isValidElement(child)) return;
-      const element = child as React.ReactElement<SelectItemLikeProps>;
-      if ((element.type as { __testIsSelectItem?: boolean }).__testIsSelectItem) {
-        items.push({ label: typeof element.props.children === 'string' ? element.props.children : String(element.props.value), value: element.props.value ?? '' });
-        return;
-      }
-      if (element.props?.children) collectItems(element.props.children, items);
-    });
-    return items;
-  }
+	function collectItems(children: React.ReactNode, items: Array<{ label: string; value: string }> = []) {
+		React.Children.forEach(children, (child) => {
+			if (!React.isValidElement(child)) return;
+			const element = child as React.ReactElement<SelectItemLikeProps>;
+			if ((element.type as { __testIsSelectItem?: boolean }).__testIsSelectItem) {
+				items.push({
+					label: typeof element.props.children === 'string' ? element.props.children : String(element.props.value),
+					value: element.props.value ?? '',
+				});
+				return;
+			}
+			if (element.props?.children) {
+				collectItems(element.props.children, items);
+			}
+		});
+		return items;
+	}
 
-  function Select({ children, onValueChange, value }: { children: React.ReactNode; onValueChange?: (value: string) => void; value?: string }) {
-    const items = React.useMemo(() => collectItems(children), [children]);
-    const contextValue = React.useMemo(() => ({ items, onValueChange, value }), [items, onValueChange, value]);
-    return <SelectContext.Provider value={contextValue}>{children}</SelectContext.Provider>;
-  }
+	function Select({ children, onValueChange, value }: { children: React.ReactNode; onValueChange?: (value: string) => void; value?: string }) {
+		const items = React.useMemo(() => collectItems(children), [children]);
+		const contextValue = React.useMemo(() => ({ items, onValueChange, value }), [items, onValueChange, value]);
+		return <SelectContext.Provider value={contextValue}>{children}</SelectContext.Provider>;
+	}
 
-  function SelectTrigger({ className, children, id, 'aria-label': ariaLabel }: { className?: string; children?: React.ReactNode; id?: string; 'aria-label'?: string }) {
-    const context = React.useContext(SelectContext);
-    return (
-      <select id={id} aria-label={ariaLabel} className={className} role="combobox" onChange={(event) => context.onValueChange?.(event.target.value)} value={context.value}>
-        {children}
-        {context.items.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-      </select>
-    );
-  }
+	function SelectTrigger({ className }: { className?: string }) {
+		const context = React.useContext(SelectContext);
+		return (
+			<select className={className} role="combobox" onChange={(event) => context.onValueChange?.(event.target.value)} value={context.value}>
+				{context.items.map((item) => (
+					<option key={item.value} value={item.value}>{item.label}</option>
+				))}
+			</select>
+		);
+	}
 
-  function SelectValue() { return null; }
-  function SelectContent({ children }: { children?: React.ReactNode }) { return <>{children}</>; }
-  function SelectItem() { return null; }
-  (SelectItem as { __testIsSelectItem?: boolean }).__testIsSelectItem = true;
+	function SelectValue() {
+		return null;
+	}
 
-  return { Select, SelectContent, SelectItem, SelectTrigger, SelectValue };
+	function SelectContent() {
+		return null;
+	}
+
+	function SelectItem() {
+		return null;
+	}
+
+	(SelectItem as { __testIsSelectItem?: boolean }).__testIsSelectItem = true;
+
+	return { Select, SelectContent, SelectItem, SelectTrigger, SelectValue };
 });
 
-vi.mock('@/api/endpoints/setting', () => ({
-  useSetSetting: () => ({ mutate: state.setSettingMutate }),
+vi.mock('@/components/ui/switch', () => ({
+	Switch: ({ checked, onCheckedChange }: { checked?: boolean; onCheckedChange?: (value: boolean) => void }) => (
+		<button role="switch" aria-checked={checked} onClick={() => onCheckedChange?.(!checked)} type="button" />
+	),
+}));
+
+vi.mock('@/components/common/AnimatedNumber', () => ({
+	AnimatedNumber: ({ value }: { value: number }) => <>{value}</>,
+}));
+
+vi.mock('@/stores/setting', () => ({
+	useSettingStore: (selector: (state: { locale: string }) => unknown) => selector({ locale: 'zh-Hans' }),
+}));
+
+vi.mock('@/lib/locale', () => ({
+	formatDateTimeByLocale: (value: string) => value,
+}));
+
+vi.mock('@/components/common/Toast', () => ({
+	toast: {
+		success: state.toastSuccess,
+		error: state.toastError,
+	},
 }));
 
 vi.mock('@/api/endpoints/ai-automation', () => ({
-  useAIAutomationConfig: () => ({ data: state.config, refetch: state.configRefetch }),
-  useUpdateAIAutomationConfig: () => ({ mutateAsync: state.updateConfigMutateAsync }),
-  useFetchAIModels: () => ({ isPending: false, data: { candidates: state.modelCandidates }, mutateAsync: state.fetchModelsMutateAsync }),
-  useAIPromptTemplates: () => ({ data: state.promptTemplates }),
-  useCreateAIPromptTemplate: () => ({ mutateAsync: state.createPromptTemplateMutateAsync }),
-  useCreateAITask: () => ({ isPending: false, data: state.latestTask, mutateAsync: state.createTaskMutateAsync }),
-  useAITask: () => ({ data: state.latestTask }),
-  useAITaskArtifacts: () => ({ data: state.latestTask?.result_json ? { result_json: state.latestTask.result_json } : undefined }),
-  useAITasks: () => ({ data: state.taskHistory, isLoading: false }),
-  useAIProfiles: () => ({ data: state.profiles }),
-  useAIProfile: (id?: number) => ({ data: id ? state.profileDetails[id] : undefined }),
-  useActivateAIProfile: () => ({ isPending: false, mutateAsync: state.activateProfileMutateAsync }),
-  useDynamicRouteLearning: () => ({ data: state.learning, refetch: state.learningRefetch }),
-  useResetDynamicRouteLearning: () => ({ isPending: false, mutate: state.resetLearningMutate }),
+	useAIGovernanceOverview: () => ({ data: state.overview }),
+	useGovernanceSessions: () => ({ data: state.sessions }),
+	useGovernanceSession: () => ({ data: state.sessionDetail }),
+	useGovernanceRollbackPoints: () => ({ data: state.rollbackPoints }),
+	useGovernanceRuntimePolicy: () => ({ data: state.overview.runtime_policy }),
+	useExpertPresets: () => ({ data: state.presets }),
+	useStrategyProfiles: () => ({ data: state.profiles }),
+	useAIGovernanceLearningSummary: () => ({ data: state.learningSummary }),
+	useCreateGovernanceSession: () => ({ isPending: false, mutateAsync: state.createSessionMutateAsync }),
+	useReplanGovernanceSession: () => ({ isPending: false, mutateAsync: state.replanSessionMutateAsync }),
+	useApplyGovernanceSession: () => ({ isPending: false, mutateAsync: state.applySessionMutateAsync }),
+	useRollbackGovernanceSession: () => ({ isPending: false, mutateAsync: state.rollbackSessionMutateAsync }),
+	useCreateStrategyProfile: () => ({ mutateAsync: state.createProfileMutateAsync }),
+	useActivateStrategyProfile: () => ({ mutateAsync: state.activateProfileMutateAsync }),
+	useUpdateGovernanceRuntimePolicy: () => ({ isPending: false, mutateAsync: state.updateRuntimePolicyMutateAsync }),
 }));
 
-describe('AIAutomation', () => {
-  beforeEach(() => {
-    window.localStorage.clear();
-    window.sessionStorage.clear();
-    Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: state.scrollIntoViewMock });
+vi.mock('@/api/endpoints/apikey', () => ({
+	useAPIKeyList: () => ({ data: state.apiKeys }),
+}));
 
-    state.latestTask = undefined;
-    state.learning = {
-      enabled: true,
-      states: [
-        { id: 301, channel_id: 7, channel_key_id: 3, model_name: 'gpt-free', success_count: 9, failure_count: 1, fallback_count: 2, race_winner_count: 6, latency_ms_ewma: 180, score: 0.88, confidence: 0.81, last_sample_at: 1713900000 },
-      ],
-    };
-    state.updateConfigMutateAsync.mockReset();
-    state.fetchModelsMutateAsync.mockReset();
-    state.createPromptTemplateMutateAsync.mockReset();
-    state.createTaskMutateAsync.mockReset();
-    state.activateProfileMutateAsync.mockReset();
-    state.resetLearningMutate.mockReset();
-    state.setSettingMutate.mockReset();
-    state.configRefetch.mockReset();
-    state.learningRefetch.mockReset();
-    state.toastSuccess.mockReset();
-    state.toastError.mockReset();
-    state.toastWarning.mockReset();
-    state.scrollIntoViewMock.mockReset();
+vi.mock('@/api/endpoints/setting', () => ({
+	SettingKey: {
+		AIAutomationBaseUrl: 'ai_automation_base_url',
+		AIAutomationUseLocalDefault: 'ai_automation_use_local_default',
+		AIAutomationAPIKey: 'ai_automation_api_key',
+		AIAutomationModel: 'ai_automation_model',
+	},
+	useSetSetting: () => ({ isPending: false, mutateAsync: state.setSettingMutateAsync }),
+	useSettingList: () => ({ data: [] }),
+}));
 
-    state.config.api_key = '';
-    state.config.manual_config.api_key = '';
-    state.config.effective_config.api_key = '';
+describe('AIAutomation V2', () => {
+	beforeEach(() => {
+		window.sessionStorage.clear();
+		state.createSessionMutateAsync.mockReset();
+		state.replanSessionMutateAsync.mockReset();
+		state.applySessionMutateAsync.mockReset();
+		state.rollbackSessionMutateAsync.mockReset();
+		state.createProfileMutateAsync.mockReset();
+		state.activateProfileMutateAsync.mockReset();
+		state.updateRuntimePolicyMutateAsync.mockReset();
+		state.setSettingMutateAsync.mockReset();
+		state.toastSuccess.mockReset();
+		state.toastError.mockReset();
+		state.createSessionMutateAsync.mockResolvedValue({ ...state.sessionDetail, id: 92 });
+		state.replanSessionMutateAsync.mockResolvedValue(state.sessionDetail);
+		state.applySessionMutateAsync.mockResolvedValue({ ...state.sessionDetail, status: 'applied' });
+		state.rollbackSessionMutateAsync.mockResolvedValue({ success: true });
+		state.createProfileMutateAsync.mockResolvedValue({ id: 2, name: 'Strategy 91' });
+		state.activateProfileMutateAsync.mockResolvedValue({ id: 1, name: 'Managed routing baseline' });
+		state.updateRuntimePolicyMutateAsync.mockResolvedValue(state.overview.runtime_policy);
+		state.setSettingMutateAsync.mockResolvedValue({ ok: true });
+	});
 
-    state.updateConfigMutateAsync.mockResolvedValue(state.config);
-    state.fetchModelsMutateAsync.mockResolvedValue({ source: 'local', candidates: state.modelCandidates, selected_name: 'gpt-free', policy: 'free-success-latency' });
-    state.createPromptTemplateMutateAsync.mockImplementation(async (payload: { name: string; task_type: string; prompt: string; work_requirement?: string }) => ({ id: 99, name: payload.name, source: 'custom', task_type: payload.task_type, domain: 'custom', prompt: payload.prompt, work_requirement: payload.work_requirement ?? '', enabled: true }));
-    state.createTaskMutateAsync.mockResolvedValue({ id: 501, status: 'pending', progress: 10, result_summary: 'queued', error_message: '', steps: [], selected_model: 'gpt-free' });
-    state.activateProfileMutateAsync.mockResolvedValue(undefined);
-    state.setSettingMutate.mockImplementation((_payload: unknown, options?: { onSuccess?: () => void }) => options?.onSuccess?.());
-    state.resetLearningMutate.mockImplementation((_payload: unknown, options?: { onSuccess?: () => void }) => options?.onSuccess?.());
-  });
+	it('renders the V2 single-goal governance workbench', () => {
+		render(<AIAutomation />);
 
-  it('renders the rebuilt workbench shell', () => {
-    render(<AIAutomation />);
+		expect(screen.getByTestId('ai-automation-page')).toBeInTheDocument();
+		expect(screen.getByText('aiAutomationV2.hero.title')).toBeInTheDocument();
+		expect(screen.getByText('aiAutomationV2.main.goalTitle')).toBeInTheDocument();
+		expect(screen.getByText('aiAutomationV2.main.aiSummaryTitle')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'aiAutomationV2.workspace.preview' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'aiAutomationV2.workspace.history' })).toBeInTheDocument();
+		expect(screen.queryByText('aiAutomation.hero.title')).not.toBeInTheDocument();
+	});
 
-    expect(screen.getByTestId('ai-automation-page')).toBeInTheDocument();
-    expect(screen.getByText('aiAutomation.hero.title')).toBeInTheDocument();
-    expect(screen.getByText('aiAutomation.sidebar.title')).toBeInTheDocument();
-    expect(screen.getByTestId('result-view-summary')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'aiAutomation.views.result' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'aiAutomation.views.history' })).toBeInTheDocument();
-  });
+	it('creates a governance session from the one-line goal input', async () => {
+		render(<AIAutomation />);
 
-  it('creates a task from the main chain', async () => {
-    render(<AIAutomation />);
+		fireEvent.change(screen.getByPlaceholderText('aiAutomationV2.main.goalPlaceholder'), { target: { value: '请整理当前路由与分组' } });
+		fireEvent.click(screen.getByRole('button', { name: 'aiAutomationV2.actions.create' }));
 
-    fireEvent.change(screen.getByPlaceholderText('aiAutomation.task.placeholder'), { target: { value: '整理当前渠道和分组结构' } });
-    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.task.run' }));
+		await waitFor(() => {
+			expect(state.createSessionMutateAsync).toHaveBeenCalledWith({ goal: '请整理当前路由与分组', expert_preset_id: 'balanced' });
+		});
+	});
 
-    await waitFor(() => {
-      expect(state.createTaskMutateAsync).toHaveBeenCalledTimes(1);
-    });
+	it('shows preview mutations and allows apply from the preview tab', async () => {
+		render(<AIAutomation />);
 
-    const payload = state.createTaskMutateAsync.mock.calls[0]?.[0];
-    expect(payload.type).toBe('natural_language');
-    expect(payload.input_text).toBe('整理当前渠道和分组结构');
-    expect(payload.config_snapshot.model).toBe('gpt-free');
-  });
+		fireEvent.click(screen.getByRole('button', { name: 'aiAutomationV2.workspace.preview' }));
+		expect(screen.getByTestId('ai-governance-workspace-preview')).toBeInTheDocument();
+		expect(screen.getByText('Create or update group AI Governance Managed')).toBeInTheDocument();
+		expect(screen.getByText('Attach gpt-4o from channel #1')).toBeInTheDocument();
 
-  it('creates a custom prompt template from assets workspace', async () => {
-    render(<AIAutomation />);
+		fireEvent.click(screen.getByRole('button', { name: 'aiAutomationV2.actions.apply' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.views.assets' }));
-    fireEvent.change(screen.getByPlaceholderText('aiAutomation.task.templateNamePlaceholder'), { target: { value: 'My Template' } });
-    fireEvent.change(screen.getByPlaceholderText('aiAutomation.task.templatePromptPlaceholder'), { target: { value: 'normalize channels' } });
-    fireEvent.change(screen.getByPlaceholderText('aiAutomation.task.templateRequirementPlaceholder'), { target: { value: 'keep manual config' } });
-    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.task.createTemplate' }));
+		await waitFor(() => {
+			expect(state.applySessionMutateAsync).toHaveBeenCalledWith(91);
+		});
+	});
 
-    await waitFor(() => {
-      expect(state.createPromptTemplateMutateAsync).toHaveBeenCalledTimes(1);
-    });
-  });
+	it('creates and activates strategy profiles in the profiles tab', async () => {
+		render(<AIAutomation />);
 
-  it('shows structured profile preview in profiles workspace', () => {
-    render(<AIAutomation />);
+		fireEvent.click(screen.getByRole('button', { name: 'aiAutomationV2.workspace.profiles' }));
+		fireEvent.change(screen.getByPlaceholderText('aiAutomationV2.profiles.namePlaceholder'), { target: { value: 'Managed routing baseline' } });
+		fireEvent.click(screen.getByRole('button', { name: 'aiAutomationV2.profiles.create' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.views.profiles' }));
+		await waitFor(() => {
+			expect(state.createProfileMutateAsync).toHaveBeenCalledWith({ session_id: 91, name: 'Managed routing baseline' });
+		});
 
-    expect(screen.getByText('aiAutomation.profiles.title')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-profile-structured-preview')).toBeInTheDocument();
-  });
+		fireEvent.click(screen.getByRole('button', { name: 'aiAutomationV2.profiles.activate' }));
+		await waitFor(() => {
+			expect(state.activateProfileMutateAsync).toHaveBeenCalledWith(1);
+		});
+	});
 
-  it('launches multi-lane dispatch from advanced dispatch workspace', async () => {
-    render(<AIAutomation />);
+	it('opens the history tab and consumes the learning focus target jump', async () => {
+		window.sessionStorage.setItem('octopus-ai-automation-focus-target', 'learning');
+		const scrollIntoView = vi.fn();
+		Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView });
 
-    fireEvent.change(screen.getByPlaceholderText('aiAutomation.task.placeholder'), { target: { value: '做一次多 AI 分流审查' } });
-    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.views.dispatch' }));
-    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.task.runMultiLane' }));
+		render(<AIAutomation />);
 
-    await waitFor(() => {
-      expect(state.createTaskMutateAsync).toHaveBeenCalledTimes(3);
-    });
-  });
+		await waitFor(() => {
+			expect(screen.getByTestId('ai-governance-workspace-history')).toBeInTheDocument();
+		});
+		expect(scrollIntoView).toHaveBeenCalled();
+		expect(screen.getByText('aiAutomationV2.history.learningTitle')).toBeInTheDocument();
+	});
 
-  it('renders task history and learning workspace together', () => {
-    render(<AIAutomation />);
+	it('saves automation settings with local default toggle and actual api key value', async () => {
+		render(<AIAutomation />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.views.history' }));
+		fireEvent.click(screen.getByRole('button', { name: 'aiAutomationV2.settings.open' }));
 
-    expect(screen.getByTestId('ai-automation-learning-controls')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-automation-learning-preset-card')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-automation-learning-switch-card')).toBeInTheDocument();
-    expect(screen.getByText(/#601/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'aiAutomation.taskHistory.historyPrev' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'aiAutomation.taskHistory.historyNext' })).toBeInTheDocument();
-    expect(screen.getByTestId('ai-automation-learning-section')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-automation-learning-state-summary')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-automation-learning-secondary-summary')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-automation-learning-states')).toBeInTheDocument();
-    expect(screen.getByTestId('ai-automation-learning-state-301')).toBeInTheDocument();
-  });
+		const combos = screen.getAllByRole('combobox');
+		fireEvent.change(combos[0], { target: { value: 'sk-test' } });
+		fireEvent.change(combos[1], { target: { value: 'gpt-4o' } });
 
-  it('consumes queued learning focus target and scrolls to learning section', async () => {
-    window.sessionStorage.setItem(AI_AUTOMATION_FOCUS_TARGET_STORAGE_KEY, 'learning');
+		const switches = screen.getAllByRole('switch');
+		fireEvent.click(switches[0]);
 
-    render(<AIAutomation />);
+		fireEvent.click(screen.getByRole('button', { name: 'aiAutomationV2.settings.save' }));
 
-    await waitFor(() => {
-      expect(state.scrollIntoViewMock).toHaveBeenCalled();
-    });
-    expect(screen.getByTestId('ai-automation-learning-section')).toBeInTheDocument();
-  });
-
-  it('toggles learning preset and reset action', async () => {
-    render(<AIAutomation />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.views.history' }));
-    fireEvent.click(screen.getByTestId('ai-automation-learning-preset-safe'));
-
-    await waitFor(() => {
-      expect(state.setSettingMutate).toHaveBeenCalled();
-    });
-
-    fireEvent.click(screen.getByTestId('ai-automation-learning-reset'));
-
-    await waitFor(() => {
-      expect(state.resetLearningMutate).toHaveBeenCalled();
-    });
-  });
-
-  it('shows empty learning state when there are no samples', () => {
-    state.learning = { enabled: true, states: [] };
-
-    render(<AIAutomation />);
-    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.views.history' }));
-
-    expect(screen.getByTestId('ai-automation-learning-empty')).toBeInTheDocument();
-  });
-
-  it('activates profile from result panel when result contains profile output', async () => {
-    state.latestTask = {
-      id: 777,
-      status: 'succeeded',
-      progress: 100,
-      result_summary: 'profile generated',
-      result_json: '{"result_payload":{"summary":"done","domain_payload":{"groups":1},"tool_execution":{"writes":[{"key":"profile_write","profile_id":12}],"protected_actions":[]}}}',
-      error_message: '',
-      steps: [],
-      selected_model: 'gpt-free',
-      updated_at: '2026-04-24T00:00:00Z',
-      type: 'group_suggestion',
-    };
-
-    render(<AIAutomation />);
-    fireEvent.click(screen.getAllByRole('button', { name: 'aiAutomation.result.activateProfile' })[0]);
-
-    await waitFor(() => {
-      expect(state.activateProfileMutateAsync).toHaveBeenCalledWith(12);
-    });
-  });
-
-  it('omits redacted api key placeholder from config save payload', async () => {
-    state.config.api_key = '[redacted]';
-    state.config.manual_config.api_key = '[redacted]';
-    state.config.effective_config.api_key = '[redacted]';
-
-    render(<AIAutomation />);
-    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.config.save' }));
-
-    await waitFor(() => {
-      expect(state.updateConfigMutateAsync).toHaveBeenCalledTimes(1);
-    });
-
-    expect(state.updateConfigMutateAsync.mock.calls[0]?.[0]?.api_key).toBeUndefined();
-  });
-
-  it('omits redacted api key placeholder from model fetch payload', async () => {
-    state.config.api_key = '[redacted]';
-    state.config.manual_config.api_key = '[redacted]';
-    state.config.effective_config.api_key = '[redacted]';
-
-    render(<AIAutomation />);
-    fireEvent.click(screen.getByRole('button', { name: 'aiAutomation.config.fetchModels' }));
-
-    await waitFor(() => {
-      expect(state.fetchModelsMutateAsync).toHaveBeenCalledTimes(1);
-    });
-
-    expect(state.fetchModelsMutateAsync.mock.calls[0]?.[0]?.api_key).toBeUndefined();
-  });
+		await waitFor(() => {
+			expect(state.setSettingMutateAsync).toHaveBeenCalledWith({ key: 'ai_automation_use_local_default', value: 'false' });
+			expect(state.setSettingMutateAsync).toHaveBeenCalledWith({ key: 'ai_automation_api_key', value: 'sk-test' });
+			expect(state.setSettingMutateAsync).toHaveBeenCalledWith({ key: 'ai_automation_model', value: 'gpt-4o' });
+		});
+	});
 });

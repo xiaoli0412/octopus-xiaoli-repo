@@ -133,6 +133,20 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function removeDirectoryWithRetry(targetPath, attempts = 8, delayMs = 500) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      rmSync(targetPath, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      lastError = error;
+      await sleep(delayMs * (attempt + 1));
+    }
+  }
+  throw lastError;
+}
+
 async function waitForHttp(url, timeoutMs = 30000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
@@ -454,7 +468,7 @@ async function main() {
       }
     }
 
-    rmSync(tempDir, { recursive: true, force: true });
+    await removeDirectoryWithRetry(tempDir);
   }
 }
 

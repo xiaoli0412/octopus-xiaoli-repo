@@ -342,6 +342,7 @@ describe('SettingBackup', () => {
 					preview_token: 'preview-token-1',
 					dry_run: true,
 					mode: payload.mode,
+					warnings: ['legacy warning: review before apply'],
 					compatibility: { conflicts: ['channel conflict'] },
 				};
 			}
@@ -371,11 +372,17 @@ describe('SettingBackup', () => {
 		expect(screen.getByTestId('backup-pending-apply-meta-grid')).toBeInTheDocument();
 		expect(screen.getByTestId('backup-import-result-panel')).toBeInTheDocument();
 		expect(screen.getByTestId('backup-import-summary-grid')).toBeInTheDocument();
+		expect(screen.getByTestId('backup-import-summary-rebinds')).toHaveTextContent('凭证重绑定：0');
+		expect(screen.getByTestId('backup-import-summary-rebinds')).toHaveAttribute('data-raw-value', '0');
 		expect(screen.getByTestId('backup-compatibility-panel')).toBeInTheDocument();
 		expect(screen.getByTestId('backup-compatibility-overview')).toBeInTheDocument();
 		expect(screen.getByTestId('backup-compatibility-toggle')).toBeInTheDocument();
 		expect(screen.getByTestId('backup-compatibility-details')).toBeInTheDocument();
 		expect(screen.getByTestId('backup-apply-confirm-switch')).toBeInTheDocument();
+		fireEvent.click(screen.getByTestId('backup-compatibility-toggle'));
+		expect(screen.getByTestId('backup-import-warnings')).toBeInTheDocument();
+		expect(screen.getByTestId('backup-import-warnings-title')).toHaveTextContent('导入预警');
+		expect(screen.getByTestId('backup-import-warnings-item-0')).toHaveTextContent('legacy warning: review before apply');
 		expect(mocks.importMutateAsyncMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
 			file: selectedFile,
 			dryRun: true,
@@ -509,7 +516,15 @@ describe('SettingBackup', () => {
 					{ source_model: 'missing-model', target_model: 'gpt-4.1-mini', contexts: ['fallback'], touched_fields: ['fallback_model'], usage_count: 1, used: true, target_exists: false, warnings: ['current model not found'] },
 					{ source_model: 'unused-model', target_model: 'gpt-4.1', contexts: ['api_keys'], touched_fields: ['model'], usage_count: 0, used: false, target_exists: true },
 				],
-				credential_rebind_targets: [{ target_type: 'channel_key', channel_name: 'Primary', key_name: 'key-1', models: ['legacy-model'], affected_groups: ['group-a'] }],
+				credential_rebind_targets: [
+					{ target_type: 'channel_key', channel_name: 'Primary', key_name: 'key-1', models: ['legacy-model'], affected_groups: ['group-a'] },
+					{ target_type: 'api_key', key_name: 'client-key-1', affected_groups: ['group-b'] },
+				],
+				summary: {
+					credential_rebind_targets: 1,
+					channel_key_rebind_targets: 1,
+					api_key_rebind_targets: 1,
+				},
 			},
 		});
 
@@ -544,6 +559,8 @@ describe('SettingBackup', () => {
 		}));
 		expect(screen.getByTestId('backup-import-result-panel')).toBeInTheDocument();
 		expect(screen.getByTestId('backup-import-summary-grid')).toBeInTheDocument();
+		expect(screen.getByTestId('backup-import-summary-rebinds')).toHaveTextContent('凭证重绑定：2');
+		expect(screen.getByTestId('backup-import-summary-rebinds')).toHaveAttribute('data-raw-value', '2');
 		expect(screen.getByTestId('backup-compatibility-panel')).toBeInTheDocument();
 		expect(screen.getByTestId('backup-compatibility-overview')).toBeInTheDocument();
 		expect(screen.getByTestId('backup-compatibility-toggle')).toBeInTheDocument();
@@ -633,6 +650,32 @@ describe('SettingBackup', () => {
 		expect(screen.getByTestId('backup-compatibility-model-policy-diffs-item-0')).toHaveTextContent('legacy-model');
 	});
 
+	it('keeps import rebind summary correct when only split summary counts are returned', async () => {
+		const selectedFile = new File(['{"snapshot":true}'], 'snapshot-map-summary-only.json', { type: 'application/json' });
+		mocks.importMutateAsyncMock.mockResolvedValue({
+			rows_affected: { channels: 1, groups: 1 },
+			preview_token: 'preview-token-map-summary-only',
+			dry_run: true,
+			mode: 'map',
+			compatibility: {
+				summary: {
+					credential_rebind_targets: 1,
+					channel_key_rebind_targets: 1,
+					api_key_rebind_targets: 1,
+				},
+			},
+		});
+
+		const { container } = render(<SettingBackup />);
+		await selectImportMode('map');
+		fireEvent.change(getFileInput(container), { target: { files: [selectedFile] } });
+		fireEvent.click(screen.getByTestId('backup-import-button'));
+
+		await screen.findByTestId('backup-pending-apply-ready');
+		expect(screen.getByTestId('backup-import-summary-rebinds')).toHaveTextContent('凭证重绑定：2');
+		expect(screen.getByTestId('backup-import-summary-rebinds')).toHaveAttribute('data-raw-value', '2');
+	});
+
 	it('shows replace-prune preview and requires confirmation in replace mode', async () => {
 		const selectedFile = new File(['{"snapshot":true}'], 'snapshot-replace.json', { type: 'application/json' });
 		mocks.importMutateAsyncMock.mockImplementation(async (payload: any) => {
@@ -645,6 +688,9 @@ describe('SettingBackup', () => {
 					compatibility: {
 						conflicts: ['replace conflict'],
 						credential_rebind_targets: [{ target_type: 'channel_key' }],
+						replace_prune_preview: {
+							warnings: ['API key cleanup preview excludes credentials that are absent from this snapshot'],
+						},
 						replace_pruned_channels: ['legacy-channel'],
 						replace_pruned_groups: ['legacy-group'],
 						replace_pruned_settings: ['proxy_url'],
@@ -717,6 +763,9 @@ describe('SettingBackup', () => {
 		expect(screen.getByTestId('backup-replace-prune-section-apiKeys')).toBeInTheDocument();
 		expect(screen.getByTestId('backup-replace-prune-section-title-apiKeys')).toHaveTextContent('待删除 API 密钥');
 		expect(screen.getByTestId('backup-replace-prune-section-item-apiKeys-0')).toHaveTextContent('client-key');
+		expect(screen.getByTestId('backup-replace-prune-section-warnings')).toBeInTheDocument();
+		expect(screen.getByTestId('backup-replace-prune-section-title-warnings')).toHaveTextContent('额外提示');
+		expect(screen.getByTestId('backup-replace-prune-section-item-warnings-0')).toHaveTextContent('API key cleanup preview excludes credentials that are absent from this snapshot');
 		const applyButton = screen.getByTestId('backup-apply-same-import-button');
 		expect(applyButton).toBeDisabled();
 		expect(screen.getByTestId('backup-apply-confirm-panel')).toBeInTheDocument();
@@ -764,12 +813,27 @@ describe('SettingBackup', () => {
 			snapshot_name: 'snapshot-selected-lock',
 			applied_scopes: payload.importScopes,
 			manifest: { encrypted: undefined, contains_secrets: true, schema_version: '10' },
-			rows_summary: { channels: 1 },
+			rows_summary: {
+				channels: 1,
+				users: 2,
+				migration_records: 1,
+				ai_tasks: 1,
+				ai_prompt_templates: 1,
+				dynamic_route_learning_states: 1,
+			},
 			compatibility: {
 				conflicts: ['channel conflict'],
 				alias_conflicts: ['alias conflict: rollback-vision -> gpt-4.1'],
 				route_conflicts: ['route conflict: rollback-group -> legacy-model'],
-				credential_rebind_targets: [{ target_type: 'channel_key', channel_name: 'Primary', key_name: 'key-1', models: ['gpt-4o'], affected_groups: ['group-a'] }],
+				credential_rebind_targets: [
+					{ target_type: 'channel_key', channel_name: 'Primary', key_name: 'key-1', models: ['gpt-4o'], affected_groups: ['group-a'] },
+					{ target_type: 'api_key', key_name: 'rollback-client-key', affected_groups: ['group-b'] },
+				],
+				summary: {
+					credential_rebind_targets: 1,
+					channel_key_rebind_targets: 1,
+					api_key_rebind_targets: 1,
+				},
 				affected_groups: ['group-a'],
 				affected_channels: ['Primary'],
 				missing_providers: ['rollback-provider'],
@@ -845,10 +909,10 @@ describe('SettingBackup', () => {
 		expect(screen.getByTestId('backup-rollback-preview-summary-grid')).toBeInTheDocument();
 		expect(screen.getByTestId('backup-rollback-preview-summary-conflicts')).toHaveTextContent('Compatibility Conflicts：1');
 		expect(screen.getByTestId('backup-rollback-preview-summary-conflicts')).toHaveAttribute('data-raw-value', '1');
-		expect(screen.getByTestId('backup-rollback-preview-summary-rebinds')).toHaveTextContent('Credential Rebinds：1');
-		expect(screen.getByTestId('backup-rollback-preview-summary-rebinds')).toHaveAttribute('data-raw-value', '1');
-		expect(screen.getByTestId('backup-rollback-preview-summary-warnings')).toHaveTextContent('Preview Warnings：1');
-		expect(screen.getByTestId('backup-rollback-preview-summary-warnings')).toHaveAttribute('data-raw-value', '1');
+		expect(screen.getByTestId('backup-rollback-preview-summary-rebinds')).toHaveTextContent('Credential Rebinds：2');
+		expect(screen.getByTestId('backup-rollback-preview-summary-rebinds')).toHaveAttribute('data-raw-value', '2');
+		expect(screen.getByTestId('backup-rollback-preview-summary-warnings')).toHaveTextContent('Preview Warnings：2');
+		expect(screen.getByTestId('backup-rollback-preview-summary-warnings')).toHaveAttribute('data-raw-value', '2');
 		expect(screen.getByTestId('backup-rollback-preview-meta-grid')).toBeInTheDocument();
 		expect(screen.getByTestId('backup-rollback-preview-meta-scope')).toHaveTextContent('Rollback Scope：Models, API keys, Settings');
 		expect(screen.getByTestId('backup-rollback-preview-meta-scope')).toHaveAttribute('data-raw-value', 'models,api_keys,settings');
@@ -862,7 +926,7 @@ describe('SettingBackup', () => {
 		expect(screen.getByTestId('backup-rollback-signal-title')).toHaveTextContent('Recommended Rollback Steps');
 		expect(screen.getByTestId('backup-rollback-signal-summary')).toHaveTextContent('Start with the summary signals');
 		expect(screen.getByTestId('backup-rollback-signal-list')).toBeInTheDocument();
-		expect(screen.getByTestId('backup-rollback-signal-list')).toHaveTextContent('Rollback preview emitted 1 warnings.');
+		expect(screen.getByTestId('backup-rollback-signal-list')).toHaveTextContent('Rollback preview emitted 2 warnings.');
 		expect(screen.getByTestId('backup-rollback-signal-list')).toHaveTextContent('Rollback preview found 1 conflicts.');
 		expect(screen.getByTestId('backup-rollback-signal-list')).toHaveTextContent('Channel-key credential rebind is required for 1 restored targets.');
 		expect(screen.getByTestId('backup-rollback-signal-list')).toHaveTextContent('Rollback diagnostics marked 5 current records for removal or reset.');
@@ -878,6 +942,7 @@ describe('SettingBackup', () => {
 		expect(screen.getByTestId('backup-rollback-preview-warnings-title')).toHaveTextContent('Rollback Preview Warnings');
 		expect(screen.getByTestId('backup-rollback-preview-warnings-summary')).toHaveTextContent('These warnings come from the rollback preview itself');
 		expect(screen.getByTestId('backup-rollback-preview-warnings-list-item-0')).toHaveTextContent('route preview needs manual review');
+		expect(screen.getByTestId('backup-rollback-preview-warnings-list-item-1')).toHaveTextContent('rollback route may degrade');
 		expect(screen.getByTestId('backup-rollback-compatibility-panel')).toBeInTheDocument();
 		expect(screen.getByTestId('backup-rollback-compatibility-title')).toHaveTextContent('Rollback compatibility details');
 		expect(screen.getByTestId('backup-rollback-compatibility-conflicts-item-0')).toHaveTextContent('channel conflict');
@@ -890,6 +955,12 @@ describe('SettingBackup', () => {
 		expect(screen.getByTestId('backup-rollback-compatibility-base-url-mismatches-item-0')).toHaveTextContent('rollback-channel');
 		expect(screen.getByTestId('backup-rollback-compatibility-schema-mismatches-item-0')).toHaveTextContent('snapshot schema:v2 differs');
 		expect(screen.getByTestId('backup-rollback-compatibility-skipped-targets-item-0')).toHaveTextContent('channel_key:101 empty credential');
+		expect(screen.getByTestId('backup-rollback-compatibility-rows-summary-title')).toHaveTextContent('High-risk restored objects');
+		expect(screen.getByTestId('backup-rollback-compatibility-rows-summary-item-0')).toHaveTextContent('Admin users: 2');
+		expect(screen.getByTestId('backup-rollback-compatibility-rows-summary-item-1')).toHaveTextContent('Migration records: 1');
+		expect(screen.getByTestId('backup-rollback-compatibility-rows-summary-item-2')).toHaveTextContent('AI tasks: 1');
+		expect(screen.getByTestId('backup-rollback-compatibility-rows-summary-item-3')).toHaveTextContent('AI prompt templates: 1');
+		expect(screen.getByTestId('backup-rollback-compatibility-rows-summary-item-4')).toHaveTextContent('Dynamic route learning states: 1');
 		expect(screen.getByTestId('backup-rollback-compatibility-credential-rebind-item-0')).toHaveTextContent('Primary');
 		expect(screen.getByTestId('backup-rollback-compatibility-replace-pruned-channels-title')).toHaveTextContent('Current channels removed by rollback');
 		expect(screen.getByTestId('backup-rollback-compatibility-replace-pruned-channels-item-0')).toHaveTextContent('current-channel-a');
@@ -991,5 +1062,78 @@ describe('SettingBackup', () => {
 			snapshotName: 'snapshot-fallback',
 			importScopes: undefined,
 		}));
+	});
+
+	it('keeps rollback rebind summary correct when only split summary counts are returned', async () => {
+		setLocale('en');
+		mocks.importSnapshotsState.data = [{
+			snapshot_name: 'snapshot-summary-only',
+			snapshot_path: 'snapshots/snapshot-summary-only.json',
+			imported_at: '2026-04-21T10:00:00Z',
+			size_bytes: 1024,
+			is_latest: true,
+		}];
+		mocks.previewRollbackMutateAsyncMock.mockImplementation(async (payload: any) => ({
+			snapshot_name: 'snapshot-summary-only',
+			applied_scopes: payload.importScopes,
+			manifest: { contains_secrets: true, schema_version: '10' },
+			rows_summary: { channels: 1 },
+			preview_warnings: [],
+			compatibility: {
+				summary: {
+					credential_rebind_targets: 1,
+					channel_key_rebind_targets: 1,
+					api_key_rebind_targets: 1,
+				},
+			},
+		}));
+
+		render(<SettingBackup />);
+		fireEvent.click(screen.getByTestId('backup-history-trigger'));
+		const historyItem = await screen.findByTestId('backup-history-item-snapshot-summary-only');
+		fireEvent.click(within(historyItem).getByTestId('backup-history-preview-button'));
+
+		await screen.findByText('Rollback preview');
+		expect(screen.getByTestId('backup-rollback-preview-summary-rebinds')).toHaveTextContent('Credential Rebinds：2');
+		expect(screen.getByTestId('backup-rollback-preview-summary-rebinds')).toHaveAttribute('data-raw-value', '2');
+	});
+
+	it('merges rollback preview warnings with compatibility route-preview warnings without double counting', async () => {
+		setLocale('en');
+		mocks.importSnapshotsState.data = [{
+			snapshot_name: 'snapshot-warning-merge',
+			snapshot_path: 'snapshots/snapshot-warning-merge.json',
+			imported_at: '2026-04-21T10:00:00Z',
+			size_bytes: 1024,
+			is_latest: true,
+		}];
+		mocks.previewRollbackMutateAsyncMock.mockImplementation(async (payload: any) => ({
+			snapshot_name: 'snapshot-warning-merge',
+			applied_scopes: payload.importScopes,
+			manifest: { contains_secrets: true, schema_version: '10' },
+			rows_summary: { channels: 1 },
+			preview_warnings: ['route preview needs manual review'],
+			compatibility: {
+				route_preview_warnings: ['rollback route may degrade', 'route preview needs manual review'],
+				summary: {
+					route_preview_warnings: 1,
+				},
+			},
+		}));
+
+		render(<SettingBackup />);
+		fireEvent.click(screen.getByTestId('backup-history-trigger'));
+		const historyItem = await screen.findByTestId('backup-history-item-snapshot-warning-merge');
+		fireEvent.click(within(historyItem).getByTestId('backup-history-preview-button'));
+
+		await screen.findByText('Rollback preview');
+		expect(screen.getByTestId('backup-rollback-preview-summary-warnings')).toHaveTextContent('Preview Warnings：2');
+		expect(screen.getByTestId('backup-rollback-preview-summary-warnings')).toHaveAttribute('data-raw-value', '2');
+		expect(screen.getByTestId('backup-rollback-signal-list')).toHaveTextContent('Rollback preview emitted 2 warnings.');
+		expect(screen.getByTestId('backup-rollback-guidance-item-0')).toHaveTextContent('Review post-rollback route and policy drift');
+		expect(screen.getByTestId('backup-rollback-guidance-item-0')).toHaveTextContent('2 route warnings');
+		expect(screen.getByTestId('backup-rollback-preview-warnings-list-item-0')).toHaveTextContent('route preview needs manual review');
+		expect(screen.getByTestId('backup-rollback-preview-warnings-list-item-1')).toHaveTextContent('rollback route may degrade');
+		expect(screen.queryByTestId('backup-rollback-preview-warnings-list-item-2')).not.toBeInTheDocument();
 	});
 });

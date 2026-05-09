@@ -106,6 +106,7 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
                 <Field>
                   <FieldLabel htmlFor="username">{t('username')}</FieldLabel>
                   <Input
+                    data-testid="login-username-input"
                     id="username"
                     type="text"
                     placeholder={t('usernamePlaceholder')}
@@ -118,6 +119,7 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
                 <Field>
                   <FieldLabel htmlFor="password">{t('password')}</FieldLabel>
                   <Input
+                    data-testid="login-password-input"
                     id="password"
                     type="password"
                     placeholder={t('passwordPlaceholder')}
@@ -147,7 +149,9 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
             {error && <FieldDescription className="text-destructive">{error}</FieldDescription>}
 
             <Button type="submit" disabled={isPending} className="w-full">
+              <span data-testid="login-submit-label" className="contents">
               {isPending ? t('button.loading') : t('button.submit')}
+              </span>
             </Button>
           </form>
         </Tabs>

@@ -22,6 +22,7 @@
     "test:setting-info-logic": "node ../scripts/verify-setting-info-logic.mjs",
     "test:ai-config-profile-summary": "node ../scripts/verify-ai-config-profile-summary.mjs",
     "test:ai-learning-focus": "node ../scripts/verify-ai-automation-learning-focus.mjs",
+    "test:ai-governance-smoke": "node ../scripts/verify-ai-governance-browser-smoke.mjs --check-only",
     "test:settings-no-browser": "node ../scripts/run-frontend-verification-suite.mjs settings",
     "test:screenshot-no-browser": "node ../scripts/run-frontend-verification-suite.mjs screenshot"
   },

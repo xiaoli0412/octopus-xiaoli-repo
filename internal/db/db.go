@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/glebarez/sqlite"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db/migrate"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
-	"github.com/glebarez/sqlite"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -74,6 +74,10 @@ func InitDB(dbType, dsn string, debug bool) error {
 		&model.AIModelClassificationProfile{},
 		&model.AIConfigHealthProfile{},
 		&model.DynamicRouteLearningState{},
+		&model.GovernanceSession{},
+		&model.GovernanceApplyRun{},
+		&model.GovernanceRollbackPoint{},
+		&model.StrategyProfile{},
 		&model.APIKey{},
 		&model.Setting{},
 		&model.StatsTotal{},

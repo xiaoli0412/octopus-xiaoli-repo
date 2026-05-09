@@ -104,7 +104,7 @@ func ChannelKeyUpdate(key model.ChannelKey) error {
 	return nil
 }
 
-func ChannelBaseUrlUpdate(channelID int, baseUrl []model.BaseUrl) error {
+func ChannelBaseUrlUpdate(channelID int, baseUrl []model.BaseUrl, ctx context.Context) error {
 	ch, ok := channelCache.Get(channelID)
 	if !ok {
 		return fmt.Errorf("channel not found")
@@ -112,6 +112,13 @@ func ChannelBaseUrlUpdate(channelID int, baseUrl []model.BaseUrl) error {
 	validatedBaseURLs, err := normalizeAndValidateBaseURLs(baseUrl)
 	if err != nil {
 		return err
+	}
+	result := db.GetDB().WithContext(ctx).Model(&model.Channel{}).Where("id = ?", channelID).Select("base_urls").Updates(&model.Channel{BaseUrls: validatedBaseURLs})
+	if result.Error != nil {
+		return fmt.Errorf("failed to persist base urls: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("channel not found")
 	}
 	ch.BaseUrls = validatedBaseURLs
 	channelCache.Set(channelID, ch)

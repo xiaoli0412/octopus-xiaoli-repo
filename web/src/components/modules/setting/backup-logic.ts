@@ -19,6 +19,7 @@ type CompatibilitySummaryLike = {
 	route_conflicts?: number;
 	invalid_route_targets?: number;
 	skipped_route_target_previews?: number;
+	route_preview_warnings?: number;
 	route_preview_diffs?: number;
 	base_url_mismatches?: number;
 	schema_mismatches?: number;
@@ -276,22 +277,33 @@ function t(locale: BackupLogicLocale, text: { 'zh-Hans': string; 'zh-Hant'?: str
 }
 
 function getCompatibilityCount(summaryValue: number | undefined, items: unknown[] | undefined) {
-	if (typeof summaryValue === 'number') return summaryValue;
-	return Array.isArray(items) ? items.length : 0;
+	return getSummaryOrFallbackCount(summaryValue, Array.isArray(items) ? items.length : 0);
 }
 
 function getSummaryOrListCount(summaryValue: number | undefined, items: unknown[] | undefined) {
-	if (typeof summaryValue === 'number') return summaryValue;
-	return Array.isArray(items) ? items.length : 0;
+	return getSummaryOrFallbackCount(summaryValue, Array.isArray(items) ? items.length : 0);
+}
+
+function getSummaryOrFallbackCount(summaryValue: number | undefined, fallbackValue: number) {
+	if (typeof summaryValue !== 'number') return fallbackValue;
+	return Math.max(summaryValue, fallbackValue);
+}
+
+export function getEffectiveCredentialRebindCount(counts: {
+	credentialRebindTargets: number;
+	channelKeyRebindTargets: number;
+	apiKeyRebindTargets: number;
+}) {
+	return Math.max(counts.credentialRebindTargets, counts.channelKeyRebindTargets + counts.apiKeyRebindTargets);
 }
 
 function countStructuredReplacePrunedItems(compatibility: CompatibilityLike | undefined) {
 	if (!compatibility) return 0;
-	return (compatibility.summary?.replace_pruned_channels ?? compatibility.replace_pruned_channels?.length ?? 0)
-		+ (compatibility.summary?.replace_pruned_groups ?? compatibility.replace_pruned_groups?.length ?? 0)
-		+ (compatibility.summary?.replace_pruned_settings ?? compatibility.replace_pruned_settings?.length ?? 0)
-		+ (compatibility.summary?.replace_pruned_llm_infos ?? compatibility.replace_pruned_llm_infos?.length ?? 0)
-		+ (compatibility.summary?.replace_pruned_api_keys ?? compatibility.replace_pruned_api_keys?.length ?? 0);
+	return getSummaryOrFallbackCount(compatibility.summary?.replace_pruned_channels, compatibility.replace_pruned_channels?.length ?? 0)
+		+ getSummaryOrFallbackCount(compatibility.summary?.replace_pruned_groups, compatibility.replace_pruned_groups?.length ?? 0)
+		+ getSummaryOrFallbackCount(compatibility.summary?.replace_pruned_settings, compatibility.replace_pruned_settings?.length ?? 0)
+		+ getSummaryOrFallbackCount(compatibility.summary?.replace_pruned_llm_infos, compatibility.replace_pruned_llm_infos?.length ?? 0)
+		+ getSummaryOrFallbackCount(compatibility.summary?.replace_pruned_api_keys, compatibility.replace_pruned_api_keys?.length ?? 0);
 }
 
 function joinLocalizedList(items: string[] | undefined, locale: BackupLogicLocale) {
@@ -810,6 +822,27 @@ export function getRoutePreviewWarningItems(warnings?: readonly unknown[], local
 	return localizeDiagnosticList((warnings ?? []).map((item) => String(item ?? '')), locale).map((item) => normalizeLocalizedDetailText(item, locale));
 }
 
+export function getMergedRoutePreviewWarningItems(
+	warningGroups: ReadonlyArray<readonly unknown[] | undefined>,
+	locale: BackupLogicLocale = 'zh-Hans',
+) {
+	const merged: string[] = [];
+	const seen = new Set<string>();
+
+	for (const warnings of warningGroups) {
+		for (const item of warnings ?? []) {
+			const raw = String(item ?? '').trim();
+			if (!raw || seen.has(raw)) {
+				continue;
+			}
+			seen.add(raw);
+			merged.push(raw);
+		}
+	}
+
+	return getRoutePreviewWarningItems(merged, locale);
+}
+
 export function getRoutePreviewDiffItems(diffs?: readonly unknown[], locale: BackupLogicLocale = 'zh-Hans') {
 	return (diffs ?? []).map((item) => normalizeLocalizedDetailText(formatRoutePreviewDiff(item as RoutePreviewDiffLike, locale), locale));
 }
@@ -849,21 +882,30 @@ export function getReplacePrunedBreakdownItems(breakdown: ReplacePrunedBreakdown
 export function getCompatibilityCounts(compatibility: CompatibilityLike | undefined): CompatibilityCounts {
 	const modelMappingPreviews = compatibility?.model_mapping_previews ?? [];
 	const credentialRebindTargets = compatibility?.credential_rebind_targets ?? [];
+	const rawCredentialRebindTargets = getCompatibilityCount(compatibility?.summary?.credential_rebind_targets, compatibility?.credential_rebind_targets);
+	const channelKeyRebindTargets = getSummaryOrFallbackCount(
+		compatibility?.summary?.channel_key_rebind_targets,
+		credentialRebindTargets.filter((item) => item.target_type === 'channel_key').length,
+	);
+	const apiKeyRebindTargets = getSummaryOrFallbackCount(
+		compatibility?.summary?.api_key_rebind_targets,
+		credentialRebindTargets.filter((item) => item.target_type === 'api_key').length,
+	);
 
 	return {
 		conflicts: getCompatibilityCount(compatibility?.summary?.conflicts, compatibility?.conflicts),
 		aliasConflicts: getCompatibilityCount(compatibility?.summary?.alias_conflicts, compatibility?.alias_conflicts),
 		routeConflicts: getCompatibilityCount(compatibility?.summary?.route_conflicts, compatibility?.route_conflicts),
-		credentialRebindTargets: getCompatibilityCount(compatibility?.summary?.credential_rebind_targets, compatibility?.credential_rebind_targets),
-		channelKeyRebindTargets: typeof compatibility?.summary?.channel_key_rebind_targets === 'number'
-			? compatibility.summary.channel_key_rebind_targets
-			: credentialRebindTargets.filter((item) => item.target_type === 'channel_key').length,
-		apiKeyRebindTargets: typeof compatibility?.summary?.api_key_rebind_targets === 'number'
-			? compatibility.summary.api_key_rebind_targets
-			: credentialRebindTargets.filter((item) => item.target_type === 'api_key').length,
+		credentialRebindTargets: getEffectiveCredentialRebindCount({
+			credentialRebindTargets: rawCredentialRebindTargets,
+			channelKeyRebindTargets,
+			apiKeyRebindTargets,
+		}),
+		channelKeyRebindTargets,
+		apiKeyRebindTargets,
 		invalidRouteTargets: getCompatibilityCount(compatibility?.summary?.invalid_route_targets, compatibility?.invalid_route_targets),
 		skippedRouteTargetPreviews: getCompatibilityCount(compatibility?.summary?.skipped_route_target_previews, compatibility?.skipped_route_target_previews),
-		routePreviewWarnings: compatibility?.route_preview_warnings?.length ?? 0,
+		routePreviewWarnings: getCompatibilityCount(compatibility?.summary?.route_preview_warnings, compatibility?.route_preview_warnings),
 		routePreviewDiffs: getCompatibilityCount(compatibility?.summary?.route_preview_diffs, compatibility?.route_preview_diffs),
 		missingProviders: getCompatibilityCount(compatibility?.summary?.missing_providers, compatibility?.missing_providers),
 		missingModels: getCompatibilityCount(compatibility?.summary?.missing_models, compatibility?.missing_models),
@@ -871,15 +913,18 @@ export function getCompatibilityCounts(compatibility: CompatibilityLike | undefi
 		schemaMismatches: getCompatibilityCount(compatibility?.summary?.schema_mismatches, compatibility?.schema_mismatches),
 		skippedTargets: getCompatibilityCount(compatibility?.summary?.skipped_targets, compatibility?.skipped_targets),
 		modelMappingPreviews: getCompatibilityCount(compatibility?.summary?.model_mapping_previews, compatibility?.model_mapping_previews),
-		usedModelMappings: typeof compatibility?.summary?.used_model_mappings === 'number'
-			? compatibility.summary.used_model_mappings
-			: modelMappingPreviews.filter((item) => item.used).length,
-		unusedModelMappings: typeof compatibility?.summary?.unused_model_mappings === 'number'
-			? compatibility.summary.unused_model_mappings
-			: modelMappingPreviews.filter((item) => !item.used).length,
-		missingMappingTargets: typeof compatibility?.summary?.missing_mapping_targets === 'number'
-			? compatibility.summary.missing_mapping_targets
-			: modelMappingPreviews.filter((item) => item.used && item.target_exists === false).length,
+		usedModelMappings: getSummaryOrFallbackCount(
+			compatibility?.summary?.used_model_mappings,
+			modelMappingPreviews.filter((item) => item.used).length,
+		),
+		unusedModelMappings: getSummaryOrFallbackCount(
+			compatibility?.summary?.unused_model_mappings,
+			modelMappingPreviews.filter((item) => !item.used).length,
+		),
+		missingMappingTargets: getSummaryOrFallbackCount(
+			compatibility?.summary?.missing_mapping_targets,
+			modelMappingPreviews.filter((item) => item.used && item.target_exists === false).length,
+		),
 		aliasPreviewMappings: getCompatibilityCount(compatibility?.summary?.alias_preview_mappings, compatibility?.alias_preview_mappings),
 		modelPolicyDiffs: getCompatibilityCount(compatibility?.summary?.model_policy_diffs, compatibility?.model_policy_diffs),
 		replacePrunedTargets: countStructuredReplacePrunedItems(compatibility),
@@ -889,6 +934,7 @@ export function getCompatibilityCounts(compatibility: CompatibilityLike | undefi
 export function getCompatibilityOverview(input: CompatibilityOverviewInput) {
 	const counts = input.counts;
 	const locale = (input as CompatibilityOverviewInput & { locale?: BackupLogicLocale }).locale ?? 'zh-Hans';
+	const totalCredentialRebindTargets = getEffectiveCredentialRebindCount(counts);
 	let tone: SummaryTone = 'safe';
 
 	if (
@@ -901,7 +947,7 @@ export function getCompatibilityOverview(input: CompatibilityOverviewInput) {
 		tone = 'danger';
 	} else if (
 		counts.aliasConflicts > 0
-		|| counts.credentialRebindTargets > 0
+		|| totalCredentialRebindTargets > 0
 		|| counts.missingProviders > 0
 		|| counts.missingModels > 0
 		|| counts.skippedTargets > 0
@@ -1051,8 +1097,9 @@ export function buildCompatibilitySignalItems(input: CompatibilitySignalItemsInp
 	const targetLabel = kind === 'rollback'
 		? t(locale, { 'zh-Hans': '回滚目标', 'zh-Hant': '回滾目標', en: 'restored targets', ja: '復元対象' })
 		: t(locale, { 'zh-Hans': '导入目标', 'zh-Hant': '導入目標', en: 'imported targets', ja: 'インポート対象' });
+	const totalCredentialRebindTargets = getEffectiveCredentialRebindCount(counts);
 	const genericCredentialRebindTargets = Math.max(
-		counts.credentialRebindTargets - counts.channelKeyRebindTargets - counts.apiKeyRebindTargets,
+		totalCredentialRebindTargets - counts.channelKeyRebindTargets - counts.apiKeyRebindTargets,
 		0,
 	);
 	const items: string[] = [];
@@ -1299,6 +1346,7 @@ export function buildImportCompatibilityGuidanceItems(input: CompatibilityGuidan
 	const { compatibility, counts, effectiveMode, kind = 'import' } = input;
 	const locale = input.locale ?? 'zh-Hans';
 	const items: CompatibilityGuidanceItem[] = [];
+	const totalCredentialRebindTargets = getEffectiveCredentialRebindCount(counts);
 	const missingProviderNames = compatibility?.missing_providers ?? [];
 	const missingModelNames = getMissingModelMappingItems(compatibility?.model_mapping_previews, locale);
 	const unusedModelNames = getUnusedModelMappingItems(compatibility?.model_mapping_previews, locale);
@@ -1421,7 +1469,7 @@ export function buildImportCompatibilityGuidanceItems(input: CompatibilityGuidan
 		});
 	}
 
-	if (counts.credentialRebindTargets > 0) {
+	if (totalCredentialRebindTargets > 0) {
 		const examples = collectExampleText(credentialTargets, locale);
 		items.push({
 			key: 'credential-rebind',

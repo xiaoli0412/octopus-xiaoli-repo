@@ -72,7 +72,12 @@ func getStatsAPIKey(c *gin.Context) {
 }
 
 func getStatsTokenBreakdown(c *gin.Context) {
-	breakdown := op.StatsTokenBreakdownGet()
+	window, _, err := parseOptionalNonEmptyTrimmedStringQuery(c, "window")
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	breakdown := op.StatsTokenBreakdownGetByWindow(window)
 	probeSummary := op.ProbeSummaryGet(24 * time.Hour)
 	breakdown.EstimatedProbeInputCost = probeSummary.EstimatedInputCost
 	breakdown.EstimatedProbeOutputCost = probeSummary.EstimatedOutputCost

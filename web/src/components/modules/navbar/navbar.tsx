@@ -30,6 +30,7 @@ export function NavBar() {
                     return (
                         <motion.button
                             key={route.id}
+                            data-testid={`navbar-route-${route.id}`}
                             type="button"
                             onClick={() => setActiveItem(route.id as NavItem)}
                             onMouseEnter={() => preload(route.id)}

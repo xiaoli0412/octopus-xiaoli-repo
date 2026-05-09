@@ -1470,17 +1470,29 @@ func TestRunRaceFallbackRecordsUnavailableCandidates(t *testing.T) {
 func TestRunRaceFallbackPrefersEarlierSuccessfulCandidate(t *testing.T) {
 	ctxDB := setupRelayTestDB(t)
 	modelName := strings.ToLower(strings.ReplaceAll(t.Name(), "/", "-"))
+	if err := op.LLMCreate(dbmodel.LLMInfo{
+		Name:                  modelName,
+		BillingMode:           dbmodel.BillingModePerToken,
+		ProbePolicy:           dbmodel.ProbePolicyConcurrent,
+		ProbeConcurrencyLimit: 2,
+		LLMPrice: dbmodel.LLMPrice{
+			Input:  2,
+			Output: 4,
+		},
+	}, ctxDB); err != nil {
+		t.Fatalf("LLMCreate() error = %v", err)
+	}
 
 	fastSecond := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(50 * time.Millisecond)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"earlier-success","object":"chat.completion","created":1,"model":"` + modelName + `","choices":[{"index":0,"message":{"role":"assistant","content":"earlier"}}]}`))
+		_, _ = w.Write([]byte(`{"id":"earlier-success","object":"chat.completion","created":1,"model":"` + modelName + `","choices":[{"index":0,"message":{"role":"assistant","content":"earlier"}}],"usage":{"prompt_tokens":5,"completion_tokens":7,"total_tokens":12}}`))
 	}))
 	defer fastSecond.Close()
 
 	slowerThird := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"later-success","object":"chat.completion","created":1,"model":"` + modelName + `","choices":[{"index":0,"message":{"role":"assistant","content":"later"}}]}`))
+		_, _ = w.Write([]byte(`{"id":"later-success","object":"chat.completion","created":1,"model":"` + modelName + `","choices":[{"index":0,"message":{"role":"assistant","content":"later"}}],"usage":{"prompt_tokens":11,"completion_tokens":13,"total_tokens":24}}`))
 	}))
 	defer slowerThird.Close()
 
@@ -1556,6 +1568,43 @@ func TestRunRaceFallbackPrefersEarlierSuccessfulCandidate(t *testing.T) {
 	}
 	if result.Channel.ID != second.ID {
 		t.Fatalf("race winner channel id = %d, want earlier candidate %d", result.Channel.ID, second.ID)
+	}
+
+	attempts := iter.Attempts()
+	foundWinner := false
+	foundLaterSuccess := false
+	for _, attempt := range attempts {
+		if attempt.ChannelID == second.ID && attempt.Status == dbmodel.AttemptSuccess {
+			foundWinner = true
+		}
+		if attempt.ChannelID == third.ID && attempt.Status == dbmodel.AttemptCanceled {
+			foundLaterSuccess = true
+		}
+	}
+	if !foundWinner {
+		t.Fatalf("attempts = %#v, want winner attempt record for second candidate", attempts)
+	}
+	if !foundLaterSuccess {
+		t.Fatalf("attempts = %#v, want canceled record for later successful probe", attempts)
+	}
+
+	refreshedThird, err := op.ChannelGet(third.ID, ctxDB)
+	if err != nil {
+		t.Fatalf("ChannelGet(third) error = %v", err)
+	}
+	if len(refreshedThird.Keys) != 1 {
+		t.Fatalf("refreshedThird.Keys len = %d, want 1", len(refreshedThird.Keys))
+	}
+	if got := refreshedThird.Keys[0].TotalCost; got <= 0 {
+		t.Fatalf("third key total_cost = %f, want > 0 after successful non-selected probe", got)
+	}
+
+	probeSummary := op.ProbeSummaryGet(24 * time.Hour)
+	if probeSummary.SuccessCount < 2 {
+		t.Fatalf("ProbeSummary success count = %d, want at least 2", probeSummary.SuccessCount)
+	}
+	if probeSummary.EstimatedTotalCost <= 0 {
+		t.Fatalf("ProbeSummary estimated total cost = %f, want > 0 for successful non-selected probe", probeSummary.EstimatedTotalCost)
 	}
 }
 

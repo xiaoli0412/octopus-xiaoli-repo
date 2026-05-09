@@ -1272,11 +1272,27 @@
       "successRate": "成功率"
     },
     "chart": {
+      "title": "趋势",
+      "subtitle": "按金额、请求次数和令牌消耗查看趋势变化，并切换图表形态进行巡检。",
       "totalRequests": "请求次数",
       "totalCost": "消费金额",
       "channelUsage": "渠道用量",
       "tokenUsage": "令牌用量",
       "timePeriod": "时间范围",
+      "peakValue": "峰值",
+      "avgValue": "平均值",
+      "latestValue": "最近值",
+      "metric": {
+        "cost": "金额",
+        "count": "次数",
+        "token": "令牌"
+      },
+      "view": {
+        "area": "面积图",
+        "line": "折线图",
+        "bar": "柱状图",
+        "heatmap": "热力图"
+      },
       "period": {
         "today": "今天",
         "last7Days": "7天",
@@ -1287,10 +1303,12 @@
       "title": "排行榜",
       "sortByCost": "金额",
       "sortByCount": "次数",
+      "sortByToken": "令牌",
       "noData": "暂无排行数据",
       "successRate": "成功率",
       "requestCount": "请求数",
-      "channelUsage": "令牌"
+      "channelUsage": "令牌消耗",
+      "subtitle": "按金额、请求次数和令牌消耗查看渠道表现。"
     },
     "tokenBreakdown": {
       "title": "令牌明细",
@@ -1301,6 +1319,8 @@
       "byProvider": "按供应商",
       "byChannel": "按渠道",
       "byModel": "按模型",
+      "byAPIKey": "按分发密钥",
+      "byChannelKey": "按供应商密钥",
       "estimatedPriceTitle": "估算价格摘要",
       "estimatedGateway": "估算网关价格",
       "estimatedOfficial": "估算官方价格",
@@ -1331,6 +1351,13 @@
       "showMoreLists": "展开更多排行",
       "hideMoreLists": "收起更多排行",
       "topItems": "{count} 项",
+      "window": {
+        "12h": "12 小时",
+        "1d": "1 天",
+        "3d": "3 天",
+        "7d": "7 天",
+        "30d": "30 天"
+      },
       "expand": "查看更多",
       "collapse": "收起",
       "providerOpenAICompatible": "OpenAI 兼容",

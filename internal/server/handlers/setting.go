@@ -31,6 +31,38 @@ const (
 
 var maxDBImportPayloadBytes int64 = 128 << 20
 var maxDBImportFileBytes int64 = 128 << 20
+var refreshCachesAfterMutableSettingOperation = op.InitCache
+var syncMutableSettingTasksAfterCacheRefresh = syncMutableSettingTasksFromCache
+
+func respondMutableSettingOperationRefreshFailure(c *gin.Context, operation string, err error) {
+	resp.Error(c, http.StatusInternalServerError, fmt.Sprintf("%s succeeded but cache refresh failed: %v", operation, err))
+}
+
+func respondMutableSettingOperationTaskSyncFailure(c *gin.Context, operation string, err error) {
+	resp.Error(c, http.StatusInternalServerError, fmt.Sprintf("%s succeeded but task schedule sync failed: %v", operation, err))
+}
+
+func syncMutableSettingTasksFromCache() error {
+	statsSaveIntervalMinutes, err := op.SettingGetInt(model.SettingKeyStatsSaveInterval)
+	if err != nil {
+		return fmt.Errorf("load %s: %w", model.SettingKeyStatsSaveInterval, err)
+	}
+	task.Update(string(model.SettingKeyStatsSaveInterval), time.Duration(statsSaveIntervalMinutes)*time.Minute)
+
+	modelInfoUpdateIntervalHours, err := op.SettingGetInt(model.SettingKeyModelInfoUpdateInterval)
+	if err != nil {
+		return fmt.Errorf("load %s: %w", model.SettingKeyModelInfoUpdateInterval, err)
+	}
+	task.Update(string(model.SettingKeyModelInfoUpdateInterval), time.Duration(modelInfoUpdateIntervalHours)*time.Hour)
+
+	syncLLMIntervalHours, err := op.SettingGetInt(model.SettingKeySyncLLMInterval)
+	if err != nil {
+		return fmt.Errorf("load %s: %w", model.SettingKeySyncLLMInterval, err)
+	}
+	task.Update(string(model.SettingKeySyncLLMInterval), time.Duration(syncLLMIntervalHours)*time.Hour)
+
+	return nil
+}
 
 func init() {
 	router.NewGroupRouter("/api/v1/setting").
@@ -178,52 +210,27 @@ func importDB(c *gin.Context) {
 	options := model.DBImportOptions{}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxDBImportPayloadBytes)
 	contentType := c.GetHeader("Content-Type")
-	previewToken, _, err := parseOptionalNonEmptyTrimmedPostForm(c, "preview_token")
-	if err != nil {
-		resp.Error(c, http.StatusBadRequest, err.Error())
-		return
-	}
-	if previewToken == "" {
-		previewToken, _, err = parseOptionalNonEmptyTrimmedHeader(c, "X-Octopus-Import-Preview-Token")
-		if err != nil {
-			resp.Error(c, http.StatusBadRequest, "invalid preview_token")
-			return
-		}
-	}
-	rawModelMappings, _, err := parseOptionalNonEmptyTrimmedPostForm(c, "model_mappings")
-	if err != nil {
-		resp.Error(c, http.StatusBadRequest, err.Error())
-		return
-	}
-	if rawModelMappings != "" {
-		if err := json.Unmarshal([]byte(rawModelMappings), &options.ModelMappings); err != nil {
-			resp.Error(c, http.StatusBadRequest, "invalid model_mappings json")
-			return
-		}
-		if err := validateImportModelMappings(options.ModelMappings); err != nil {
-			resp.Error(c, http.StatusBadRequest, err.Error())
-			return
-		}
-	}
-	rawImportScopes, _, err := parseOptionalNonEmptyTrimmedPostForm(c, "import_scopes")
-	if err != nil {
-		resp.Error(c, http.StatusBadRequest, err.Error())
-		return
-	}
-	if rawImportScopes != "" {
-		var scopes model.DBImportScopes
-		if err := json.Unmarshal([]byte(rawImportScopes), &scopes); err != nil {
-			resp.Error(c, http.StatusBadRequest, "invalid import_scopes json")
-			return
-		}
-		if err := validateImportScopes(&scopes); err != nil {
-			resp.Error(c, http.StatusBadRequest, err.Error())
-			return
-		}
-		options.ImportScopes = &scopes
-	}
+	previewToken := ""
+	rawModelMappings := ""
+	rawImportScopes := ""
 
 	if strings.Contains(contentType, "multipart/form-data") {
+		previewToken, _, err = parseOptionalNonEmptyTrimmedPostForm(c, "preview_token")
+		if err != nil {
+			resp.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		rawModelMappings, _, err = parseOptionalNonEmptyTrimmedPostForm(c, "model_mappings")
+		if err != nil {
+			resp.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		rawImportScopes, _, err = parseOptionalNonEmptyTrimmedPostForm(c, "import_scopes")
+		if err != nil {
+			resp.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
+
 		fh, err := c.FormFile("file")
 		if err != nil {
 			respondImportReadError(c, err, "missing upload file field 'file'")
@@ -249,6 +256,22 @@ func importDB(c *gin.Context) {
 			return
 		}
 	} else if isJSONMediaType(contentType) {
+		previewToken, _, err = parseOptionalNonEmptyTrimmedStringQuery(c, "preview_token")
+		if err != nil {
+			resp.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		rawModelMappings, _, err = parseOptionalNonEmptyTrimmedStringQuery(c, "model_mappings")
+		if err != nil {
+			resp.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		rawImportScopes, _, err = parseOptionalNonEmptyTrimmedStringQuery(c, "import_scopes")
+		if err != nil {
+			resp.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
+
 		body, err := io.ReadAll(c.Request.Body)
 		if err != nil {
 			respondImportReadError(c, err, err.Error())
@@ -261,6 +284,35 @@ func importDB(c *gin.Context) {
 	} else {
 		resp.Error(c, http.StatusUnsupportedMediaType, "import content type must be multipart/form-data or application/json")
 		return
+	}
+	if previewToken == "" {
+		previewToken, _, err = parseOptionalNonEmptyTrimmedHeader(c, "X-Octopus-Import-Preview-Token")
+		if err != nil {
+			resp.Error(c, http.StatusBadRequest, "invalid preview_token")
+			return
+		}
+	}
+	if rawModelMappings != "" {
+		if err := json.Unmarshal([]byte(rawModelMappings), &options.ModelMappings); err != nil {
+			resp.Error(c, http.StatusBadRequest, "invalid model_mappings json")
+			return
+		}
+		if err := validateImportModelMappings(options.ModelMappings); err != nil {
+			resp.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+	if rawImportScopes != "" {
+		var scopes model.DBImportScopes
+		if err := json.Unmarshal([]byte(rawImportScopes), &scopes); err != nil {
+			resp.Error(c, http.StatusBadRequest, "invalid import_scopes json")
+			return
+		}
+		if err := validateImportScopes(&scopes); err != nil {
+			resp.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		options.ImportScopes = &scopes
 	}
 
 	previewDigest, err := buildImportPreviewDigest(&dump, mode, options)
@@ -296,7 +348,14 @@ func importDB(c *gin.Context) {
 	}
 
 	if !dryRun {
-		_ = op.InitCache()
+		if err := refreshCachesAfterMutableSettingOperation(); err != nil {
+			respondMutableSettingOperationRefreshFailure(c, "import", err)
+			return
+		}
+		if err := syncMutableSettingTasksAfterCacheRefresh(); err != nil {
+			respondMutableSettingOperationTaskSyncFailure(c, "import", err)
+			return
+		}
 	}
 
 	resp.Success(c, result)
@@ -308,7 +367,14 @@ func rollbackLatestImportSnapshot(c *gin.Context) {
 		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	_ = op.InitCache()
+	if err := refreshCachesAfterMutableSettingOperation(); err != nil {
+		respondMutableSettingOperationRefreshFailure(c, "rollback latest import snapshot", err)
+		return
+	}
+	if err := syncMutableSettingTasksAfterCacheRefresh(); err != nil {
+		respondMutableSettingOperationTaskSyncFailure(c, "rollback latest import snapshot", err)
+		return
+	}
 	resp.Success(c, sanitizeRollbackResult(result))
 }
 
@@ -343,7 +409,14 @@ func rollbackImportSnapshot(c *gin.Context) {
 		resp.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	_ = op.InitCache()
+	if err := refreshCachesAfterMutableSettingOperation(); err != nil {
+		respondMutableSettingOperationRefreshFailure(c, "rollback import snapshot", err)
+		return
+	}
+	if err := syncMutableSettingTasksAfterCacheRefresh(); err != nil {
+		respondMutableSettingOperationTaskSyncFailure(c, "rollback import snapshot", err)
+		return
+	}
 	resp.Success(c, sanitizeRollbackResult(result))
 }
 

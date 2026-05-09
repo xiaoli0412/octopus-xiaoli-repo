@@ -32,6 +32,8 @@ export const SettingKey = {
     RaceProbeBudget: 'race_probe_budget',
     AIAutomationEnabled: 'ai_automation_enabled',
     AIAutomationBaseUrl: 'ai_automation_base_url',
+    AIAutomationAPIKey: 'ai_automation_api_key',
+    AIAutomationChannelType: 'ai_automation_channel_type',
     AIAutomationModel: 'ai_automation_model',
     AIAutomationUseLocalDefault: 'ai_automation_use_local_default',
     ConfigSourceMode: 'config_source_mode',
@@ -126,6 +128,7 @@ export interface DBImportResult {
             route_conflicts: number;
             invalid_route_targets: number;
             skipped_route_target_previews: number;
+            route_preview_warnings: number;
             route_preview_diffs: number;
             base_url_mismatches: number;
             schema_mismatches: number;

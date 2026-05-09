@@ -25,6 +25,7 @@ const {
 	getCompatibilityOverview,
 	getExportSnapshotPresentation,
 	getImportResultPresentation,
+	getMergedRoutePreviewWarningItems,
 	getMissingModelMappingItems,
 	getModelMappingPreviewItems,
 	getModelPolicyDiffItems,
@@ -65,6 +66,104 @@ assert.equal(counts.unusedModelMappings, 1);
 assert.equal(counts.missingMappingTargets, 1);
 assert.equal(counts.missingModels, 2);
 assert.equal(counts.replacePrunedTargets, 3);
+
+const staleSummaryCounts = getCompatibilityCounts({
+	summary: {
+		conflicts: 0,
+		used_model_mappings: 0,
+		unused_model_mappings: 0,
+		missing_mapping_targets: 0,
+		route_preview_warnings: 0,
+		replace_pruned_channels: 0,
+		replace_pruned_groups: 0,
+		replace_pruned_settings: 0,
+		replace_pruned_llm_infos: 0,
+		replace_pruned_api_keys: 0,
+	},
+	conflicts: ['conflict-a', 'conflict-b'],
+	route_preview_warnings: ['route may degrade', 'route preview diffs: 2'],
+	model_mapping_previews: [
+		{ used: true, target_exists: true },
+		{ used: true, target_exists: false },
+		{ used: false, target_exists: true },
+	],
+	replace_pruned_channels: ['legacy-channel'],
+	replace_pruned_groups: ['legacy-group'],
+	replace_pruned_settings: ['proxy_url'],
+	replace_pruned_llm_infos: ['legacy-model'],
+	replace_pruned_api_keys: ['client-key'],
+});
+
+assert.equal(staleSummaryCounts.conflicts, 2);
+assert.equal(staleSummaryCounts.usedModelMappings, 2);
+assert.equal(staleSummaryCounts.unusedModelMappings, 1);
+assert.equal(staleSummaryCounts.missingMappingTargets, 1);
+assert.equal(staleSummaryCounts.routePreviewWarnings, 2);
+assert.equal(staleSummaryCounts.replacePrunedTargets, 5);
+
+const staleRebindSummaryCounts = getCompatibilityCounts({
+	summary: {
+		credential_rebind_targets: 1,
+		channel_key_rebind_targets: 1,
+		api_key_rebind_targets: 1,
+	},
+});
+
+assert.equal(staleRebindSummaryCounts.credentialRebindTargets, 2);
+assert.equal(staleRebindSummaryCounts.channelKeyRebindTargets, 1);
+assert.equal(staleRebindSummaryCounts.apiKeyRebindTargets, 1);
+
+const mergedRollbackWarnings = getMergedRoutePreviewWarningItems([
+	['route preview needs manual review'],
+	['rollback route may degrade', 'route preview needs manual review'],
+], locale);
+
+assert.deepEqual(mergedRollbackWarnings, [
+	'route preview needs manual review',
+	'rollback route may degrade',
+]);
+
+const mergedWarningRollbackGuidanceItems = buildImportCompatibilityGuidanceItems({
+	kind: 'rollback',
+	locale,
+	counts: {
+		conflicts: 0,
+		aliasConflicts: 0,
+		routeConflicts: 0,
+		credentialRebindTargets: 0,
+		channelKeyRebindTargets: 0,
+		apiKeyRebindTargets: 0,
+		invalidRouteTargets: 0,
+		skippedRouteTargetPreviews: 1,
+		routePreviewWarnings: 2,
+		routePreviewDiffs: 0,
+		missingProviders: 0,
+		missingModels: 0,
+		baseURLMismatches: 0,
+		schemaMismatches: 0,
+		skippedTargets: 0,
+		modelMappingPreviews: 0,
+		usedModelMappings: 0,
+		unusedModelMappings: 0,
+		missingMappingTargets: 0,
+		aliasPreviewMappings: 0,
+		modelPolicyDiffs: 0,
+		replacePrunedTargets: 0,
+	},
+	compatibility: {
+		route_preview_warnings: ['rollback route may degrade'],
+		skipped_route_target_previews: [{ issue_type: 'skipped_preview' }],
+	},
+});
+
+assert.deepEqual(mergedWarningRollbackGuidanceItems, [
+	{
+		key: 'route-and-policy',
+		tone: 'warning',
+		title: 'Review post-rollback route and policy drift',
+		detail: 'The rollback preview also surfaced 2 route warnings, 1 skipped route previews. Review the route and policy details below before restoring.',
+	},
+]);
 
 const rollbackOverview = getCompatibilityOverview({
 	kind: 'rollback',

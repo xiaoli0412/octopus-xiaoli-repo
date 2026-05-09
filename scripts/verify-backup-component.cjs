@@ -290,11 +290,17 @@ async function verifyDryRunApplyAndRollback({ render, screen, fireEvent, waitFor
 	assert(document.querySelector('[data-testid="backup-pending-apply-ready"]'), 'Expected pending-apply ready selector after dry-run');
 	assert(document.querySelector('[data-testid="backup-import-result-panel"]'), 'Expected import result panel selector after dry-run');
 	assert(document.querySelector('[data-testid="backup-import-summary-grid"]'), 'Expected import summary grid selector after dry-run');
+	assert(document.querySelector('[data-testid="backup-import-summary-rebinds"]')?.textContent?.includes('Credential Rebinds：0'), 'Expected import summary rebind selector content after dry-run');
+	assert(document.querySelector('[data-testid="backup-import-summary-rebinds"]')?.getAttribute('data-raw-value') === '0', 'Expected import summary rebind raw-value attribute after dry-run');
 	assert(document.querySelector('[data-testid="backup-compatibility-panel"]'), 'Expected compatibility panel selector after dry-run');
 	assert(document.querySelector('[data-testid="backup-compatibility-overview"]'), 'Expected compatibility overview selector after dry-run');
 	assert(document.querySelector('[data-testid="backup-compatibility-toggle"]'), 'Expected compatibility toggle selector after dry-run');
 	assert(document.querySelector('[data-testid="backup-compatibility-details"]'), 'Expected compatibility details selector after dry-run');
 	assert(document.querySelector('[data-testid="backup-apply-confirm-switch"]'), 'Expected apply confirmation switch selector after dry-run');
+	fireEvent.click(document.querySelector('[data-testid="backup-compatibility-toggle"]'));
+	assert(document.querySelector('[data-testid="backup-import-warnings"]'), 'Expected import warnings detail selector after opening compatibility details');
+	assert(document.querySelector('[data-testid="backup-import-warnings-title"]')?.textContent?.includes('Import Warnings'), 'Expected import warnings title selector content after opening compatibility details');
+	assert(document.querySelector('[data-testid="backup-import-warnings-item-0"]')?.textContent?.includes('legacy warning: review before apply'), 'Expected import warnings item selector content after opening compatibility details');
 	assert(document.querySelector('[data-testid="backup-pending-apply-meta-grid"]'), 'Expected pending-apply meta grid selector after dry-run');
 	assert(importMutateAsyncCalls.length === 1, 'Expected one dry-run import call');
 	assert(importMutateAsyncCalls[0].dryRun === true, 'First import call should be dry-run');
@@ -378,10 +384,10 @@ async function verifyDryRunApplyAndRollback({ render, screen, fireEvent, waitFor
 	assert(document.querySelector('[data-testid="backup-rollback-preview-summary-grid"]'), 'Expected rollback preview summary-grid selector after previewing a snapshot');
 	assert(document.querySelector('[data-testid="backup-rollback-preview-summary-conflicts"]')?.textContent?.includes('Compatibility Conflicts：1'), 'Expected rollback preview conflicts summary selector content');
 	assert(document.querySelector('[data-testid="backup-rollback-preview-summary-conflicts"]')?.getAttribute('data-raw-value') === '1', 'Expected rollback preview conflicts raw-value attribute');
-	assert(document.querySelector('[data-testid="backup-rollback-preview-summary-rebinds"]')?.textContent?.includes('Credential Rebinds：1'), 'Expected rollback preview rebind summary selector content');
-	assert(document.querySelector('[data-testid="backup-rollback-preview-summary-rebinds"]')?.getAttribute('data-raw-value') === '1', 'Expected rollback preview rebind raw-value attribute');
-	assert(document.querySelector('[data-testid="backup-rollback-preview-summary-warnings"]')?.textContent?.includes('Preview Warnings：1'), 'Expected rollback preview warnings summary selector content');
-	assert(document.querySelector('[data-testid="backup-rollback-preview-summary-warnings"]')?.getAttribute('data-raw-value') === '1', 'Expected rollback preview warnings raw-value attribute');
+	assert(document.querySelector('[data-testid="backup-rollback-preview-summary-rebinds"]')?.textContent?.includes('Credential Rebinds：2'), 'Expected rollback preview rebind summary selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-preview-summary-rebinds"]')?.getAttribute('data-raw-value') === '2', 'Expected rollback preview rebind raw-value attribute');
+	assert(document.querySelector('[data-testid="backup-rollback-preview-summary-warnings"]')?.textContent?.includes('Preview Warnings：2'), 'Expected rollback preview warnings summary selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-preview-summary-warnings"]')?.getAttribute('data-raw-value') === '2', 'Expected rollback preview warnings raw-value attribute');
 	assert(document.querySelector('[data-testid="backup-rollback-preview-meta-grid"]'), 'Expected rollback preview meta-grid selector after previewing a snapshot');
 	assert(document.querySelector('[data-testid="backup-rollback-route-diff-panel"]'), 'Expected rollback route-diff compare panel selector after previewing a snapshot');
 	assert(document.querySelector('[data-testid="backup-rollback-route-diff-row-title-0"]')?.textContent?.includes('group-a / gpt-4o'), 'Expected rollback route-diff row title selector content');
@@ -403,7 +409,7 @@ async function verifyDryRunApplyAndRollback({ render, screen, fireEvent, waitFor
 	assert(document.querySelector('[data-testid="backup-rollback-signal-panel"]'), 'Expected rollback signal panel selector after previewing a snapshot');
 	assert(document.querySelector('[data-testid="backup-rollback-signal-title"]')?.textContent?.includes('Recommended Rollback Steps'), 'Expected rollback signal title selector content');
 	assert(document.querySelector('[data-testid="backup-rollback-signal-summary"]')?.textContent?.includes('Start with the summary signals'), 'Expected rollback signal summary selector content');
-	assert(document.querySelector('[data-testid="backup-rollback-signal-list"]')?.textContent?.includes('Rollback preview emitted 1 warnings.'), 'Expected rollback signal list to include preview warnings summary');
+	assert(document.querySelector('[data-testid="backup-rollback-signal-list"]')?.textContent?.includes('Rollback preview emitted 2 warnings.'), 'Expected rollback signal list to include preview warnings summary');
 	assert(document.querySelector('[data-testid="backup-rollback-signal-list"]')?.textContent?.includes('Rollback preview found 1 conflicts.'), 'Expected rollback signal list to include conflicts summary');
 	assert(document.querySelector('[data-testid="backup-rollback-signal-list"]')?.textContent?.includes('Channel-key credential rebind is required for 1 restored targets.'), 'Expected rollback signal list to include rebind summary');
 	assert(document.querySelector('[data-testid="backup-rollback-signal-list"]')?.textContent?.includes('Rollback diagnostics marked 5 current records for removal or reset.'), 'Expected rollback signal list to include structured replace-prune summary');
@@ -415,6 +421,7 @@ async function verifyDryRunApplyAndRollback({ render, screen, fireEvent, waitFor
 	assert(document.querySelector('[data-testid="backup-rollback-preview-warnings-panel"]'), 'Expected rollback preview warnings panel selector after previewing a snapshot');
 	assert(document.querySelector('[data-testid="backup-rollback-preview-warnings-title"]')?.textContent?.includes('Rollback Preview Warnings'), 'Expected rollback preview warnings title selector content');
 	assert(document.querySelector('[data-testid="backup-rollback-preview-warnings-list-item-0"]')?.textContent?.includes('route preview needs manual review'), 'Expected rollback preview warnings detail selector content');
+	assert(document.querySelector('[data-testid="backup-rollback-preview-warnings-list-item-1"]')?.textContent?.includes('rollback route may degrade'), 'Expected rollback preview warnings compatibility detail selector content');
 	assert(document.querySelector('[data-testid="backup-rollback-compatibility-panel"]'), 'Expected rollback compatibility detail panel selector after previewing a snapshot');
 	assert(document.querySelector('[data-testid="backup-rollback-compatibility-title"]')?.textContent?.includes('Rollback compatibility details'), 'Expected rollback compatibility detail title selector content');
 	assert(document.querySelector('[data-testid="backup-rollback-compatibility-conflicts-item-0"]')?.textContent?.includes('channel conflict'), 'Expected rollback compatibility conflicts item selector content');
@@ -532,6 +539,8 @@ async function verifyMapAndReplaceFlows({ render, screen, fireEvent, waitFor, cl
 	assert(document.querySelector('[data-testid="backup-pending-apply-meta-grid"]'), 'Expected pending-apply meta grid selector in map mode');
 	assert(document.querySelector('[data-testid="backup-import-result-panel"]'), 'Expected import result panel selector in map mode');
 	assert(document.querySelector('[data-testid="backup-import-summary-grid"]'), 'Expected import summary grid selector in map mode');
+	assert(document.querySelector('[data-testid="backup-import-summary-rebinds"]')?.textContent?.includes('Credential Rebinds：2'), 'Expected import summary rebind selector content in map mode');
+	assert(document.querySelector('[data-testid="backup-import-summary-rebinds"]')?.getAttribute('data-raw-value') === '2', 'Expected import summary rebind raw-value attribute in map mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-panel"]'), 'Expected compatibility panel selector in map mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-overview"]'), 'Expected compatibility overview selector in map mode');
 	assert(document.querySelector('[data-testid="backup-compatibility-toggle"]'), 'Expected compatibility toggle selector in map mode');
@@ -672,6 +681,9 @@ async function verifyMapAndReplaceFlows({ render, screen, fireEvent, waitFor, cl
 	assert(document.querySelector('[data-testid="backup-replace-prune-section-apiKeys"]'), 'Expected replace-prune api-keys section selector in replace mode');
 	assert(document.querySelector('[data-testid="backup-replace-prune-section-title-apiKeys"]'), 'Expected replace-prune api-keys title selector in replace mode');
 	assert(document.querySelector('[data-testid="backup-replace-prune-section-item-apiKeys-0"]'), 'Expected replace-prune api-keys item selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-replace-prune-section-warnings"]'), 'Expected replace-prune warnings section selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-replace-prune-section-title-warnings"]')?.textContent?.includes('Additional warnings'), 'Expected replace-prune warnings title selector in replace mode');
+	assert(document.querySelector('[data-testid="backup-replace-prune-section-item-warnings-0"]')?.textContent?.includes('API key cleanup preview excludes credentials that are absent from this snapshot'), 'Expected replace-prune warnings item selector in replace mode');
 	assert(document.querySelector('[data-testid="backup-replace-prune-section-title-channels"]')?.textContent?.includes('Channels to delete'), 'Expected replace-prune channels section');
 	assert(document.querySelector('[data-testid="backup-replace-prune-section-title-groups"]')?.textContent?.includes('Groups to delete'), 'Expected replace-prune groups section');
 	assert(document.querySelector('[data-testid="backup-replace-prune-section-title-settings"]')?.textContent?.includes('Settings to reset'), 'Expected replace-prune settings section');
@@ -687,12 +699,46 @@ async function verifyMapAndReplaceFlows({ render, screen, fireEvent, waitFor, cl
 	cleanup();
 }
 
+async function verifySplitOnlyRebindSummaries({ render, screen, fireEvent, waitFor, cleanup, within }) {
+	resetState();
+	setLocale('en');
+	const { SettingBackup } = jiti('../web/src/components/modules/setting/Backup.tsx');
+	const file = new File(['{"snapshot":true}'], 'snapshot-map-summary-only.json', { type: 'application/json' });
+	const view = render(React.createElement(SettingBackup));
+	await selectImportMode(screen, fireEvent, waitFor, 'map');
+	fireEvent.change(getFileInput(view.container), { target: { files: [file] } });
+	fireEvent.click(getImportButton(screen));
+	await screen.findByTestId('backup-pending-apply-ready');
+	assert(document.querySelector('[data-testid="backup-import-summary-rebinds"]')?.textContent?.includes('Credential Rebinds：2'), 'Expected import summary rebind selector content in summary-only map mode');
+	assert(document.querySelector('[data-testid="backup-import-summary-rebinds"]')?.getAttribute('data-raw-value') === '2', 'Expected import summary rebind raw-value attribute in summary-only map mode');
+	cleanup();
+
+	resetState();
+	setLocale('en');
+	importSnapshotsState.data = [{
+		snapshot_name: 'snapshot-summary-only',
+		snapshot_path: 'snapshots/snapshot-summary-only.json',
+		imported_at: '2026-04-21T10:00:00Z',
+		size_bytes: 1024,
+		is_latest: true,
+	}];
+	const rollbackView = render(React.createElement(SettingBackup));
+	fireEvent.click(screen.getByTestId('backup-history-trigger'));
+	const historyItem = await screen.findByTestId('backup-history-item-snapshot-summary-only');
+	fireEvent.click(within(historyItem).getByTestId('backup-history-preview-button'));
+	await screen.findByText('Rollback preview');
+	assert(document.querySelector('[data-testid="backup-rollback-preview-summary-rebinds"]')?.textContent?.includes('Credential Rebinds：2'), 'Expected rollback preview rebind selector content in summary-only mode');
+	assert(document.querySelector('[data-testid="backup-rollback-preview-summary-rebinds"]')?.getAttribute('data-raw-value') === '2', 'Expected rollback preview rebind raw-value attribute in summary-only mode');
+	cleanup();
+}
+
 async function main() {
 	const { cleanup, render, screen, fireEvent, waitFor, within } = require('../web/node_modules/@testing-library/react');
 	await verifyExportFlow({ render, screen, fireEvent, waitFor, cleanup, within });
 	await verifyDryRunApplyAndRollback({ render, screen, fireEvent, waitFor, cleanup, within });
 	await verifySelectiveImportGuard({ render, screen, fireEvent, cleanup, within });
 	await verifyMapAndReplaceFlows({ render, screen, fireEvent, waitFor, cleanup, within });
+	await verifySplitOnlyRebindSummaries({ render, screen, fireEvent, waitFor, cleanup, within });
 	console.log('backup-component verification passed');
 }
 

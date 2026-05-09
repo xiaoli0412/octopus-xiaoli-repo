@@ -12,6 +12,7 @@ import {
 	getCompatibilityOverview,
 	getExportSnapshotPresentation,
 	getImportResultPresentation,
+	getMergedRoutePreviewWarningItems,
 	getMissingModelMappingItems,
 	getModelMappingPreviewItems,
 	getModelPolicyDiffItems,
@@ -55,6 +56,166 @@ describe('backup-logic', () => {
 		});
 	});
 
+	it('prefers total credential rebind count before channel/api split fallbacks', () => {
+		const summaryOnlyCounts = getCompatibilityCounts({
+			summary: {
+				credential_rebind_targets: 0,
+				channel_key_rebind_targets: 1,
+				api_key_rebind_targets: 1,
+			},
+		});
+
+		expect(summaryOnlyCounts).toMatchObject({
+			credentialRebindTargets: 2,
+			channelKeyRebindTargets: 1,
+			apiKeyRebindTargets: 1,
+		});
+
+		const mixedCounts = getCompatibilityCounts({
+			summary: {
+				credential_rebind_targets: 2,
+				channel_key_rebind_targets: 1,
+				api_key_rebind_targets: 1,
+			},
+			credential_rebind_targets: [
+				{ target_type: 'channel_key' },
+				{ target_type: 'api_key' },
+			],
+		});
+
+		expect(mixedCounts).toMatchObject({
+			credentialRebindTargets: 2,
+			channelKeyRebindTargets: 1,
+			apiKeyRebindTargets: 1,
+		});
+	});
+
+	it('does not let stale total credential rebind counts under-report split summaries', () => {
+		const counts = getCompatibilityCounts({
+			summary: {
+				credential_rebind_targets: 1,
+				channel_key_rebind_targets: 1,
+				api_key_rebind_targets: 1,
+			},
+		});
+
+		expect(counts).toMatchObject({
+			credentialRebindTargets: 2,
+			channelKeyRebindTargets: 1,
+			apiKeyRebindTargets: 1,
+		});
+	});
+
+	it('falls back to detail lengths when summary counters under-report compatibility risk', () => {
+		const counts = getCompatibilityCounts({
+			summary: {
+				conflicts: 0,
+				used_model_mappings: 0,
+				unused_model_mappings: 0,
+				missing_mapping_targets: 0,
+			},
+			conflicts: ['conflict-a', 'conflict-b'],
+			model_mapping_previews: [
+				{ used: true, target_exists: true },
+				{ used: true, target_exists: false },
+				{ used: false, target_exists: true },
+			],
+		});
+
+		expect(counts).toMatchObject({
+			conflicts: 2,
+			usedModelMappings: 2,
+			unusedModelMappings: 1,
+			missingMappingTargets: 1,
+		});
+	});
+
+	it('falls back to structured replace-prune detail lists when summary counts are stale', () => {
+		const counts = getCompatibilityCounts({
+			summary: {
+				replace_pruned_channels: 0,
+				replace_pruned_groups: 0,
+				replace_pruned_settings: 0,
+				replace_pruned_llm_infos: 0,
+				replace_pruned_api_keys: 0,
+			},
+			replace_pruned_channels: ['legacy-channel'],
+			replace_pruned_groups: ['legacy-group'],
+			replace_pruned_settings: ['proxy_url'],
+			replace_pruned_llm_infos: ['legacy-model'],
+			replace_pruned_api_keys: ['client-key'],
+		});
+
+		expect(counts.replacePrunedTargets).toBe(5);
+	});
+
+	it('falls back to route preview warning detail length when summary count is stale', () => {
+		const counts = getCompatibilityCounts({
+			summary: {
+				route_preview_warnings: 0,
+			},
+			route_preview_warnings: ['route may degrade', 'route preview diffs: 2'],
+		});
+
+		expect(counts.routePreviewWarnings).toBe(2);
+	});
+
+	it('merges rollback preview warnings with compatibility route warnings without duplicates', () => {
+		const warnings = getMergedRoutePreviewWarningItems([
+			['route preview needs manual review'],
+			['rollback route may degrade', 'route preview needs manual review'],
+		], 'en');
+
+		expect(warnings).toEqual([
+			'route preview needs manual review',
+			'rollback route may degrade',
+		]);
+	});
+
+	it('builds rollback route guidance from merged preview warning counts', () => {
+		const guidance = buildImportCompatibilityGuidanceItems({
+			kind: 'rollback',
+			locale: 'en',
+			counts: {
+				conflicts: 0,
+				aliasConflicts: 0,
+				routeConflicts: 0,
+				credentialRebindTargets: 0,
+				channelKeyRebindTargets: 0,
+				apiKeyRebindTargets: 0,
+				invalidRouteTargets: 0,
+				skippedRouteTargetPreviews: 1,
+				routePreviewWarnings: 2,
+				routePreviewDiffs: 0,
+				missingProviders: 0,
+				missingModels: 0,
+				baseURLMismatches: 0,
+				schemaMismatches: 0,
+				skippedTargets: 0,
+				modelMappingPreviews: 0,
+				usedModelMappings: 0,
+				unusedModelMappings: 0,
+				missingMappingTargets: 0,
+				aliasPreviewMappings: 0,
+				modelPolicyDiffs: 0,
+				replacePrunedTargets: 0,
+			},
+			compatibility: {
+				route_preview_warnings: ['rollback route may degrade'],
+				skipped_route_target_previews: [{ issue_type: 'skipped_preview' }],
+			},
+		});
+
+		expect(guidance).toEqual([
+			{
+				key: 'route-and-policy',
+				tone: 'warning',
+				title: 'Review post-rollback route and policy drift',
+				detail: 'The rollback preview also surfaced 2 route warnings, 1 skipped route previews. Review the route and policy details below before restoring.',
+			},
+		]);
+	});
+
 	it('marks rollback overview as dangerous when route or schema drift exists', () => {
 		const overview = getCompatibilityOverview({
 			kind: 'rollback',
@@ -88,6 +249,76 @@ describe('backup-logic', () => {
 		expect(overview.tone).toBe('danger');
 		expect(overview.title).toBe('回滚存在阻断风险');
 		expect(overview.description).toContain('路由或结构层面的风险');
+	});
+
+	it('marks import overview as warning when only split credential rebind counts exist', () => {
+		const overview = getCompatibilityOverview({
+			kind: 'import',
+			warningsCount: 0,
+			counts: {
+				conflicts: 0,
+				aliasConflicts: 0,
+				routeConflicts: 0,
+				credentialRebindTargets: 0,
+				channelKeyRebindTargets: 1,
+				apiKeyRebindTargets: 1,
+				invalidRouteTargets: 0,
+				skippedRouteTargetPreviews: 0,
+				routePreviewWarnings: 0,
+				routePreviewDiffs: 0,
+				missingProviders: 0,
+				missingModels: 0,
+				baseURLMismatches: 0,
+				schemaMismatches: 0,
+				skippedTargets: 0,
+				modelMappingPreviews: 0,
+				usedModelMappings: 0,
+				unusedModelMappings: 0,
+				missingMappingTargets: 0,
+				aliasPreviewMappings: 0,
+				modelPolicyDiffs: 0,
+				replacePrunedTargets: 0,
+			},
+		});
+
+		expect(overview.tone).toBe('warning');
+		expect(overview.title).toBe('导入前需要复核');
+		expect(overview.description).toContain('兼容性提示');
+	});
+
+	it('keeps split credential rebind warnings when total summary is stale', () => {
+		const items = buildCompatibilitySignalItems({
+			kind: 'import',
+			counts: {
+				conflicts: 0,
+				aliasConflicts: 0,
+				routeConflicts: 0,
+				credentialRebindTargets: 1,
+				channelKeyRebindTargets: 1,
+				apiKeyRebindTargets: 1,
+				invalidRouteTargets: 0,
+				skippedRouteTargetPreviews: 0,
+				routePreviewWarnings: 0,
+				routePreviewDiffs: 0,
+				missingProviders: 0,
+				missingModels: 0,
+				baseURLMismatches: 0,
+				schemaMismatches: 0,
+				skippedTargets: 0,
+				modelMappingPreviews: 0,
+				usedModelMappings: 0,
+				unusedModelMappings: 0,
+				missingMappingTargets: 0,
+				aliasPreviewMappings: 0,
+				modelPolicyDiffs: 0,
+				replacePrunedTargets: 0,
+			},
+		});
+
+		expect(items).toEqual([
+			'1 个导入目标需要重新绑定渠道密钥凭证。',
+			'1 个导入目标需要重新绑定 API 密钥凭证。',
+		]);
 	});
 
 	it('builds apply risk items for replace mode imports', () => {
@@ -130,6 +361,45 @@ describe('backup-logic', () => {
 			'替换清理预览会删除或重置当前项目中的 4 条记录。',
 			'兼容性报告发现 2 个冲突。',
 			'1 个导入目标需要重新绑定渠道密钥凭证。',
+		]);
+	});
+
+	it('keeps generic credential guidance when only split rebind counts are present', () => {
+		const guidance = buildImportCompatibilityGuidanceItems({
+			counts: {
+				conflicts: 0,
+				aliasConflicts: 0,
+				routeConflicts: 0,
+				credentialRebindTargets: 0,
+				channelKeyRebindTargets: 1,
+				apiKeyRebindTargets: 1,
+				invalidRouteTargets: 0,
+				skippedRouteTargetPreviews: 0,
+				routePreviewWarnings: 0,
+				routePreviewDiffs: 0,
+				missingProviders: 0,
+				missingModels: 0,
+				baseURLMismatches: 0,
+				schemaMismatches: 0,
+				skippedTargets: 0,
+				modelMappingPreviews: 0,
+				usedModelMappings: 0,
+				unusedModelMappings: 0,
+				missingMappingTargets: 0,
+				aliasPreviewMappings: 0,
+				modelPolicyDiffs: 0,
+				replacePrunedTargets: 0,
+			},
+			compatibility: {},
+		});
+
+		expect(guidance).toEqual([
+			{
+				key: 'credential-rebind',
+				tone: 'warning',
+				title: '提前准备凭证重绑定',
+				detail: '应用前先确认哪些渠道密钥或 API 密钥需要重新绑定，避免导入后目标失效。',
+			},
 		]);
 	});
 

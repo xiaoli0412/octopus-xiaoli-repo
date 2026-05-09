@@ -1,11 +1,8 @@
-import { createElement, type ReactNode } from 'react';
-import { act, renderHook } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useAuthStore } from './user';
-import { APIKeyAuthStatus, useAPIKeyLogin } from './apikey';
 import { API_BASE_URL } from '../client';
+import { loginAPIKeySession, type APIKeyAuthStatus } from './apikey';
+import { useAuthStore } from './user';
 
 type FetchMock = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -29,19 +26,6 @@ function resetAuthStore() {
 		mustChangePassword: false,
 		apiKeyStatus: null,
 	});
-}
-
-function createWrapper() {
-	const queryClient = new QueryClient({
-		defaultOptions: {
-			queries: { retry: false },
-			mutations: { retry: false },
-		},
-	});
-
-	return function Wrapper({ children }: { children: ReactNode }) {
-		return createElement(QueryClientProvider, { client: queryClient }, children);
-	};
 }
 
 describe('api key auth flow', () => {
@@ -68,11 +52,11 @@ describe('api key auth flow', () => {
 		}));
 		vi.stubGlobal('fetch', fetchMock);
 
-		const { result: hook } = renderHook(() => useAPIKeyLogin(), { wrapper: createWrapper() });
-		let result: APIKeyAuthStatus | undefined;
-		await act(async () => {
-			result = await hook.current.mutateAsync('  sk-octopus-test-123  ');
+		const persistAuth = vi.fn((apiKey: string, status: APIKeyAuthStatus) => {
+			useAuthStore.getState().setAPIKeyAuth(apiKey, status);
 		});
+
+		const result = await loginAPIKeySession('  sk-octopus-test-123  ', persistAuth);
 
 		expect(result).toEqual(successStatus);
 		expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -82,6 +66,7 @@ describe('api key auth flow', () => {
 				Authorization: 'Bearer sk-octopus-test-123',
 			}),
 		}));
+		expect(persistAuth).toHaveBeenCalledWith('sk-octopus-test-123', successStatus);
 
 		const state = useAuthStore.getState();
 		expect(state.isAuthenticated).toBe(true);
@@ -100,17 +85,12 @@ describe('api key auth flow', () => {
 		}));
 		vi.stubGlobal('fetch', fetchMock);
 
-		const { result } = renderHook(() => useAPIKeyLogin(), { wrapper: createWrapper() });
-		let mutationError: unknown;
-		await act(async () => {
-			try {
-				await result.current.mutateAsync('sk-octopus-disabled-123');
-			} catch (error) {
-				mutationError = error;
-			}
+		const persistAuth = vi.fn((apiKey: string, status: APIKeyAuthStatus) => {
+			useAuthStore.getState().setAPIKeyAuth(apiKey, status);
 		});
-		expect(mutationError).toBeInstanceOf(Error);
-		expect((mutationError as Error).message).toBe('API key is disabled');
+
+		await expect(loginAPIKeySession('sk-octopus-disabled-123', persistAuth)).rejects.toThrow('API key is disabled');
+		expect(persistAuth).not.toHaveBeenCalled();
 
 		const state = useAuthStore.getState();
 		expect(state.isAuthenticated).toBe(false);
@@ -140,15 +120,11 @@ describe('api key auth flow', () => {
 		}));
 		vi.stubGlobal('fetch', fetchMock);
 
-		await act(async () => {
-			await useAuthStore.getState().checkAuth();
-		});
+		await useAuthStore.getState().checkAuth();
 
 		expect(fetchMock).toHaveBeenCalledTimes(1);
-		const firstCall = fetchMock.mock.calls.at(0);
-		expect(firstCall).toBeTruthy();
-		expect(firstCall?.[0]).toBe(`${API_BASE_URL}api/v1/apikey/login`);
-		const init = firstCall?.[1] as RequestInit | undefined;
+		const [input, init] = fetchMock.mock.calls[0] as [RequestInfo | URL, RequestInit | undefined];
+		expect(input).toBe(`${API_BASE_URL}api/v1/apikey/login`);
 		expect(init?.headers).toBeInstanceOf(Headers);
 		expect((init?.headers as Headers).get('Authorization')).toBe('Bearer sk-octopus-restore-123');
 
