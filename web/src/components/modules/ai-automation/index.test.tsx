@@ -262,7 +262,10 @@ describe('AIAutomation V2', () => {
 		expect(screen.getByTestId('ai-automation-page')).toBeInTheDocument();
 		expect(screen.getByText('aiAutomationV2.hero.title')).toBeInTheDocument();
 		expect(screen.getByText('aiAutomationV2.main.goalTitle')).toBeInTheDocument();
-		expect(screen.getByText('aiAutomationV2.main.aiSummaryTitle')).toBeInTheDocument();
+		expect(screen.getByText('aiAutomationV2.summary.currentGoal')).toBeInTheDocument();
+		expect(screen.getByText('aiAutomationV2.summary.activePlan')).toBeInTheDocument();
+		expect(screen.getByText('aiAutomationV2.summary.lastApply')).toBeInTheDocument();
+		expect(screen.getByText('aiAutomationV2.sidebar.runtimePolicy')).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'aiAutomationV2.workspace.preview' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'aiAutomationV2.workspace.history' })).toBeInTheDocument();
 		expect(screen.queryByText('aiAutomation.hero.title')).not.toBeInTheDocument();

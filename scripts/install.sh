@@ -5,7 +5,7 @@ set -euo pipefail
 DEFAULT_PORT="1088"
 DEFAULT_DATA_DIR="./data"
 DEFAULT_CONTAINER_NAME="octopus"
-DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.18.5"
+DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.18.8"
 DEFAULT_REPO_REF="${DEFAULT_IMAGE##*:}"
 
 OCTOPUS_PORT_INPUT="${OCTOPUS_PORT:-${DEFAULT_PORT}}"
@@ -51,15 +51,27 @@ prepare_repo_checkout() {
     local repo_dir="$2"
     local repo_ref="$3"
 
-    require_command git "Install Git and ensure it is on PATH."
+    if ! command -v git >/dev/null 2>&1; then
+        write_warn "Missing required command 'git'. Install Git and ensure it is on PATH."
+        return 1
+    fi
 
     if [[ ! -d "$repo_dir/.git" ]]; then
         write_info "Cloning repository into ${repo_dir}"
-        git clone "$repo_url" "$repo_dir"
+        if ! git clone "$repo_url" "$repo_dir"; then
+            write_warn "Failed to clone ${repo_url} into ${repo_dir}."
+            return 1
+        fi
     fi
 
-    git -C "$repo_dir" fetch --tags origin
-    git -C "$repo_dir" checkout -f "$repo_ref"
+    if ! git -C "$repo_dir" fetch --tags origin; then
+        write_warn "Failed to fetch ${repo_ref} from ${repo_url}."
+        return 1
+    fi
+    if ! git -C "$repo_dir" checkout -f "$repo_ref"; then
+        write_warn "Failed to checkout ${repo_ref} in ${repo_dir}."
+        return 1
+    fi
 }
 
 build_and_start_from_source() {
@@ -70,10 +82,13 @@ build_and_start_from_source() {
     local data_dir="$5"
     local container_name="$6"
 
-    prepare_repo_checkout "$repo_url" "$repo_dir" "$repo_ref"
+    if ! prepare_repo_checkout "$repo_url" "$repo_dir" "$repo_ref"; then
+        write_warn "Source-build fallback checkout did not complete."
+        return 1
+    fi
 
     write_warn "Falling back to local Docker source build because image pull failed."
-    (
+    if ! (
         cd "$repo_dir"
         OCTOPUS_PORT="$external_port" \
         OCTOPUS_DATA_DIR="$data_dir" \
@@ -87,17 +102,21 @@ build_and_start_from_source() {
         OCTOPUS_DATA_DIR="$data_dir" \
         OCTOPUS_CONTAINER_NAME="$container_name" \
         docker compose up -d
-    )
+    ); then
+        write_warn "Local Docker source build did not complete successfully."
+        return 1
+    fi
 
-    verify_running_container "$container_name" \
-        "Source-build container failed to stay running. Showing the latest logs for ${container_name}:" \
-        "Octopus source-build container exited right after startup. Check the logs above, especially data directory permissions, build drift, or compose/runtime overrides."
+    if ! verify_running_container "$container_name" \
+        "Source-build container failed to stay running. Showing the latest logs for ${container_name}:"; then
+        write_warn "Octopus source-build container exited right after startup. The installer will continue to the next fallback when available."
+        return 1
+    fi
 }
 
 verify_running_container() {
     local container_name="$1"
     local log_hint="$2"
-    local fail_message="$3"
 
     if [[ "$(docker inspect -f '{{.State.Running}}' "$container_name" 2>/dev/null || printf 'false')" == "true" ]]; then
         return 0
@@ -105,7 +124,7 @@ verify_running_container() {
 
     write_warn "$log_hint"
     docker logs --tail 80 "$container_name" >&2 || true
-    fail "$fail_message"
+    return 1
 }
 
 build_and_start_from_uploaded_binary() {
@@ -177,9 +196,10 @@ EOF
         -v "${data_dir}:/app/data" \
         "$image_tag")"
 
-    verify_running_container "$container_name" \
-        "Binary-fallback container failed to stay running. Showing the latest logs for ${container_name}:" \
-        "Octopus binary-fallback container exited right after startup. Fix the data directory permissions or set ALLOW_ROOT_FALLBACK_ON_DATA_DIR_ERROR=true explicitly if you need a temporary compatibility escape hatch."
+    if ! verify_running_container "$container_name" \
+        "Binary-fallback container failed to stay running. Showing the latest logs for ${container_name}:"; then
+        fail "Octopus binary-fallback container exited right after startup. Fix the data directory permissions or set ALLOW_ROOT_FALLBACK_ON_DATA_DIR_ERROR=true explicitly if you need a temporary compatibility escape hatch."
+    fi
 }
 
 validate_image_source() {
@@ -375,9 +395,10 @@ CONTAINER_ID="$(docker run -d \
     -v "${OCTOPUS_DATA_DIR_INPUT}:/app/data" \
     "$PULLED_IMAGE")"
 
-verify_running_container "$OCTOPUS_CONTAINER_NAME_INPUT" \
-    "Container failed to stay running. Showing the latest logs for ${OCTOPUS_CONTAINER_NAME_INPUT}:" \
-    "Octopus container exited right after startup. Check the logs above, especially data directory permissions or registry/image overrides."
+if ! verify_running_container "$OCTOPUS_CONTAINER_NAME_INPUT" \
+    "Container failed to stay running. Showing the latest logs for ${OCTOPUS_CONTAINER_NAME_INPUT}:"; then
+    fail "Octopus container exited right after startup. Check the logs above, especially data directory permissions or registry/image overrides."
+fi
 
 write_info "Octopus is starting"
 write_info "UI: http://127.0.0.1:${EXTERNAL_PORT}"

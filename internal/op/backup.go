@@ -221,6 +221,10 @@ func DBImportIncremental(ctx context.Context, dump *model.DBDump, mode model.DBI
 }
 
 func DBImportIncrementalWithOptions(ctx context.Context, dump *model.DBDump, mode model.DBImportMode, dryRun bool, options model.DBImportOptions) (*model.DBImportResult, error) {
+	return dbImportIncrementalWithOptions(ctx, dump, mode, dryRun, options, false)
+}
+
+func dbImportIncrementalWithOptions(ctx context.Context, dump *model.DBDump, mode model.DBImportMode, dryRun bool, options model.DBImportOptions, resetBeforeImport bool) (*model.DBImportResult, error) {
 	if dump == nil {
 		return nil, fmt.Errorf("empty dump")
 	}
@@ -259,11 +263,6 @@ func DBImportIncrementalWithOptions(ctx context.Context, dump *model.DBDump, mod
 		}
 	}
 	mode = model.DefaultDBImportMode(rawMode)
-	routingScopeEnabled := options.ImportScopes == nil || options.ImportScopes.Routing
-	settingsScopeEnabled := options.ImportScopes == nil || options.ImportScopes.Settings
-	modelsScopeEnabled := options.ImportScopes == nil || options.ImportScopes.Models
-	apiKeysScopeEnabled := options.ImportScopes == nil || options.ImportScopes.APIKeys
-
 	conn := db.GetDB().WithContext(ctx)
 	state, err := loadCurrentImportState(conn)
 	if err != nil {
@@ -318,354 +317,18 @@ func DBImportIncrementalWithOptions(ctx context.Context, dump *model.DBDump, mod
 		}
 	}
 
+	applyState := state
+	if resetBeforeImport {
+		applyState = &currentImportState{}
+	}
+
 	err = conn.Transaction(func(tx *gorm.DB) error {
-		var n int64
-		if mode == model.DBImportModeReplace && routingScopeEnabled {
-			if n, err = replaceGroups(tx, dump.Groups); err != nil {
-				return fmt.Errorf("replace groups: %w", err)
-			}
-			res.RowsAffected["replaced_groups"] = n
-			if n, err = replaceChannels(tx, dump.Channels); err != nil {
-				return fmt.Errorf("replace channels: %w", err)
-			}
-			res.RowsAffected["replaced_channels"] = n
-		}
-
-		channelIDMap, n, err := importChannels(tx, dump.Channels, mode, dump.LegacyHints)
-		if err != nil {
-			return fmt.Errorf("import channels: %w", err)
-		}
-		res.RowsAffected["channels"] = n
-
-		if n, err = importUsers(tx, dump.Users, mode); err != nil {
-			return fmt.Errorf("import users: %w", err)
-		}
-		res.RowsAffected["users"] = n
-		if mode == model.DBImportModeSkip {
-			for _, row := range dump.Channels {
-				if _, ok := state.channelsByName[strings.TrimSpace(row.Name)]; ok {
-					res.Warnings = append(res.Warnings, fmt.Sprintf("skip mode preserved existing channel:%s", strings.TrimSpace(row.Name)))
-				}
+		if resetBeforeImport {
+			if err := resetDatabaseForRollbackTx(tx); err != nil {
+				return fmt.Errorf("reset database for rollback: %w", err)
 			}
 		}
-
-		if mode == model.DBImportModeReplace {
-			if n, err = replaceChannelKeys(tx, channelIDMap); err != nil {
-				return fmt.Errorf("replace channel_keys: %w", err)
-			}
-			res.RowsAffected["replaced_channel_keys"] = n
-		}
-
-		groupIDMap, n, err := importGroups(tx, dump.Groups, mode, dump.LegacyHints)
-		if err != nil {
-			return fmt.Errorf("import groups: %w", err)
-		}
-		res.RowsAffected["groups"] = n
-		if mode == model.DBImportModeSkip {
-			for _, row := range dump.Groups {
-				if _, ok := state.groupsByName[strings.TrimSpace(row.Name)]; ok {
-					res.Warnings = append(res.Warnings, fmt.Sprintf("skip mode preserved existing group:%s", strings.TrimSpace(row.Name)))
-				}
-			}
-		}
-
-		if mode == model.DBImportModeReplace {
-			if n, err = replaceGroupItems(tx, groupIDMap); err != nil {
-				return fmt.Errorf("replace group_items: %w", err)
-			}
-			res.RowsAffected["replaced_group_items"] = n
-		}
-
-		preparedChannelKeys, keyWarnings, err := prepareChannelKeysForImport(tx, filteredChannelKeys, dump.Channels, channelIDMap, state, mode, dump.LegacyHints)
-		if err != nil {
-			return fmt.Errorf("prepare channel_keys: %w", err)
-		}
-		res.Warnings = append(res.Warnings, keyWarnings...)
-		channelKeyIDMap := map[int]int{}
-		if n, channelKeyIDMap, err = importPreparedChannelKeys(tx, preparedChannelKeys, mode); err != nil {
-			return fmt.Errorf("import channel_keys: %w", err)
-		}
-		res.RowsAffected["channel_keys"] = n
-
-		preparedRouteTargetOverrides, overrideWarnings, err := prepareRouteTargetOverridesForImport(tx, dump.RouteTargetOverrides, dump.Channels, filteredChannelKeys, channelIDMap, channelKeyIDMap, state, mode)
-		if err != nil {
-			return fmt.Errorf("prepare route_target_overrides: %w", err)
-		}
-		res.Warnings = append(res.Warnings, overrideWarnings...)
-		if n, err = importPreparedRouteTargetOverrides(tx, preparedRouteTargetOverrides, mode); err != nil {
-			return fmt.Errorf("import route_target_overrides: %w", err)
-		}
-		res.RowsAffected["route_target_overrides"] = n
-
-		remappedGroupItems, itemWarnings := remapGroupItemsForImport(dump.GroupItems, dump.Groups, dump.Channels, groupIDMap, channelIDMap, state, mode)
-		res.Warnings = append(res.Warnings, itemWarnings...)
-		postImportHealthTargets = buildImportedHealthCheckTargets(dump.Groups, groupIDMap, remappedGroupItems)
-		if n, err = importGroupItems(tx, remappedGroupItems, mode); err != nil {
-			return fmt.Errorf("import group_items: %w", err)
-		}
-		res.RowsAffected["group_items"] = n
-
-		if mode == model.DBImportModeSkip {
-			if n, err = createDoNothingOnColumns(tx, dump.LLMInfos, []clause.Column{{Name: "name"}}); err != nil {
-				return fmt.Errorf("import llm_infos: %w", err)
-			}
-		} else {
-			if mode == model.DBImportModeReplace && modelsScopeEnabled {
-				if n, err = replaceLLMInfos(tx, dump.LLMInfos); err != nil {
-					return fmt.Errorf("replace llm_infos: %w", err)
-				}
-				res.RowsAffected["replaced_llm_infos"] = n
-			}
-			if n, err = importLLMInfos(tx, dump.LLMInfos, state, dump.LegacyHints); err != nil {
-				return fmt.Errorf("import llm_infos: %w", err)
-			}
-		}
-		res.RowsAffected["llm_infos"] = n
-
-		preparedAPIKeys, apiKeyWarnings, err := prepareAPIKeysForImport(tx, filteredAPIKeys)
-		if err != nil {
-			return fmt.Errorf("prepare api_keys: %w", err)
-		}
-		res.Warnings = append(res.Warnings, apiKeyWarnings...)
-		if mode == model.DBImportModeReplace && apiKeysScopeEnabled && dump.Manifest.ContainsSecrets {
-			if n, err = replaceAPIKeys(tx, filteredAPIKeys); err != nil {
-				return fmt.Errorf("replace api_keys: %w", err)
-			}
-			res.RowsAffected["replaced_api_keys"] = n
-		}
-		apiKeyIDMap := map[int]int{}
-		if n, apiKeyIDMap, err = importPreparedAPIKeys(tx, preparedAPIKeys, mode); err != nil {
-			return fmt.Errorf("import api_keys: %w", err)
-		}
-		res.RowsAffected["api_keys"] = n
-
-		if mode == model.DBImportModeSkip {
-			if n, err = createDoNothingOnColumns(tx, dump.Settings, []clause.Column{{Name: "key"}}); err != nil {
-				return fmt.Errorf("import settings: %w", err)
-			}
-		} else {
-			if mode == model.DBImportModeReplace && settingsScopeEnabled {
-				if n, err = replaceSettings(tx, dump.Settings); err != nil {
-					return fmt.Errorf("replace settings: %w", err)
-				}
-				res.RowsAffected["replaced_settings"] = n
-			}
-			if n, err = createUpsertSettings(tx, dump.Settings); err != nil {
-				return fmt.Errorf("import settings: %w", err)
-			}
-		}
-		res.RowsAffected["settings"] = n
-
-		migrationRecordsAffected := int64(0)
-		if mode == model.DBImportModeReplace && options.ImportScopes == nil {
-			if n, err = replaceMigrationRecords(tx, dump.MigrationRecords); err != nil {
-				return fmt.Errorf("replace migration_records: %w", err)
-			}
-			res.RowsAffected["replaced_migration_records"] = n
-			migrationRecordsAffected = n
-		}
-		if options.ImportScopes == nil {
-			if n, err = importMigrationRecords(tx, dump.MigrationRecords, mode); err != nil {
-				return fmt.Errorf("import migration_records: %w", err)
-			}
-			migrationRecordsAffected = n
-		}
-		res.RowsAffected["migration_records"] = migrationRecordsAffected
-
-		if mode == model.DBImportModeReplace && options.ImportScopes == nil {
-			if n, err = replaceRowsByIntKey(tx, dump.AITasks, "id", func(row model.AITask) int { return row.ID }); err != nil {
-				return fmt.Errorf("replace ai_tasks: %w", err)
-			}
-			res.RowsAffected["replaced_ai_tasks"] = n
-			if n, err = replaceRowsByIntKey(tx, dump.AITaskSteps, "id", func(row model.AITaskStep) int { return row.ID }); err != nil {
-				return fmt.Errorf("replace ai_task_steps: %w", err)
-			}
-			res.RowsAffected["replaced_ai_task_steps"] = n
-			if n, err = replaceRowsByIntKey(tx, dump.AIPromptTemplates, "id", func(row model.AIPromptTemplate) int { return row.ID }); err != nil {
-				return fmt.Errorf("replace ai_prompt_templates: %w", err)
-			}
-			res.RowsAffected["replaced_ai_prompt_templates"] = n
-			if n, err = replaceRowsByIntKey(tx, dump.AIProfiles, "id", func(row model.AIProfile) int { return row.ID }); err != nil {
-				return fmt.Errorf("replace ai_profiles: %w", err)
-			}
-			res.RowsAffected["replaced_ai_profiles"] = n
-			if n, err = replaceRowsByIntKey(tx, dump.AIProfileVersions, "id", func(row model.AIProfileVersion) int { return row.ID }); err != nil {
-				return fmt.Errorf("replace ai_profile_versions: %w", err)
-			}
-			res.RowsAffected["replaced_ai_profile_versions"] = n
-			if n, err = replaceRowsByIntKey(tx, dump.AIGroupingProfiles, "id", func(row model.AIGroupingProfile) int { return row.ID }); err != nil {
-				return fmt.Errorf("replace ai_grouping_profiles: %w", err)
-			}
-			res.RowsAffected["replaced_ai_grouping_profiles"] = n
-			if n, err = replaceRowsByIntKey(tx, dump.AIChannelRecognitionProfiles, "id", func(row model.AIChannelRecognitionProfile) int { return row.ID }); err != nil {
-				return fmt.Errorf("replace ai_channel_recognition_profiles: %w", err)
-			}
-			res.RowsAffected["replaced_ai_channel_recognition_profiles"] = n
-			if n, err = replaceRowsByIntKey(tx, dump.AIPriceRecognitionProfiles, "id", func(row model.AIPriceRecognitionProfile) int { return row.ID }); err != nil {
-				return fmt.Errorf("replace ai_price_recognition_profiles: %w", err)
-			}
-			res.RowsAffected["replaced_ai_price_recognition_profiles"] = n
-			if n, err = replaceRowsByIntKey(tx, dump.AIModelClassificationProfiles, "id", func(row model.AIModelClassificationProfile) int { return row.ID }); err != nil {
-				return fmt.Errorf("replace ai_model_classification_profiles: %w", err)
-			}
-			res.RowsAffected["replaced_ai_model_classification_profiles"] = n
-			if n, err = replaceRowsByIntKey(tx, dump.AIConfigHealthProfiles, "id", func(row model.AIConfigHealthProfile) int { return row.ID }); err != nil {
-				return fmt.Errorf("replace ai_config_health_profiles: %w", err)
-			}
-			res.RowsAffected["replaced_ai_config_health_profiles"] = n
-			if n, err = replaceRowsByIntKey(tx, dump.DynamicRouteLearningStates, "id", func(row model.DynamicRouteLearningState) int { return row.ID }); err != nil {
-				return fmt.Errorf("replace dynamic_route_learning_states: %w", err)
-			}
-			res.RowsAffected["replaced_dynamic_route_learning_states"] = n
-			if n, err = replaceRowsByIntKey(tx, dump.GovernanceSessions, "id", func(row model.GovernanceSession) int { return row.ID }); err != nil {
-				return fmt.Errorf("replace governance_sessions: %w", err)
-			}
-			res.RowsAffected["replaced_governance_sessions"] = n
-			if n, err = replaceRowsByIntKey(tx, dump.GovernanceApplyRuns, "id", func(row model.GovernanceApplyRun) int { return row.ID }); err != nil {
-				return fmt.Errorf("replace governance_apply_runs: %w", err)
-			}
-			res.RowsAffected["replaced_governance_apply_runs"] = n
-			if n, err = replaceRowsByIntKey(tx, dump.GovernanceRollbackPoints, "id", func(row model.GovernanceRollbackPoint) int { return row.ID }); err != nil {
-				return fmt.Errorf("replace governance_rollback_points: %w", err)
-			}
-			res.RowsAffected["replaced_governance_rollback_points"] = n
-			if n, err = replaceRowsByIntKey(tx, dump.StrategyProfiles, "id", func(row model.StrategyProfile) int { return row.ID }); err != nil {
-				return fmt.Errorf("replace strategy_profiles: %w", err)
-			}
-			res.RowsAffected["replaced_strategy_profiles"] = n
-		}
-
-		if n, err = createUpsertAll(tx, dump.AITasks, []clause.Column{{Name: "id"}}); err != nil {
-			return fmt.Errorf("import ai_tasks: %w", err)
-		}
-		res.RowsAffected["ai_tasks"] = n
-		if n, err = createUpsertAll(tx, dump.AITaskSteps, []clause.Column{{Name: "id"}}); err != nil {
-			return fmt.Errorf("import ai_task_steps: %w", err)
-		}
-		res.RowsAffected["ai_task_steps"] = n
-		if n, err = createUpsertAll(tx, dump.AIPromptTemplates, []clause.Column{{Name: "id"}}); err != nil {
-			return fmt.Errorf("import ai_prompt_templates: %w", err)
-		}
-		res.RowsAffected["ai_prompt_templates"] = n
-		if n, err = createUpsertAll(tx, dump.AIProfiles, []clause.Column{{Name: "id"}}); err != nil {
-			return fmt.Errorf("import ai_profiles: %w", err)
-		}
-		res.RowsAffected["ai_profiles"] = n
-		if n, err = createUpsertAll(tx, dump.AIProfileVersions, []clause.Column{{Name: "id"}}); err != nil {
-			return fmt.Errorf("import ai_profile_versions: %w", err)
-		}
-		res.RowsAffected["ai_profile_versions"] = n
-		if n, err = createUpsertAll(tx, dump.AIGroupingProfiles, []clause.Column{{Name: "id"}}); err != nil {
-			return fmt.Errorf("import ai_grouping_profiles: %w", err)
-		}
-		res.RowsAffected["ai_grouping_profiles"] = n
-		if n, err = createUpsertAll(tx, dump.AIChannelRecognitionProfiles, []clause.Column{{Name: "id"}}); err != nil {
-			return fmt.Errorf("import ai_channel_recognition_profiles: %w", err)
-		}
-		res.RowsAffected["ai_channel_recognition_profiles"] = n
-		if n, err = createUpsertAll(tx, dump.AIPriceRecognitionProfiles, []clause.Column{{Name: "id"}}); err != nil {
-			return fmt.Errorf("import ai_price_recognition_profiles: %w", err)
-		}
-		res.RowsAffected["ai_price_recognition_profiles"] = n
-		if n, err = createUpsertAll(tx, dump.AIModelClassificationProfiles, []clause.Column{{Name: "id"}}); err != nil {
-			return fmt.Errorf("import ai_model_classification_profiles: %w", err)
-		}
-		res.RowsAffected["ai_model_classification_profiles"] = n
-		if n, err = createUpsertAll(tx, dump.AIConfigHealthProfiles, []clause.Column{{Name: "id"}}); err != nil {
-			return fmt.Errorf("import ai_config_health_profiles: %w", err)
-		}
-		res.RowsAffected["ai_config_health_profiles"] = n
-		if n, err = createUpsertAll(tx, dump.DynamicRouteLearningStates, []clause.Column{{Name: "id"}}); err != nil {
-			return fmt.Errorf("import dynamic_route_learning_states: %w", err)
-		}
-		res.RowsAffected["dynamic_route_learning_states"] = n
-		if n, err = createUpsertAll(tx, dump.GovernanceSessions, []clause.Column{{Name: "id"}}); err != nil {
-			return fmt.Errorf("import governance_sessions: %w", err)
-		}
-		res.RowsAffected["governance_sessions"] = n
-		if n, err = createUpsertAll(tx, dump.GovernanceApplyRuns, []clause.Column{{Name: "id"}}); err != nil {
-			return fmt.Errorf("import governance_apply_runs: %w", err)
-		}
-		res.RowsAffected["governance_apply_runs"] = n
-		if n, err = createUpsertAll(tx, dump.GovernanceRollbackPoints, []clause.Column{{Name: "id"}}); err != nil {
-			return fmt.Errorf("import governance_rollback_points: %w", err)
-		}
-		res.RowsAffected["governance_rollback_points"] = n
-		if n, err = createUpsertAll(tx, dump.StrategyProfiles, []clause.Column{{Name: "id"}}); err != nil {
-			return fmt.Errorf("import strategy_profiles: %w", err)
-		}
-		res.RowsAffected["strategy_profiles"] = n
-
-		if dump.IncludeStats {
-			remappedStatsModel, statsModelWarnings := remapStatsModelsForImport(dump.StatsModel, channelIDMap)
-			res.Warnings = append(res.Warnings, statsModelWarnings...)
-			remappedStatsChannel, statsChannelWarnings := remapStatsChannelsForImport(dump.StatsChannel, channelIDMap)
-			res.Warnings = append(res.Warnings, statsChannelWarnings...)
-			remappedStatsAPIKey, statsAPIKeyWarnings := remapStatsAPIKeysForImport(dump.StatsAPIKey, apiKeyIDMap)
-			res.Warnings = append(res.Warnings, statsAPIKeyWarnings...)
-			if mode == model.DBImportModeSkip {
-				if n, err = createDoNothingOnColumns(tx, dump.StatsTotal, []clause.Column{{Name: "id"}}); err != nil {
-					return fmt.Errorf("import stats_total: %w", err)
-				}
-				res.RowsAffected["stats_total"] = n
-				if n, err = createDoNothingOnColumns(tx, dump.StatsDaily, []clause.Column{{Name: "date"}}); err != nil {
-					return fmt.Errorf("import stats_daily: %w", err)
-				}
-				res.RowsAffected["stats_daily"] = n
-				if n, err = createDoNothingOnColumns(tx, dump.StatsHourly, []clause.Column{{Name: "hour"}}); err != nil {
-					return fmt.Errorf("import stats_hourly: %w", err)
-				}
-				res.RowsAffected["stats_hourly"] = n
-				if n, err = createDoNothingOnColumns(tx, remappedStatsModel, []clause.Column{{Name: "id"}}); err != nil {
-					return fmt.Errorf("import stats_model: %w", err)
-				}
-				res.RowsAffected["stats_model"] = n
-				if n, err = createDoNothingOnColumns(tx, remappedStatsChannel, []clause.Column{{Name: "channel_id"}}); err != nil {
-					return fmt.Errorf("import stats_channel: %w", err)
-				}
-				res.RowsAffected["stats_channel"] = n
-				if n, err = createDoNothingOnColumns(tx, remappedStatsAPIKey, []clause.Column{{Name: "api_key_id"}}); err != nil {
-					return fmt.Errorf("import stats_api_key: %w", err)
-				}
-				res.RowsAffected["stats_api_key"] = n
-			} else {
-				if n, err = createUpsertAll(tx, dump.StatsTotal, []clause.Column{{Name: "id"}}); err != nil {
-					return fmt.Errorf("import stats_total: %w", err)
-				}
-				res.RowsAffected["stats_total"] = n
-				if n, err = createUpsertAll(tx, dump.StatsDaily, []clause.Column{{Name: "date"}}); err != nil {
-					return fmt.Errorf("import stats_daily: %w", err)
-				}
-				res.RowsAffected["stats_daily"] = n
-				if n, err = createUpsertAll(tx, dump.StatsHourly, []clause.Column{{Name: "hour"}}); err != nil {
-					return fmt.Errorf("import stats_hourly: %w", err)
-				}
-				res.RowsAffected["stats_hourly"] = n
-				if n, err = createUpsertAll(tx, remappedStatsModel, []clause.Column{{Name: "id"}}); err != nil {
-					return fmt.Errorf("import stats_model: %w", err)
-				}
-				res.RowsAffected["stats_model"] = n
-				if n, err = createUpsertAll(tx, remappedStatsChannel, []clause.Column{{Name: "channel_id"}}); err != nil {
-					return fmt.Errorf("import stats_channel: %w", err)
-				}
-				res.RowsAffected["stats_channel"] = n
-				if n, err = createUpsertAll(tx, remappedStatsAPIKey, []clause.Column{{Name: "api_key_id"}}); err != nil {
-					return fmt.Errorf("import stats_api_key: %w", err)
-				}
-				res.RowsAffected["stats_api_key"] = n
-			}
-		}
-
-		if dump.IncludeLogs {
-			remappedRelayLogs, relayLogWarnings := remapRelayLogsForImport(dump.RelayLogs, channelIDMap, channelKeyIDMap)
-			res.Warnings = append(res.Warnings, relayLogWarnings...)
-			if n, err = createDoNothing(tx, remappedRelayLogs); err != nil {
-				return fmt.Errorf("import relay_logs: %w", err)
-			}
-			res.RowsAffected["relay_logs"] = n
-		}
-
-		return nil
+		return applyImportDump(tx, dump, mode, options, applyState, res, filteredChannelKeys, filteredAPIKeys, &postImportHealthTargets)
 	})
 	if err != nil {
 		return nil, err
@@ -684,6 +347,362 @@ func DBImportIncrementalWithOptions(ctx context.Context, dump *model.DBDump, mod
 	res.Warnings = append(res.Warnings, validationWarnings...)
 	sort.Strings(res.Warnings)
 	return res, nil
+}
+
+func applyImportDump(tx *gorm.DB, dump *model.DBDump, mode model.DBImportMode, options model.DBImportOptions, state *currentImportState, res *model.DBImportResult, filteredChannelKeys []model.ChannelKey, filteredAPIKeys []model.APIKey, postImportHealthTargets *[]ChannelModelHealthCheckTarget) error {
+	routingScopeEnabled := options.ImportScopes == nil || options.ImportScopes.Routing
+	settingsScopeEnabled := options.ImportScopes == nil || options.ImportScopes.Settings
+	modelsScopeEnabled := options.ImportScopes == nil || options.ImportScopes.Models
+	apiKeysScopeEnabled := options.ImportScopes == nil || options.ImportScopes.APIKeys
+
+	var err error
+	var n int64
+	if mode == model.DBImportModeReplace && routingScopeEnabled {
+		if n, err = replaceGroups(tx, dump.Groups); err != nil {
+			return fmt.Errorf("replace groups: %w", err)
+		}
+		res.RowsAffected["replaced_groups"] = n
+		if n, err = replaceChannels(tx, dump.Channels); err != nil {
+			return fmt.Errorf("replace channels: %w", err)
+		}
+		res.RowsAffected["replaced_channels"] = n
+	}
+
+	channelIDMap, n, err := importChannels(tx, dump.Channels, mode, dump.LegacyHints)
+	if err != nil {
+		return fmt.Errorf("import channels: %w", err)
+	}
+	res.RowsAffected["channels"] = n
+
+	if n, err = importUsers(tx, dump.Users, mode); err != nil {
+		return fmt.Errorf("import users: %w", err)
+	}
+	res.RowsAffected["users"] = n
+	if mode == model.DBImportModeSkip {
+		for _, row := range dump.Channels {
+			if _, ok := state.channelsByName[strings.TrimSpace(row.Name)]; ok {
+				res.Warnings = append(res.Warnings, fmt.Sprintf("skip mode preserved existing channel:%s", strings.TrimSpace(row.Name)))
+			}
+		}
+	}
+
+	if mode == model.DBImportModeReplace {
+		if n, err = replaceChannelKeys(tx, channelIDMap); err != nil {
+			return fmt.Errorf("replace channel_keys: %w", err)
+		}
+		res.RowsAffected["replaced_channel_keys"] = n
+	}
+
+	groupIDMap, n, err := importGroups(tx, dump.Groups, mode, dump.LegacyHints)
+	if err != nil {
+		return fmt.Errorf("import groups: %w", err)
+	}
+	res.RowsAffected["groups"] = n
+	if mode == model.DBImportModeSkip {
+		for _, row := range dump.Groups {
+			if _, ok := state.groupsByName[strings.TrimSpace(row.Name)]; ok {
+				res.Warnings = append(res.Warnings, fmt.Sprintf("skip mode preserved existing group:%s", strings.TrimSpace(row.Name)))
+			}
+		}
+	}
+
+	if mode == model.DBImportModeReplace {
+		if n, err = replaceGroupItems(tx, groupIDMap); err != nil {
+			return fmt.Errorf("replace group_items: %w", err)
+		}
+		res.RowsAffected["replaced_group_items"] = n
+	}
+
+	preparedChannelKeys, keyWarnings, err := prepareChannelKeysForImport(tx, filteredChannelKeys, dump.Channels, channelIDMap, state, mode, dump.LegacyHints)
+	if err != nil {
+		return fmt.Errorf("prepare channel_keys: %w", err)
+	}
+	res.Warnings = append(res.Warnings, keyWarnings...)
+	channelKeyIDMap := map[int]int{}
+	if n, channelKeyIDMap, err = importPreparedChannelKeys(tx, preparedChannelKeys, mode); err != nil {
+		return fmt.Errorf("import channel_keys: %w", err)
+	}
+	res.RowsAffected["channel_keys"] = n
+
+	preparedRouteTargetOverrides, overrideWarnings, err := prepareRouteTargetOverridesForImport(tx, dump.RouteTargetOverrides, dump.Channels, filteredChannelKeys, channelIDMap, channelKeyIDMap, state, mode)
+	if err != nil {
+		return fmt.Errorf("prepare route_target_overrides: %w", err)
+	}
+	res.Warnings = append(res.Warnings, overrideWarnings...)
+	if n, err = importPreparedRouteTargetOverrides(tx, preparedRouteTargetOverrides, mode); err != nil {
+		return fmt.Errorf("import route_target_overrides: %w", err)
+	}
+	res.RowsAffected["route_target_overrides"] = n
+
+	remappedGroupItems, itemWarnings := remapGroupItemsForImport(dump.GroupItems, dump.Groups, dump.Channels, groupIDMap, channelIDMap, state, mode)
+	res.Warnings = append(res.Warnings, itemWarnings...)
+	*postImportHealthTargets = buildImportedHealthCheckTargets(dump.Groups, groupIDMap, remappedGroupItems)
+	if n, err = importGroupItems(tx, remappedGroupItems, mode); err != nil {
+		return fmt.Errorf("import group_items: %w", err)
+	}
+	res.RowsAffected["group_items"] = n
+
+	if mode == model.DBImportModeSkip {
+		if n, err = createDoNothingOnColumns(tx, dump.LLMInfos, []clause.Column{{Name: "name"}}); err != nil {
+			return fmt.Errorf("import llm_infos: %w", err)
+		}
+	} else {
+		if mode == model.DBImportModeReplace && modelsScopeEnabled {
+			if n, err = replaceLLMInfos(tx, dump.LLMInfos); err != nil {
+				return fmt.Errorf("replace llm_infos: %w", err)
+			}
+			res.RowsAffected["replaced_llm_infos"] = n
+		}
+		if n, err = importLLMInfos(tx, dump.LLMInfos, state, dump.LegacyHints); err != nil {
+			return fmt.Errorf("import llm_infos: %w", err)
+		}
+	}
+	res.RowsAffected["llm_infos"] = n
+
+	preparedAPIKeys, apiKeyWarnings, err := prepareAPIKeysForImport(tx, filteredAPIKeys)
+	if err != nil {
+		return fmt.Errorf("prepare api_keys: %w", err)
+	}
+	res.Warnings = append(res.Warnings, apiKeyWarnings...)
+	if mode == model.DBImportModeReplace && apiKeysScopeEnabled && dump.Manifest.ContainsSecrets {
+		if n, err = replaceAPIKeys(tx, filteredAPIKeys); err != nil {
+			return fmt.Errorf("replace api_keys: %w", err)
+		}
+		res.RowsAffected["replaced_api_keys"] = n
+	}
+	apiKeyIDMap := map[int]int{}
+	if n, apiKeyIDMap, err = importPreparedAPIKeys(tx, preparedAPIKeys, mode); err != nil {
+		return fmt.Errorf("import api_keys: %w", err)
+	}
+	res.RowsAffected["api_keys"] = n
+
+	if mode == model.DBImportModeSkip {
+		if n, err = createDoNothingOnColumns(tx, dump.Settings, []clause.Column{{Name: "key"}}); err != nil {
+			return fmt.Errorf("import settings: %w", err)
+		}
+	} else {
+		if mode == model.DBImportModeReplace && settingsScopeEnabled {
+			if n, err = replaceSettings(tx, dump.Settings); err != nil {
+				return fmt.Errorf("replace settings: %w", err)
+			}
+			res.RowsAffected["replaced_settings"] = n
+		}
+		if n, err = createUpsertSettings(tx, dump.Settings); err != nil {
+			return fmt.Errorf("import settings: %w", err)
+		}
+	}
+	res.RowsAffected["settings"] = n
+
+	migrationRecordsAffected := int64(0)
+	if mode == model.DBImportModeReplace && options.ImportScopes == nil {
+		if n, err = replaceMigrationRecords(tx, dump.MigrationRecords); err != nil {
+			return fmt.Errorf("replace migration_records: %w", err)
+		}
+		res.RowsAffected["replaced_migration_records"] = n
+		migrationRecordsAffected = n
+	}
+	if options.ImportScopes == nil {
+		if n, err = importMigrationRecords(tx, dump.MigrationRecords, mode); err != nil {
+			return fmt.Errorf("import migration_records: %w", err)
+		}
+		migrationRecordsAffected = n
+	}
+	res.RowsAffected["migration_records"] = migrationRecordsAffected
+
+	if mode == model.DBImportModeReplace && options.ImportScopes == nil {
+		if n, err = replaceRowsByIntKey(tx, dump.AITasks, "id", func(row model.AITask) int { return row.ID }); err != nil {
+			return fmt.Errorf("replace ai_tasks: %w", err)
+		}
+		res.RowsAffected["replaced_ai_tasks"] = n
+		if n, err = replaceRowsByIntKey(tx, dump.AITaskSteps, "id", func(row model.AITaskStep) int { return row.ID }); err != nil {
+			return fmt.Errorf("replace ai_task_steps: %w", err)
+		}
+		res.RowsAffected["replaced_ai_task_steps"] = n
+		if n, err = replaceRowsByIntKey(tx, dump.AIPromptTemplates, "id", func(row model.AIPromptTemplate) int { return row.ID }); err != nil {
+			return fmt.Errorf("replace ai_prompt_templates: %w", err)
+		}
+		res.RowsAffected["replaced_ai_prompt_templates"] = n
+		if n, err = replaceRowsByIntKey(tx, dump.AIProfiles, "id", func(row model.AIProfile) int { return row.ID }); err != nil {
+			return fmt.Errorf("replace ai_profiles: %w", err)
+		}
+		res.RowsAffected["replaced_ai_profiles"] = n
+		if n, err = replaceRowsByIntKey(tx, dump.AIProfileVersions, "id", func(row model.AIProfileVersion) int { return row.ID }); err != nil {
+			return fmt.Errorf("replace ai_profile_versions: %w", err)
+		}
+		res.RowsAffected["replaced_ai_profile_versions"] = n
+		if n, err = replaceRowsByIntKey(tx, dump.AIGroupingProfiles, "id", func(row model.AIGroupingProfile) int { return row.ID }); err != nil {
+			return fmt.Errorf("replace ai_grouping_profiles: %w", err)
+		}
+		res.RowsAffected["replaced_ai_grouping_profiles"] = n
+		if n, err = replaceRowsByIntKey(tx, dump.AIChannelRecognitionProfiles, "id", func(row model.AIChannelRecognitionProfile) int { return row.ID }); err != nil {
+			return fmt.Errorf("replace ai_channel_recognition_profiles: %w", err)
+		}
+		res.RowsAffected["replaced_ai_channel_recognition_profiles"] = n
+		if n, err = replaceRowsByIntKey(tx, dump.AIPriceRecognitionProfiles, "id", func(row model.AIPriceRecognitionProfile) int { return row.ID }); err != nil {
+			return fmt.Errorf("replace ai_price_recognition_profiles: %w", err)
+		}
+		res.RowsAffected["replaced_ai_price_recognition_profiles"] = n
+		if n, err = replaceRowsByIntKey(tx, dump.AIModelClassificationProfiles, "id", func(row model.AIModelClassificationProfile) int { return row.ID }); err != nil {
+			return fmt.Errorf("replace ai_model_classification_profiles: %w", err)
+		}
+		res.RowsAffected["replaced_ai_model_classification_profiles"] = n
+		if n, err = replaceRowsByIntKey(tx, dump.AIConfigHealthProfiles, "id", func(row model.AIConfigHealthProfile) int { return row.ID }); err != nil {
+			return fmt.Errorf("replace ai_config_health_profiles: %w", err)
+		}
+		res.RowsAffected["replaced_ai_config_health_profiles"] = n
+		if n, err = replaceRowsByIntKey(tx, dump.DynamicRouteLearningStates, "id", func(row model.DynamicRouteLearningState) int { return row.ID }); err != nil {
+			return fmt.Errorf("replace dynamic_route_learning_states: %w", err)
+		}
+		res.RowsAffected["replaced_dynamic_route_learning_states"] = n
+		if n, err = replaceRowsByIntKey(tx, dump.GovernanceSessions, "id", func(row model.GovernanceSession) int { return row.ID }); err != nil {
+			return fmt.Errorf("replace governance_sessions: %w", err)
+		}
+		res.RowsAffected["replaced_governance_sessions"] = n
+		if n, err = replaceRowsByIntKey(tx, dump.GovernanceApplyRuns, "id", func(row model.GovernanceApplyRun) int { return row.ID }); err != nil {
+			return fmt.Errorf("replace governance_apply_runs: %w", err)
+		}
+		res.RowsAffected["replaced_governance_apply_runs"] = n
+		if n, err = replaceRowsByIntKey(tx, dump.GovernanceRollbackPoints, "id", func(row model.GovernanceRollbackPoint) int { return row.ID }); err != nil {
+			return fmt.Errorf("replace governance_rollback_points: %w", err)
+		}
+		res.RowsAffected["replaced_governance_rollback_points"] = n
+		if n, err = replaceRowsByIntKey(tx, dump.StrategyProfiles, "id", func(row model.StrategyProfile) int { return row.ID }); err != nil {
+			return fmt.Errorf("replace strategy_profiles: %w", err)
+		}
+		res.RowsAffected["replaced_strategy_profiles"] = n
+	}
+
+	if n, err = createUpsertAll(tx, dump.AITasks, []clause.Column{{Name: "id"}}); err != nil {
+		return fmt.Errorf("import ai_tasks: %w", err)
+	}
+	res.RowsAffected["ai_tasks"] = n
+	if n, err = createUpsertAll(tx, dump.AITaskSteps, []clause.Column{{Name: "id"}}); err != nil {
+		return fmt.Errorf("import ai_task_steps: %w", err)
+	}
+	res.RowsAffected["ai_task_steps"] = n
+	if n, err = createUpsertAll(tx, dump.AIPromptTemplates, []clause.Column{{Name: "id"}}); err != nil {
+		return fmt.Errorf("import ai_prompt_templates: %w", err)
+	}
+	res.RowsAffected["ai_prompt_templates"] = n
+	if n, err = createUpsertAll(tx, dump.AIProfiles, []clause.Column{{Name: "id"}}); err != nil {
+		return fmt.Errorf("import ai_profiles: %w", err)
+	}
+	res.RowsAffected["ai_profiles"] = n
+	if n, err = createUpsertAll(tx, dump.AIProfileVersions, []clause.Column{{Name: "id"}}); err != nil {
+		return fmt.Errorf("import ai_profile_versions: %w", err)
+	}
+	res.RowsAffected["ai_profile_versions"] = n
+	if n, err = createUpsertAll(tx, dump.AIGroupingProfiles, []clause.Column{{Name: "id"}}); err != nil {
+		return fmt.Errorf("import ai_grouping_profiles: %w", err)
+	}
+	res.RowsAffected["ai_grouping_profiles"] = n
+	if n, err = createUpsertAll(tx, dump.AIChannelRecognitionProfiles, []clause.Column{{Name: "id"}}); err != nil {
+		return fmt.Errorf("import ai_channel_recognition_profiles: %w", err)
+	}
+	res.RowsAffected["ai_channel_recognition_profiles"] = n
+	if n, err = createUpsertAll(tx, dump.AIPriceRecognitionProfiles, []clause.Column{{Name: "id"}}); err != nil {
+		return fmt.Errorf("import ai_price_recognition_profiles: %w", err)
+	}
+	res.RowsAffected["ai_price_recognition_profiles"] = n
+	if n, err = createUpsertAll(tx, dump.AIModelClassificationProfiles, []clause.Column{{Name: "id"}}); err != nil {
+		return fmt.Errorf("import ai_model_classification_profiles: %w", err)
+	}
+	res.RowsAffected["ai_model_classification_profiles"] = n
+	if n, err = createUpsertAll(tx, dump.AIConfigHealthProfiles, []clause.Column{{Name: "id"}}); err != nil {
+		return fmt.Errorf("import ai_config_health_profiles: %w", err)
+	}
+	res.RowsAffected["ai_config_health_profiles"] = n
+	if n, err = createUpsertAll(tx, dump.DynamicRouteLearningStates, []clause.Column{{Name: "id"}}); err != nil {
+		return fmt.Errorf("import dynamic_route_learning_states: %w", err)
+	}
+	res.RowsAffected["dynamic_route_learning_states"] = n
+	if n, err = createUpsertAll(tx, dump.GovernanceSessions, []clause.Column{{Name: "id"}}); err != nil {
+		return fmt.Errorf("import governance_sessions: %w", err)
+	}
+	res.RowsAffected["governance_sessions"] = n
+	if n, err = createUpsertAll(tx, dump.GovernanceApplyRuns, []clause.Column{{Name: "id"}}); err != nil {
+		return fmt.Errorf("import governance_apply_runs: %w", err)
+	}
+	res.RowsAffected["governance_apply_runs"] = n
+	if n, err = createUpsertAll(tx, dump.GovernanceRollbackPoints, []clause.Column{{Name: "id"}}); err != nil {
+		return fmt.Errorf("import governance_rollback_points: %w", err)
+	}
+	res.RowsAffected["governance_rollback_points"] = n
+	if n, err = createUpsertAll(tx, dump.StrategyProfiles, []clause.Column{{Name: "id"}}); err != nil {
+		return fmt.Errorf("import strategy_profiles: %w", err)
+	}
+	res.RowsAffected["strategy_profiles"] = n
+
+	if dump.IncludeStats {
+		remappedStatsModel, statsModelWarnings := remapStatsModelsForImport(dump.StatsModel, channelIDMap)
+		res.Warnings = append(res.Warnings, statsModelWarnings...)
+		remappedStatsChannel, statsChannelWarnings := remapStatsChannelsForImport(dump.StatsChannel, channelIDMap)
+		res.Warnings = append(res.Warnings, statsChannelWarnings...)
+		remappedStatsAPIKey, statsAPIKeyWarnings := remapStatsAPIKeysForImport(dump.StatsAPIKey, apiKeyIDMap)
+		res.Warnings = append(res.Warnings, statsAPIKeyWarnings...)
+		if mode == model.DBImportModeSkip {
+			if n, err = createDoNothingOnColumns(tx, dump.StatsTotal, []clause.Column{{Name: "id"}}); err != nil {
+				return fmt.Errorf("import stats_total: %w", err)
+			}
+			res.RowsAffected["stats_total"] = n
+			if n, err = createDoNothingOnColumns(tx, dump.StatsDaily, []clause.Column{{Name: "date"}}); err != nil {
+				return fmt.Errorf("import stats_daily: %w", err)
+			}
+			res.RowsAffected["stats_daily"] = n
+			if n, err = createDoNothingOnColumns(tx, dump.StatsHourly, []clause.Column{{Name: "hour"}}); err != nil {
+				return fmt.Errorf("import stats_hourly: %w", err)
+			}
+			res.RowsAffected["stats_hourly"] = n
+			if n, err = createDoNothingOnColumns(tx, remappedStatsModel, []clause.Column{{Name: "id"}}); err != nil {
+				return fmt.Errorf("import stats_model: %w", err)
+			}
+			res.RowsAffected["stats_model"] = n
+			if n, err = createDoNothingOnColumns(tx, remappedStatsChannel, []clause.Column{{Name: "channel_id"}}); err != nil {
+				return fmt.Errorf("import stats_channel: %w", err)
+			}
+			res.RowsAffected["stats_channel"] = n
+			if n, err = createDoNothingOnColumns(tx, remappedStatsAPIKey, []clause.Column{{Name: "api_key_id"}}); err != nil {
+				return fmt.Errorf("import stats_api_key: %w", err)
+			}
+			res.RowsAffected["stats_api_key"] = n
+		} else {
+			if n, err = createUpsertAll(tx, dump.StatsTotal, []clause.Column{{Name: "id"}}); err != nil {
+				return fmt.Errorf("import stats_total: %w", err)
+			}
+			res.RowsAffected["stats_total"] = n
+			if n, err = createUpsertAll(tx, dump.StatsDaily, []clause.Column{{Name: "date"}}); err != nil {
+				return fmt.Errorf("import stats_daily: %w", err)
+			}
+			res.RowsAffected["stats_daily"] = n
+			if n, err = createUpsertAll(tx, dump.StatsHourly, []clause.Column{{Name: "hour"}}); err != nil {
+				return fmt.Errorf("import stats_hourly: %w", err)
+			}
+			res.RowsAffected["stats_hourly"] = n
+			if n, err = createUpsertAll(tx, remappedStatsModel, []clause.Column{{Name: "id"}}); err != nil {
+				return fmt.Errorf("import stats_model: %w", err)
+			}
+			res.RowsAffected["stats_model"] = n
+			if n, err = createUpsertAll(tx, remappedStatsChannel, []clause.Column{{Name: "channel_id"}}); err != nil {
+				return fmt.Errorf("import stats_channel: %w", err)
+			}
+			res.RowsAffected["stats_channel"] = n
+			if n, err = createUpsertAll(tx, remappedStatsAPIKey, []clause.Column{{Name: "api_key_id"}}); err != nil {
+				return fmt.Errorf("import stats_api_key: %w", err)
+			}
+			res.RowsAffected["stats_api_key"] = n
+		}
+	}
+
+	if dump.IncludeLogs {
+		remappedRelayLogs, relayLogWarnings := remapRelayLogsForImport(dump.RelayLogs, channelIDMap, channelKeyIDMap)
+		res.Warnings = append(res.Warnings, relayLogWarnings...)
+		if n, err = createDoNothing(tx, remappedRelayLogs); err != nil {
+			return fmt.Errorf("import relay_logs: %w", err)
+		}
+		res.RowsAffected["relay_logs"] = n
+	}
+
+	return nil
 }
 
 func validateImportSettings(rows []model.Setting) error {
@@ -830,15 +849,10 @@ func rollbackToImportSnapshot(ctx context.Context, metadata *importSnapshotMetad
 	workingDump := cloneDumpForImport(dump)
 	effectiveScopes := effectiveRollbackImportScopes(scopes)
 	applyImportScopesToDump(workingDump, effectiveScopes)
-	if isEffectiveFullRollbackScopes(scopes) {
-		if err := resetDatabaseForRollback(ctx); err != nil {
-			return nil, err
-		}
-	}
-	result, err := DBImportIncrementalWithOptions(ctx, workingDump, model.DBImportModeReplace, false, model.DBImportOptions{
+	result, err := dbImportIncrementalWithOptions(ctx, workingDump, model.DBImportModeReplace, false, model.DBImportOptions{
 		ImportScopes:          cloneImportScopes(effectiveScopes),
 		SkipPreImportSnapshot: true,
-	})
+	}, isEffectiveFullRollbackScopes(scopes))
 	if err != nil {
 		return nil, err
 	}
@@ -854,47 +868,51 @@ func rollbackToImportSnapshot(ctx context.Context, metadata *importSnapshotMetad
 func resetDatabaseForRollback(ctx context.Context) error {
 	conn := db.GetDB().WithContext(ctx)
 	return conn.Transaction(func(tx *gorm.DB) error {
-		orderedDeletes := []any{
-			&model.RelayLog{},
-			&model.StatsAPIKey{},
-			&model.StatsChannel{},
-			&model.StatsModel{},
-			&model.StatsHourly{},
-			&model.StatsDaily{},
-			&model.StatsTotal{},
-			&model.GroupItem{},
-			&model.Group{},
-			&model.RouteTargetOverride{},
-			&model.ChannelKey{},
-			&model.Channel{},
-			&model.User{},
-			&model.APIKey{},
-			&model.LLMInfo{},
-			&model.DynamicRouteLearningState{},
-			&model.AIConfigHealthProfile{},
-			&model.AIModelClassificationProfile{},
-			&model.AIPriceRecognitionProfile{},
-			&model.AIChannelRecognitionProfile{},
-			&model.AIGroupingProfile{},
-			&model.AIProfileVersion{},
-			&model.AIProfile{},
-			&model.AIPromptTemplate{},
-			&model.AITaskStep{},
-			&model.AITask{},
-			&model.GovernanceRollbackPoint{},
-			&model.GovernanceApplyRun{},
-			&model.GovernanceSession{},
-			&model.StrategyProfile{},
-			&model.Setting{},
-			&migrate.MigrationRecord{},
-		}
-		for _, table := range orderedDeletes {
-			if err := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(table).Error; err != nil {
-				return err
-			}
-		}
-		return nil
+		return resetDatabaseForRollbackTx(tx)
 	})
+}
+
+func resetDatabaseForRollbackTx(tx *gorm.DB) error {
+	orderedDeletes := []any{
+		&model.RelayLog{},
+		&model.StatsAPIKey{},
+		&model.StatsChannel{},
+		&model.StatsModel{},
+		&model.StatsHourly{},
+		&model.StatsDaily{},
+		&model.StatsTotal{},
+		&model.GroupItem{},
+		&model.Group{},
+		&model.RouteTargetOverride{},
+		&model.ChannelKey{},
+		&model.Channel{},
+		&model.User{},
+		&model.APIKey{},
+		&model.LLMInfo{},
+		&model.DynamicRouteLearningState{},
+		&model.AIConfigHealthProfile{},
+		&model.AIModelClassificationProfile{},
+		&model.AIPriceRecognitionProfile{},
+		&model.AIChannelRecognitionProfile{},
+		&model.AIGroupingProfile{},
+		&model.AIProfileVersion{},
+		&model.AIProfile{},
+		&model.AIPromptTemplate{},
+		&model.AITaskStep{},
+		&model.AITask{},
+		&model.GovernanceRollbackPoint{},
+		&model.GovernanceApplyRun{},
+		&model.GovernanceSession{},
+		&model.StrategyProfile{},
+		&model.Setting{},
+		&migrate.MigrationRecord{},
+	}
+	for _, table := range orderedDeletes {
+		if err := tx.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(table).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func savePreImportSnapshot(ctx context.Context) (string, string, error) {
@@ -1115,10 +1133,10 @@ func buildDumpRowsSummary(dump *model.DBDump) map[string]int {
 		"ai_model_classification_profiles": len(dump.AIModelClassificationProfiles),
 		"ai_config_health_profiles":        len(dump.AIConfigHealthProfiles),
 		"dynamic_route_learning_states":    len(dump.DynamicRouteLearningStates),
-		"governance_sessions":             len(dump.GovernanceSessions),
-		"governance_apply_runs":           len(dump.GovernanceApplyRuns),
-		"governance_rollback_points":      len(dump.GovernanceRollbackPoints),
-		"strategy_profiles":               len(dump.StrategyProfiles),
+		"governance_sessions":              len(dump.GovernanceSessions),
+		"governance_apply_runs":            len(dump.GovernanceApplyRuns),
+		"governance_rollback_points":       len(dump.GovernanceRollbackPoints),
+		"strategy_profiles":                len(dump.StrategyProfiles),
 		"stats_total":                      len(dump.StatsTotal),
 		"stats_daily":                      len(dump.StatsDaily),
 		"stats_hourly":                     len(dump.StatsHourly),

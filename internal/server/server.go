@@ -26,6 +26,7 @@ const (
 	httpReadTimeout       = 3 * time.Minute
 	httpIdleTimeout       = 60 * time.Second
 	httpShutdownTimeout   = 15 * time.Second
+	httpMaxHeaderBytes    = 1 << 20
 )
 
 func Start() error {
@@ -114,6 +115,7 @@ func newHTTPServer(addr string, handler http.Handler) http.Server {
 		ReadHeaderTimeout: httpReadHeaderTimeout,
 		ReadTimeout:       httpReadTimeout,
 		IdleTimeout:       httpIdleTimeout,
+		MaxHeaderBytes:    httpMaxHeaderBytes,
 	}
 }
 

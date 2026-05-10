@@ -9,6 +9,15 @@ import { toast } from '@/components/common/Toast';
 import { isOctopusCacheName, isFontCacheName, SW_MESSAGE_TYPE } from '@/lib/sw';
 import { formatReleaseTagDisplay, isSameReleaseVersion } from './info-logic';
 
+function resolveUpdateErrorMessage(error: unknown) {
+    if (error instanceof Error) return error.message;
+    if (error && typeof error === 'object' && 'message' in error) {
+        const message = (error as { message?: unknown }).message;
+        return typeof message === 'string' ? message : undefined;
+    }
+    return undefined;
+}
+
 export function SettingInfo() {
     const t = useTranslations('setting');
     const latestInfoQuery = useLatestInfo();
@@ -60,8 +69,9 @@ export function SettingInfo() {
                     clearCacheAndReload();
                 }, 1500);
             },
-            onError: () => {
-                toast.error(t('info.updateFailed'));
+            onError: (error) => {
+                const description = resolveUpdateErrorMessage(error);
+                toast.error(t('info.updateFailed'), description ? { description } : undefined);
             }
         });
     };

@@ -31,7 +31,6 @@ func TestAdminPostRoutesRequireJSONForEmptyBody(t *testing.T) {
 		"/api/v1/channel/copilot/device-code",
 		"/api/v1/channel/antigravity/oauth/start",
 		"/api/v1/dynamic-routing/learning/reset",
-		"/api/v1/update",
 		"/api/v1/setting/rollback-latest-import",
 	} {
 		t.Run(target, func(t *testing.T) {

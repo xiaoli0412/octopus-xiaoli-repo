@@ -23,6 +23,9 @@ func TestNewHTTPServerUsesSecurityTimeouts(t *testing.T) {
 	if srv.IdleTimeout != httpIdleTimeout {
 		t.Fatalf("IdleTimeout = %v, want %v", srv.IdleTimeout, httpIdleTimeout)
 	}
+	if srv.MaxHeaderBytes != httpMaxHeaderBytes {
+		t.Fatalf("MaxHeaderBytes = %d, want %d", srv.MaxHeaderBytes, httpMaxHeaderBytes)
+	}
 	if srv.Handler == nil {
 		t.Fatalf("Handler = nil, want non-nil")
 	}

@@ -4,6 +4,27 @@
 
 ---
 
+## 1.18.8 - 2026-05-10
+
+### 🐛 稳定性修复
+
+- 修复 `StrategyProfileActivate` 在目标 profile 不存在时仍会先清空当前激活状态的问题；现在会先校验目标存在，再切换激活 profile，并补上回归测试，避免治理策略被误降级到 `ready`。
+- 修复 `rollback latest import snapshot` 的全量恢复原子性问题：全量回滚改为在同一事务内完成 `reset + import`，如果导入阶段失败，将保留失败前数据库现场，避免“回滚失败反而清空现网状态”的高风险损坏。
+- 补强 update 兼容性链路：服务端 `/api/v1/update` 不再强制空 POST 带 JSON body，同时前端继续显式发送 `{}` 并在设置页展示后端返回的具体失败原因，减少不同客户端与中间层对空体 POST 的兼容分歧。
+
+### 🔧 安装与回退收口
+
+- `scripts/install.sh` 现在把 `git clone / fetch / checkout`、源码 Docker 构建、容器运行态校验都改成可失败并继续回退的分支，不再在源码兜底链的中途直接硬退出；当源码构建或启动失败时，安装器可以继续尝试后续二进制 Docker 兜底方案。
+- 版本源、前端版本展示、Debian Docker 构建参数、安装脚本默认镜像、README / AGENTS / 手工验收文档中的示例 tag 已统一同步到 `1.18.8` / `v1.18.8`。
+
+### Release Highlights (EN)
+
+- Fixed `StrategyProfileActivate` so a missing target profile no longer clears the currently active strategy first. The handler now verifies the target exists before mutating global activation state, and a regression test was added.
+- Fixed the atomicity gap in full `rollback latest import snapshot` restores. Full rollback now performs the database reset and import inside the same transaction, so a failed restore no longer wipes the live state before returning an error.
+- Hardened update-route compatibility by allowing empty-body `POST /api/v1/update` requests on the server while the frontend still sends an explicit `{}` body and now surfaces backend error details in the settings page toast.
+- Hardened installer fallback behavior so clone/fetch/checkout failures, source-backed Docker build failures, and failed container startup checks can fall through to the next recovery path instead of aborting too early.
+- Release-facing version sources are now synchronized to `1.18.8` / `v1.18.8` across runtime constants, frontend display, Docker build defaults, installer defaults, and release documentation.
+
 ## 1.18.5 - 2026-05-10
 
 ### ✨ 核心更新

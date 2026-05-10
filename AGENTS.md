@@ -307,7 +307,11 @@ pnpm --dir web run test:settings-no-browser
 pnpm --dir web run test:screenshot-no-browser
 & $env:NODEEXE .\web\node_modules\typescript\bin\tsc --noEmit -p .\web\tsconfig.json
 
-# Windows：前端静态导出与 static/out 同步
+# Linux / CI：仓库验证工作流对齐的后端校验
+go build ./...
+go test ./internal/op ./internal/server/handlers ./internal/server/middleware ./internal/relay/... ./internal/task ./internal/update -count=1
+
+# Windows：前端静态导出与 static/out 同步（CI 也会走同一条静态导出链）
 pnpm --dir web run build:static
 
 # Windows：browser smoke 静态守门与统一 screenshot 入口
@@ -386,7 +390,7 @@ docker compose up -d
 docker run -d \
   -v /path/to/data:/app/data \
   -p 1088:1088 \
-  ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.18.5
+  ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.18.8
 
 # Linux 服务器可直接使用仓库内安装脚本
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash

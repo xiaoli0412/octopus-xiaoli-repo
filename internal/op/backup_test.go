@@ -2,6 +2,7 @@ package op
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -297,14 +298,14 @@ func TestDBExportAllIncludesGovernanceState(t *testing.T) {
 		t.Fatalf("create governance rollback point error = %v", err)
 	}
 	strategyProfile := model.StrategyProfile{
-		Name:          "governance strategy",
-		Summary:       "strategy summary",
-		Status:        model.StrategyProfileStatusActive,
+		Name:            "governance strategy",
+		Summary:         "strategy summary",
+		Status:          model.StrategyProfileStatusActive,
 		SourceSessionID: &session.ID,
-		MutationsJSON: `[{"type":"group_upsert"}]`,
-		CreatedAt:     now,
-		UpdatedAt:     now,
-		ActivatedAt:   &now,
+		MutationsJSON:   `[{"type":"group_upsert"}]`,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		ActivatedAt:     &now,
 	}
 	if err := db.GetDB().WithContext(ctx).Create(&strategyProfile).Error; err != nil {
 		t.Fatalf("create strategy profile error = %v", err)
@@ -3597,6 +3598,83 @@ func TestDBRollbackImportSnapshotExplicitFullScopesRestoresUsersMigrationRecords
 	}
 	if len(migrationRecords) != len(migrationRecordsBeforeImport) || migrationRecords[0].Version != migrationRecordsBeforeImport[0].Version {
 		t.Fatalf("migration records after explicit full-scope rollback = %#v, want %#v", migrationRecords, migrationRecordsBeforeImport)
+	}
+}
+
+func TestDBRollbackLatestImportSnapshotKeepsExistingStateWhenRestoreFails(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	if err := db.GetDB().WithContext(ctx).Create(&model.Channel{Name: "before-failed-rollback-channel", Enabled: true, Model: "gpt-4o"}).Error; err != nil {
+		t.Fatalf("create before channel error = %v", err)
+	}
+	if err := UserChangePassword("admin", "before-failed-rollback-secret"); err != nil {
+		t.Fatalf("UserChangePassword(before failed rollback) error = %v", err)
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&migrate.MigrationRecord{Version: 321, Status: migrate.MigrationRecordStatusSuccess}).Error; err != nil {
+		t.Fatalf("create before migration record error = %v", err)
+	}
+
+	if _, _, err := savePreImportSnapshot(ctx); err != nil {
+		t.Fatalf("savePreImportSnapshot() error = %v", err)
+	}
+
+	if err := db.GetDB().WithContext(ctx).Create(&model.Channel{Name: "after-failed-rollback-channel", Enabled: true, Model: "gpt-4o"}).Error; err != nil {
+		t.Fatalf("create after channel error = %v", err)
+	}
+	if err := UserChangePassword("before-failed-rollback-secret", "after-failed-rollback-secret"); err != nil {
+		t.Fatalf("UserChangePassword(after failed rollback) error = %v", err)
+	}
+	if err := db.GetDB().WithContext(ctx).Create(&migrate.MigrationRecord{Version: 654, Status: migrate.MigrationRecordStatusFailed}).Error; err != nil {
+		t.Fatalf("create after migration record error = %v", err)
+	}
+
+	latestMetadata, dump, err := loadLatestImportSnapshot()
+	if err != nil {
+		t.Fatalf("loadLatestImportSnapshot() error = %v", err)
+	}
+	if latestMetadata == nil || dump == nil {
+		t.Fatalf("latest snapshot metadata=%#v dump=%#v, want populated snapshot", latestMetadata, dump)
+	}
+	dump.Settings = append(dump.Settings, model.Setting{Key: model.SettingKey("")})
+	payload, err := json.MarshalIndent(dump, "", "  ")
+	if err != nil {
+		t.Fatalf("json.MarshalIndent(corrupted dump) error = %v", err)
+	}
+	if err := os.WriteFile(latestMetadata.SnapshotPath, payload, importSnapshotFilePerm); err != nil {
+		t.Fatalf("os.WriteFile(corrupted snapshot) error = %v", err)
+	}
+
+	rollbackRes, err := DBRollbackLatestImportSnapshot(ctx)
+	if err == nil {
+		t.Fatalf("DBRollbackLatestImportSnapshot() result = %#v, want restore failure", rollbackRes)
+	}
+	if !strings.Contains(err.Error(), "unknown setting key") {
+		t.Fatalf("DBRollbackLatestImportSnapshot() error = %v, want unknown setting key failure", err)
+	}
+
+	var channels []model.Channel
+	if err := db.GetDB().WithContext(ctx).Order("name asc").Find(&channels).Error; err != nil {
+		t.Fatalf("query channels after failed rollback error = %v", err)
+	}
+	channelNames := make([]string, 0, len(channels))
+	for _, row := range channels {
+		channelNames = append(channelNames, row.Name)
+	}
+	if strings.Join(channelNames, ",") != "after-failed-rollback-channel,before-failed-rollback-channel" {
+		t.Fatalf("channels after failed rollback = %#v, want both pre-failure rows preserved", channelNames)
+	}
+	if err := UserVerify("admin", "after-failed-rollback-secret"); err != nil {
+		t.Fatalf("UserVerify(after-failed-rollback-secret) error = %v", err)
+	}
+	if err := UserVerify("admin", "before-failed-rollback-secret"); err == nil {
+		t.Fatalf("UserVerify(before-failed-rollback-secret) unexpectedly succeeded after failed rollback")
+	}
+	var migrationRecords []migrate.MigrationRecord
+	if err := db.GetDB().WithContext(ctx).Order("version asc").Find(&migrationRecords).Error; err != nil {
+		t.Fatalf("query migration records after failed rollback error = %v", err)
+	}
+	if !migrationRecordVersionsContain(migrationRecords, 321) || !migrationRecordVersionsContain(migrationRecords, 654) {
+		t.Fatalf("migration records after failed rollback = %#v, want existing rows preserved", migrationRecords)
 	}
 }
 

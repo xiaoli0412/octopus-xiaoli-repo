@@ -3,10 +3,36 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/update"
+	"github.com/gin-gonic/gin"
 )
+
+func TestUpdateRouteAllowsEmptyPostBody(t *testing.T) {
+	setupHandlerTest(t)
+
+	original := runUpdateCore
+	runUpdateCore = func() error { return update.ErrUpdateInProgress }
+	t.Cleanup(func() {
+		runUpdateCore = original
+	})
+
+	engine := gin.New()
+	engine.POST("/api/v1/update", func(ctx *gin.Context) {
+		updateFunc(ctx)
+	})
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/update", nil)
+
+	engine.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusConflict, recorder.Body.String())
+	}
+}
 
 func TestUpdateFuncReturnsConflictWhenUpdateAlreadyRunning(t *testing.T) {
 	setupHandlerTest(t)

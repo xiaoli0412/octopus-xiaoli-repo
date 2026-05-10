@@ -314,27 +314,37 @@ func StrategyProfileActivate(id int, ctx context.Context) (model.StrategyProfile
 	if id <= 0 {
 		return model.StrategyProfileSummary{}, fmt.Errorf("invalid strategy profile id")
 	}
+	var row model.StrategyProfile
+	if err := db.GetDB().WithContext(ctx).First(&row, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return model.StrategyProfileSummary{}, fmt.Errorf("strategy profile not found")
+		}
+		return model.StrategyProfileSummary{}, err
+	}
 	now := time.Now()
 	err := db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&model.StrategyProfile{}).Where("status = ?", model.StrategyProfileStatusActive).Updates(map[string]any{"status": model.StrategyProfileStatusReady, "updated_at": now}).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&model.StrategyProfile{}).Where("id = ?", id).Updates(map[string]any{"status": model.StrategyProfileStatusActive, "activated_at": now, "updated_at": now}).Error; err != nil {
-			return err
+		result := tx.Model(&model.StrategyProfile{}).Where("id = ?", id).Updates(map[string]any{"status": model.StrategyProfileStatusActive, "activated_at": now, "updated_at": now})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("strategy profile not found")
 		}
 		if err := tx.Model(&model.Setting{}).Where("key = ?", model.SettingKeyActiveStrategyProfileID).Update("value", fmt.Sprintf("%d", id)).Error; err != nil {
 			return err
 		}
-		settingCache.Set(model.SettingKeyActiveStrategyProfileID, fmt.Sprintf("%d", id))
 		return nil
 	})
 	if err != nil {
 		return model.StrategyProfileSummary{}, err
 	}
-	var row model.StrategyProfile
 	if err := db.GetDB().WithContext(ctx).First(&row, id).Error; err != nil {
 		return model.StrategyProfileSummary{}, err
 	}
+	settingCache.Set(model.SettingKeyActiveStrategyProfileID, fmt.Sprintf("%d", id))
 	return strategyProfileSummaryFromRecord(row, id), nil
 }
 

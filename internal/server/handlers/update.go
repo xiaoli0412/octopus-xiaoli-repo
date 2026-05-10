@@ -27,7 +27,6 @@ func init() {
 		).
 		AddRoute(
 			router.NewRoute("", http.MethodPost).
-				Use(middleware.RequireJSON()).
 				Handle(updateFunc),
 		)
 }

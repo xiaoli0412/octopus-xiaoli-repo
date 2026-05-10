@@ -67,7 +67,7 @@ export function useUpdateCore() {
 
     return useMutation({
         mutationFn: async () => {
-            return apiClient.post<string>('/api/v1/update');
+            return apiClient.post<string>('/api/v1/update', {});
         },
         onSuccess: (data) => {
             logger.log('更新成功:', data);

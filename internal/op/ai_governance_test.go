@@ -294,6 +294,39 @@ func TestGovernanceSessionRollbackRestoresStrategyProfilesAndActiveSetting(t *te
 	}
 }
 
+func TestStrategyProfileActivateDoesNotMutateStateWhenTargetMissing(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	original := model.StrategyProfile{Name: "original-active", Summary: "baseline", Status: model.StrategyProfileStatusActive}
+	if err := db.GetDB().WithContext(ctx).Create(&original).Error; err != nil {
+		t.Fatalf("create original profile error = %v", err)
+	}
+	if err := SettingSetInt(model.SettingKeyActiveStrategyProfileID, original.ID); err != nil {
+		t.Fatalf("SettingSetInt(active profile) error = %v", err)
+	}
+
+	missingID := original.ID + 999
+	if _, err := StrategyProfileActivate(missingID, ctx); err == nil {
+		t.Fatal("StrategyProfileActivate() expected error")
+	}
+
+	var storedOriginal model.StrategyProfile
+	if err := db.GetDB().WithContext(ctx).First(&storedOriginal, original.ID).Error; err != nil {
+		t.Fatalf("reload original profile error = %v", err)
+	}
+	if storedOriginal.Status != model.StrategyProfileStatusActive {
+		t.Fatalf("original profile status after failed activate = %q, want %q", storedOriginal.Status, model.StrategyProfileStatusActive)
+	}
+
+	activeID, err := SettingGetInt(model.SettingKeyActiveStrategyProfileID)
+	if err != nil {
+		t.Fatalf("SettingGetInt(active profile) error = %v", err)
+	}
+	if activeID != original.ID {
+		t.Fatalf("active strategy profile id after failed activate = %d, want %d", activeID, original.ID)
+	}
+}
+
 func nowForTest() time.Time {
 	return time.Unix(1, 0).UTC()
 }

@@ -49,13 +49,13 @@ const IS_TEST_ENV = process.env.NODE_ENV === 'test';
 const AI_AUTOMATION_TEXT: Record<string, string> = {
 	'hero.badge': 'AI 自动化总控台',
 	'hero.title': '一句目标，统一生成可应用的 AI 自动化方案',
-	'hero.desc': '默认同时评估分组路由、价格覆盖、动态路由与 AI 运行时策略。主链尽量简单，复杂控制收进设置与专业模式。',
+	'hero.desc': '默认同时评估分组路由、价格覆盖、动态路由与 AI 运行时设置。主链尽量简单，复杂控制收进设置与专业模式。',
 	'settings.open': '自动化设置',
 	'settings.title': '自动化设置',
-	'settings.desc': '这里集中调整 AI 处理时的调度策略、并发上限和降级路径，不占主工作区。',
+	'settings.desc': '这里集中保存 AI 处理时的调度策略、并发上限和降级路径，作为治理配置快照，不占主工作区。',
 	'settings.useLocalDefault': '使用本机默认地址',
 	'settings.useLocalDefaultDesc': '开启后自动填入当前服务的本机地址；关闭后可手动修改请求地址。',
-	'settings.strategy': '运行策略',
+	'settings.strategy': '治理策略',
 	'settings.strategyOptions.highest_success_rate': '成功率优先',
 	'settings.strategyOptions.balanced_latency': '时延与成功率平衡',
 	'settings.strategyOptions.cost_first': '成本优先',
@@ -85,7 +85,7 @@ const AI_AUTOMATION_TEXT: Record<string, string> = {
 	'quickGoals.pricing': '先补价格缺口',
 	'main.goalTitle': '输入目标',
 	'main.goalDesc': '直接说你要达成的自动化目标，系统会生成分域方案与变更预览。',
-	'main.goalPlaceholder': '例如：把当前可用模型统一整理成运维治理组，并补齐价格缺口与运行策略。',
+	'main.goalPlaceholder': '例如：把当前可用模型统一整理成运维治理组，并补齐价格缺口与治理策略。',
 	'main.aiSummaryTitle': '当前总控状态',
 	'main.aiSummaryDesc': '把当前会话、来源、范围与风险压缩到一组状态卡中，减少来回切换。',
 	'main.scopeLabel': '当前覆盖范围',
@@ -102,7 +102,7 @@ const AI_AUTOMATION_TEXT: Record<string, string> = {
 	'summary.lastApply': '最近一次应用',
 	'summary.notApplied': '还没有应用记录',
 	'sidebar.title': '状态带',
-	'sidebar.runtimePolicy': '运行策略',
+	'sidebar.runtimePolicy': '治理策略',
 	'sidebar.learningOn': '已启用',
 	'sidebar.learningOff': '已关闭',
 	'workspace.plan': '主方案',
@@ -170,8 +170,8 @@ const AI_AUTOMATION_TEXT: Record<string, string> = {
 	'toast.profileCreateFailed': '保存方案失败',
 	'toast.profileActivated': '方案已启用',
 	'toast.profileActivateFailed': '启用方案失败',
-	'toast.runtimePolicySaved': '运行策略已保存',
-	'toast.runtimePolicySaveFailed': '保存运行策略失败',
+	'toast.runtimePolicySaved': '治理策略已保存',
+	'toast.runtimePolicySaveFailed': '保存治理策略失败',
 };
 
 const DEFAULT_LOCAL_BASE_URL = 'http://127.0.0.1:1088/v1';
@@ -432,7 +432,7 @@ function MutationRow({ mutation }: { mutation: GovernanceMutation }) {
 		route_target_override_delete: '删除路由目标',
 		llm_price_upsert: '补全价格',
 		dynamic_routing_setting_set: '更新动态路由',
-		runtime_policy_set: '更新运行策略',
+		runtime_policy_set: '更新治理策略',
 		strategy_profile_activate: '切换策略',
 	};
 
