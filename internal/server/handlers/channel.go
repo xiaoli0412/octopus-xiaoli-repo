@@ -25,9 +25,7 @@ const channelPostSaveTaskMaxConcurrent = 4
 var channelPostSaveTaskSlots = make(chan struct{}, channelPostSaveTaskMaxConcurrent)
 var channelPostSaveTaskTimeout = 5 * time.Minute
 var channelPostSaveTaskRunner = func(channel *model.Channel, ctx context.Context) {
-	modelStr := channel.Model + "," + channel.CustomModel
-	modelArray := strings.Split(modelStr, ",")
-	if err := helper.LLMPriceAddToDB(modelArray, ctx); err != nil {
+	if err := helper.EnsureReferencedLLMInfos(ctx); err != nil {
 		log.Warnf("post-save llm price update failed (channel=%d): %v", channel.ID, err)
 	}
 	helper.ChannelBaseUrlDelayUpdate(channel, ctx)

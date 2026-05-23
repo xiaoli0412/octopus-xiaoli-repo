@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/tmaxmax/go-sse"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/helper"
 	dbmodel "github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
@@ -19,8 +21,6 @@ import (
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/log"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/xstrings"
-	"github.com/gin-gonic/gin"
-	"github.com/tmaxmax/go-sse"
 )
 
 // Handler 处理入站请求并转发到上游服务
@@ -59,6 +59,7 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 
 	// 初始化 Metrics
 	metrics := NewRelayMetrics(apiKeyID, requestModel, internalRequest)
+	metrics.SetClientIP(c.ClientIP())
 
 	// 请求级上下文
 	req := &relayRequest{
@@ -326,7 +327,6 @@ func (ra *relayAttempt) attempt() attemptResult {
 		Err:     fmt.Errorf("channel %s failed: %v", ra.channel.Name, fwdErr),
 	}
 }
-
 
 func apiKeyAllowsModel(supportedModels, requestedModel string) bool {
 	if strings.TrimSpace(supportedModels) == "" {

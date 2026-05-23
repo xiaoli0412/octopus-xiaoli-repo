@@ -1,7 +1,7 @@
 import { lazyWithPreload } from './lazy-with-preload';
 import { lazy, ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Bot, Home, Radio, Sparkles, FolderTree, Settings, Logs } from 'lucide-react';
+import { Bot, Home, Radio, Sparkles, FolderTree, Settings, Logs, Activity } from 'lucide-react';
 
 export type LazyComponent = ReturnType<typeof lazy> & {
     preload: () => Promise<{ default: ComponentType<Record<string, never>> }>
@@ -18,6 +18,7 @@ const Home_Module = lazyWithPreload(() => import('@/components/modules/home').th
 const Channel_Module = lazyWithPreload(() => import('@/components/modules/channel').then(m => ({ default: m.Channel })));
 const Model_Module = lazyWithPreload(() => import('@/components/modules/model').then(m => ({ default: m.Model })));
 const Group_Module = lazyWithPreload(() => import('@/components/modules/group').then(m => ({ default: m.Group })));
+const Ops_Module = lazyWithPreload(() => import('@/components/modules/ops').then(m => ({ default: m.Ops })));
 const AIAutomation_Module = lazyWithPreload(() => import('@/components/modules/ai-automation').then(m => ({ default: m.AIAutomation })));
 const Log_Module = lazyWithPreload(() => import('@/components/modules/log').then(m => ({ default: m.Log })));
 const Setting_Module = lazyWithPreload(() => import('@/components/modules/setting').then(m => ({ default: m.Setting })));
@@ -27,6 +28,7 @@ export const ROUTES: RouteConfig[] = [
     { id: 'channel', label: 'Channel', icon: Radio, component: Channel_Module },
     { id: 'group', label: 'Group', icon: FolderTree, component: Group_Module },
     { id: 'model', label: 'Model', icon: Sparkles, component: Model_Module },
+    { id: 'ops', label: 'Ops', icon: Activity, component: Ops_Module },
     { id: 'ai', label: 'AI Automation', icon: Bot, component: AIAutomation_Module },
     { id: 'log', label: 'Log', icon: Logs, component: Log_Module },
     { id: 'setting', label: 'Setting', icon: Settings, component: Setting_Module },

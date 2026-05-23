@@ -15,11 +15,12 @@ func LLMPriceAddToDB(modelNames []string, ctx context.Context) error {
 		if modelName == "" {
 			continue
 		}
-		modelPrice := price.GetLLMPrice(modelName)
-		if modelPrice != nil {
+		resolvedPrice, _, ok := price.ResolveLLMPrice(modelName)
+		if ok {
 			newLLMInfos = append(newLLMInfos, model.LLMInfo{
-				Name:     modelName,
-				LLMPrice: *modelPrice,
+				Name:             modelName,
+				LLMPrice:         resolvedPrice,
+				OfficialLLMPrice: model.OfficialPriceFromLLMPrice(resolvedPrice),
 			})
 		} else {
 			newLLMInfos = append(newLLMInfos, model.LLMInfo{Name: modelName})

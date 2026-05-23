@@ -28,7 +28,8 @@ type ChannelAttempt struct {
 type RelayLog struct {
 	ID                          int64            `json:"id" gorm:"primaryKey;autoIncrement:false"` // Snowflake ID
 	Time                        int64            `json:"time"`                                     // 时间戳（秒）
-	RequestModelName            string           `json:"request_model_name"`                       // 请求模型名称
+	ClientIP                    string           `json:"client_ip"`
+	RequestModelName            string           `json:"request_model_name"` // 请求模型名称
 	DynamicRoutingMode          string           `json:"dynamic_routing_mode,omitempty"`
 	DynamicRoutingEffectiveMode string           `json:"dynamic_routing_effective_mode,omitempty"`
 	DynamicRoutingDecision      string           `json:"dynamic_routing_decision,omitempty"`
@@ -42,6 +43,8 @@ type RelayLog struct {
 	ActualModelName             string           `json:"actual_model_name"`               // 实际使用模型名称
 	InputTokens                 int              `json:"input_tokens"`                    // 输入Token
 	OutputTokens                int              `json:"output_tokens"`                   // 输出 Token
+	CacheReadTokens             int              `json:"cache_read_tokens"`               // 缓存命中 Token
+	CacheWriteTokens            int              `json:"cache_write_tokens"`              // 缓存写入 Token
 	Ftut                        int              `json:"ftut"`                            // 首字时间(毫秒)
 	UseTime                     int              `json:"use_time"`                        // 总用时(毫秒)
 	Cost                        float64          `json:"cost"`                            // 消耗费用

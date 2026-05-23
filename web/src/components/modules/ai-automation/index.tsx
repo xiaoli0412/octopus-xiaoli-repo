@@ -47,12 +47,12 @@ type WorkspaceTab = 'preview' | 'profiles' | 'rollback' | 'history' | 'expert';
 const IS_TEST_ENV = process.env.NODE_ENV === 'test';
 
 const AI_AUTOMATION_TEXT: Record<string, string> = {
-	'hero.badge': 'AI 自动化总控台',
-	'hero.title': '一句目标，统一生成可应用的 AI 自动化方案',
-	'hero.desc': '默认同时评估分组路由、价格覆盖、动态路由与 AI 运行时设置。主链尽量简单，复杂控制收进设置与专业模式。',
-	'settings.open': '自动化设置',
+	'hero.badge': 'AI 自动化',
+	'hero.title': 'AI 自动化方案生成',
+	'hero.desc': '统一评估分组路由、价格覆盖、动态路由和运行时设置，输出方案与变更预览。',
+	'settings.open': '设置',
 	'settings.title': '自动化设置',
-	'settings.desc': '这里集中保存 AI 处理时的调度策略、并发上限和降级路径，作为治理配置快照，不占主工作区。',
+	'settings.desc': '集中调整调度策略、并发上限和降级路径，作为治理配置快照。',
 	'settings.useLocalDefault': '使用本机默认地址',
 	'settings.useLocalDefaultDesc': '开启后自动填入当前服务的本机地址；关闭后可手动修改请求地址。',
 	'settings.strategy': '治理策略',
@@ -80,12 +80,12 @@ const AI_AUTOMATION_TEXT: Record<string, string> = {
 	'settings.cancel': '取消',
 	'settings.saving': '保存中...',
 	'settings.save': '保存设置',
-	'quickGoals.global': '全局总调配',
-	'quickGoals.routing': '先整路由分组',
-	'quickGoals.pricing': '先补价格缺口',
+	'quickGoals.global': '统一评估',
+	'quickGoals.routing': '整理路由',
+	'quickGoals.pricing': '补齐价格',
 	'main.goalTitle': '输入目标',
-	'main.goalDesc': '直接说你要达成的自动化目标，系统会生成分域方案与变更预览。',
-	'main.goalPlaceholder': '例如：把当前可用模型统一整理成运维治理组，并补齐价格缺口与治理策略。',
+	'main.goalDesc': '输入目标，系统生成结构化方案与变更预览。',
+	'main.goalPlaceholder': '例如：整理分组路由并补齐价格覆盖。',
 	'main.aiSummaryTitle': '当前总控状态',
 	'main.aiSummaryDesc': '把当前会话、来源、范围与风险压缩到一组状态卡中，减少来回切换。',
 	'main.scopeLabel': '当前覆盖范围',
@@ -323,9 +323,9 @@ const WORKSPACE_TABS: Array<{ key: WorkspaceTab; icon: typeof ClipboardList; lab
 ];
 
 const QUICK_GOALS = [
-	{ key: 'global', label: 'quickGoals.global', value: '请一次性整理分组路由、价格缺口、动态路由策略和 AI 运行时策略。' },
-	{ key: 'routing', label: 'quickGoals.routing', value: '请先整理当前分组与路由，把可用模型统一收口到治理组。' },
-	{ key: 'pricing', label: 'quickGoals.pricing', value: '请检查当前已配置模型的价格完整性，并给出可补全的缺口方案。' },
+	{ key: 'global', label: 'quickGoals.global', value: '统一评估分组路由、价格覆盖、动态路由和运行时设置。' },
+	{ key: 'routing', label: 'quickGoals.routing', value: '先整理当前分组与路由。' },
+	{ key: 'pricing', label: 'quickGoals.pricing', value: '先检查当前模型的价格覆盖缺口。' },
 ];
 
 const SESSION_STATUS_LABELS: Record<string, string> = {

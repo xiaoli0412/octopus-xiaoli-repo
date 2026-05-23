@@ -16,6 +16,23 @@ type OfficialLLMPrice struct {
 	OfficialCacheWrite float64 `json:"official_cache_write"`
 }
 
+func (p LLMPrice) IsZero() bool {
+	return p.Input == 0 && p.Output == 0 && p.CacheRead == 0 && p.CacheWrite == 0
+}
+
+func (p OfficialLLMPrice) IsZero() bool {
+	return p.OfficialInput == 0 && p.OfficialOutput == 0 && p.OfficialCacheRead == 0 && p.OfficialCacheWrite == 0
+}
+
+func OfficialPriceFromLLMPrice(price LLMPrice) OfficialLLMPrice {
+	return OfficialLLMPrice{
+		OfficialInput:      price.Input,
+		OfficialOutput:     price.Output,
+		OfficialCacheRead:  price.CacheRead,
+		OfficialCacheWrite: price.CacheWrite,
+	}
+}
+
 type BillingMode string
 
 const (
@@ -79,6 +96,11 @@ type LLMInfo struct {
 	ProbePolicy           ProbePolicy `json:"probe_policy"`
 	ProbeIntervalSeconds  int         `json:"probe_interval_seconds"`
 	ProbeConcurrencyLimit int         `json:"probe_concurrency_limit"`
+	ParsedVendor          string      `json:"parsed_vendor,omitempty" gorm:"-"`
+	ParsedVersion         string      `json:"parsed_version,omitempty" gorm:"-"`
+	ParsedSuffix          string      `json:"parsed_suffix,omitempty" gorm:"-"`
+	PriceSource           string      `json:"price_source,omitempty" gorm:"-"`
+	PriceMatchedKey       string      `json:"price_matched_key,omitempty" gorm:"-"`
 }
 
 type LLMChannel struct {

@@ -17,6 +17,7 @@ const (
 	TaskCleanLLM                  = "clean_llm"
 	TaskBaseUrlDelay              = "base_url_delay"
 	TaskDynamicRoutingSummaryScan = "dynamic_routing_summary_scan"
+	TaskOpsCleanup                = "ops_cleanup"
 )
 
 func Init() {
@@ -45,6 +46,13 @@ func initTasks(getInt func(model.SettingKey) (int, error)) {
 
 	// Register the daily dynamic-routing summary scan used by the settings/dashboard surface.
 	Register(TaskDynamicRoutingSummaryScan, dynamicRoutingSummaryScanInterval, true, DynamicRoutingSummaryScanTask)
+	Register(TaskOpsCleanup, 12*time.Hour, true, func() {
+		ctx, cancel := taskContext()
+		defer cancel()
+		if err := op.OpsCleanup(ctx); err != nil {
+			log.Warnf("ops cleanup task failed: %v", err)
+		}
+	})
 
 	// 注册LLM同步任务
 	if syncLLMIntervalHours, err := getInt(model.SettingKeySyncLLMInterval); err != nil {

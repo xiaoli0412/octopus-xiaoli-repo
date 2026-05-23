@@ -22,6 +22,7 @@ const (
 // RelayMetrics 负责最终的日志收集与持久化
 type RelayMetrics struct {
 	APIKeyID     int
+	ClientIP     string
 	RequestModel string
 	StartTime    time.Time
 
@@ -33,9 +34,11 @@ type RelayMetrics struct {
 	InternalResponse *transformerModel.InternalLLMResponse
 
 	// 统计指标
-	ActualModel string
-	Stats       model.StatsMetrics
-	Dynamic     *relayDynamicAudit
+	ActualModel      string
+	Stats            model.StatsMetrics
+	CacheReadTokens  int64
+	CacheWriteTokens int64
+	Dynamic          *relayDynamicAudit
 }
 
 var relayStatsDailyUpdate = op.StatsDailyUpdate
@@ -47,6 +50,10 @@ func NewRelayMetrics(apiKeyID int, requestModel string, req *transformerModel.In
 		StartTime:       time.Now(),
 		InternalRequest: req,
 	}
+}
+
+func (m *RelayMetrics) SetClientIP(clientIP string) {
+	m.ClientIP = strings.TrimSpace(clientIP)
 }
 
 func (m *RelayMetrics) SetFirstTokenTime(t time.Time) {
@@ -74,6 +81,8 @@ func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMRes
 			CachedTokens: 0,
 		}
 	}
+	m.CacheReadTokens = int64(usage.PromptTokensDetails.CachedTokens)
+	m.CacheWriteTokens = int64(usage.CacheCreationInputTokens)
 	if usage.AnthropicUsage {
 		m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead +
 			float64(usage.PromptTokens)*modelPrice.Input +
@@ -106,6 +115,22 @@ func (m *RelayMetrics) Save(ctx context.Context, success bool, err error, attemp
 	relayStatsDailyUpdate(ctx, globalStats)
 	op.StatsAPIKeyUpdate(m.APIKeyID, globalStats)
 	op.StatsChannelUpdate(channelID, globalStats)
+	if err := op.OpsRecordRelay(ctx, op.OpsRelayEvent{
+		Time:             m.StartTime,
+		APIKeyID:         m.APIKeyID,
+		ClientIP:         m.ClientIP,
+		RequestModel:     m.RequestModel,
+		ActualModel:      m.ActualModel,
+		Success:          success,
+		DurationMS:       duration.Milliseconds(),
+		InputTokens:      m.Stats.InputToken,
+		OutputTokens:     m.Stats.OutputToken,
+		CacheReadTokens:  m.CacheReadTokens,
+		CacheWriteTokens: m.CacheWriteTokens,
+		Attempts:         attempts,
+	}); err != nil {
+		log.Warnf("failed to record ops metrics: %v", err)
+	}
 
 	log.Infof("relay complete: model=%s, channel=%d(%s), success=%t, duration=%dms, input_token=%d, output_token=%d, input_cost=%f, output_cost=%f, total_cost=%f, attempts=%d",
 		m.RequestModel, channelID, channelName, success, duration.Milliseconds(),
@@ -175,10 +200,16 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 
 	// Usage
 	if m.InternalResponse != nil && m.InternalResponse.Usage != nil {
-		relayLog.InputTokens = int(m.InternalResponse.Usage.PromptTokens)
-		relayLog.OutputTokens = int(m.InternalResponse.Usage.CompletionTokens)
+		usage := m.InternalResponse.Usage
+		relayLog.InputTokens = int(usage.PromptTokens)
+		relayLog.OutputTokens = int(usage.CompletionTokens)
+		if usage.PromptTokensDetails != nil {
+			relayLog.CacheReadTokens = int(usage.PromptTokensDetails.CachedTokens)
+		}
+		relayLog.CacheWriteTokens = int(usage.CacheCreationInputTokens)
 		relayLog.Cost = m.Stats.InputCost + m.Stats.OutputCost
 	}
+	relayLog.ClientIP = m.ClientIP
 
 	// 请求内容
 	if m.InternalRequest != nil {
@@ -191,7 +222,7 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 	if m.InternalResponse != nil {
 		respForLog := m.filterResponseForLog(m.InternalResponse)
 		if respJSON, jsonErr := json.Marshal(respForLog); jsonErr == nil {
-			if m.InternalResponse.Usage != nil && m.InternalResponse.Usage.AnthropicUsage {
+			if m.InternalResponse.Usage != nil && m.InternalResponse.Usage.CacheCreationInputTokens > 0 {
 				respStr := string(respJSON)
 				old := `"usage":{`
 				insert := fmt.Sprintf(`"usage":{"cache_creation_input_tokens":%d,`, m.InternalResponse.Usage.CacheCreationInputTokens)

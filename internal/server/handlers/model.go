@@ -4,14 +4,15 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/helper"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/price"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/resp"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
-	"github.com/gin-gonic/gin"
-	"github.com/samber/lo"
 )
 
 func init() {
@@ -113,10 +114,17 @@ func getModelList(c *gin.Context) {
 }
 
 func listLLM(c *gin.Context) {
+	if err := helper.EnsureReferencedLLMInfos(c.Request.Context()); err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
 	models, err := op.LLMList(c.Request.Context())
 	if err != nil {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
 		return
+	}
+	for i := range models {
+		models[i] = price.EnrichLLMInfo(models[i])
 	}
 	resp.Success(c, models)
 }

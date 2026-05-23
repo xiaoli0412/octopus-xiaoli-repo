@@ -145,6 +145,14 @@ export function AppContainer() {
                             }),
                         );
                         break;
+                    case 'ops':
+                        prefetches.push(
+                            queryClient.prefetchQuery({
+                                queryKey: ['ops', 'overview'],
+                                queryFn: async () => apiClient.get('/api/v1/ops/overview'),
+                            }),
+                        );
+                        break;
                     case 'ai':
                         prefetches.push(
                             queryClient.prefetchQuery({

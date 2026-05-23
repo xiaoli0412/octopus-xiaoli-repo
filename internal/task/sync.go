@@ -86,6 +86,11 @@ func SyncModelsTask() {
 			helper.ChannelAutoGroup(&channel, ctx)
 		}
 	}
+	referencedModels, err := op.ReferencedModelNames(ctx)
+	if err != nil {
+		log.Errorf("failed to collect referenced models: %v", err)
+		return
+	}
 	llmPrice, err := op.LLMList(ctx)
 	if err != nil {
 		log.Errorf("failed to list models price: %v", err)
@@ -96,7 +101,7 @@ func SyncModelsTask() {
 		llmPriceNames = append(llmPriceNames, price.Name)
 	}
 
-	deletedNorm, addedNorm := diff.Diff(llmPriceNames, totalNewModels)
+	deletedNorm, addedNorm := diff.Diff(llmPriceNames, referencedModels)
 	if len(deletedNorm) > 0 {
 		if err := helper.LLMPriceDeleteFromDBWithNoPrice(deletedNorm, ctx); err != nil {
 			log.Errorf("failed to batch delete models price: %v", err)
