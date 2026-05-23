@@ -5,13 +5,23 @@ set -euo pipefail
 DEFAULT_PORT="1088"
 DEFAULT_DATA_DIR="./data"
 DEFAULT_CONTAINER_NAME="octopus"
-DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.18.8"
+DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.1"
 DEFAULT_REPO_REF="${DEFAULT_IMAGE##*:}"
 
 OCTOPUS_PORT_INPUT="${OCTOPUS_PORT:-${DEFAULT_PORT}}"
 OCTOPUS_DATA_DIR_INPUT="${OCTOPUS_DATA_DIR:-${DEFAULT_DATA_DIR}}"
 OCTOPUS_CONTAINER_NAME_INPUT="${OCTOPUS_CONTAINER_NAME:-${DEFAULT_CONTAINER_NAME}}"
 OCTOPUS_IMAGE_INPUT="${OCTOPUS_IMAGE:-${DEFAULT_IMAGE}}"
+
+DOCKER_RUN_SECURITY_ARGS=(
+    --read-only
+    --tmpfs /tmp:rw,noexec,nosuid,size=64m
+    --security-opt no-new-privileges:true
+    --cap-drop ALL
+    --cap-add CHOWN
+    --cap-add SETGID
+    --cap-add SETUID
+)
 
 write_info() {
     printf '[INFO] %s\n' "$1"
@@ -194,6 +204,7 @@ EOF
         -e PUID=10001 \
         -e PGID=10001 \
         -v "${data_dir}:/app/data" \
+        "${DOCKER_RUN_SECURITY_ARGS[@]}" \
         "$image_tag")"
 
     if ! verify_running_container "$container_name" \
@@ -393,6 +404,7 @@ CONTAINER_ID="$(docker run -d \
     -e PUID=10001 \
     -e PGID=10001 \
     -v "${OCTOPUS_DATA_DIR_INPUT}:/app/data" \
+    "${DOCKER_RUN_SECURITY_ARGS[@]}" \
     "$PULLED_IMAGE")"
 
 if ! verify_running_container "$OCTOPUS_CONTAINER_NAME_INPUT" \
