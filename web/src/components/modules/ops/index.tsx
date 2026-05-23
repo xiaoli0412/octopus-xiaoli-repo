@@ -239,43 +239,83 @@ function DetailsTable({ rows }: { rows: OpsRecentDetail[] }) {
     }
 
     return (
-        <div className="overflow-hidden rounded-2xl border border-card-border bg-background/40">
-            <div className="grid grid-cols-[9rem_1fr_1fr_7rem_7rem] gap-3 border-b border-card-border px-4 py-3 text-[11px] text-muted-foreground">
-                <div>时间 / IP</div>
-                <div>模型</div>
-                <div>渠道 / Key</div>
-                <div>状态</div>
-                <div>缓存</div>
-            </div>
-            <div className="max-h-[24rem] overflow-y-auto">
+        <>
+            <div className="space-y-3 md:hidden">
                 {rows.map((row) => (
-                    <div key={row.id} className="grid grid-cols-[9rem_1fr_1fr_7rem_7rem] gap-3 border-b border-card-border/60 px-4 py-3 text-xs last:border-b-0">
-                        <div className="space-y-1">
-                            <div className="font-medium text-card-foreground">{new Date(row.time * 1000).toLocaleTimeString()}</div>
-                            <div className="break-all text-muted-foreground">{row.client_ip || '-'}</div>
-                        </div>
-                        <div className="space-y-1">
-                            <div className="break-all text-card-foreground">{row.actual_model_name || row.request_model_name}</div>
-                            <div className="break-all text-muted-foreground">{row.request_model_name}</div>
-                        </div>
-                        <div className="space-y-1">
-                            <div className="break-all text-card-foreground">{row.channel_name || `Channel ${row.channel_id}`}</div>
-                            <div className="text-muted-foreground">Key #{row.channel_key_id || '-'}</div>
-                        </div>
-                        <div className="space-y-1">
-                            <div className={cn('font-medium', row.success ? 'text-emerald-600 dark:text-emerald-300' : 'text-destructive')}>
+                    <div key={row.id} className="rounded-2xl border border-card-border bg-background/40 px-4 py-3 text-sm">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <div className="font-medium text-card-foreground">{new Date(row.time * 1000).toLocaleTimeString()}</div>
+                                <div className="mt-1 text-xs text-muted-foreground">{row.client_ip || '-'}</div>
+                            </div>
+                            <div className={cn('text-xs font-medium', row.success ? 'text-emerald-600 dark:text-emerald-300' : 'text-destructive')}>
                                 {row.success ? '成功' : '失败'}
                             </div>
-                            <div className="text-muted-foreground">{duration(row.use_time)}</div>
                         </div>
-                        <div className="space-y-1 text-muted-foreground">
-                            <div>读 {shortNumber(row.cache_read_tokens)}</div>
-                            <div>写 {shortNumber(row.cache_write_tokens)}</div>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <div className="text-[11px] text-muted-foreground">模型</div>
+                                <div className="mt-1 break-all text-card-foreground">{row.actual_model_name || row.request_model_name}</div>
+                            </div>
+                            <div>
+                                <div className="text-[11px] text-muted-foreground">渠道 / Key</div>
+                                <div className="mt-1 break-all text-card-foreground">{row.channel_name || `Channel ${row.channel_id}`}</div>
+                                <div className="text-xs text-muted-foreground">Key #{row.channel_key_id || '-'}</div>
+                            </div>
+                            <div>
+                                <div className="text-[11px] text-muted-foreground">耗时</div>
+                                <div className="mt-1 text-card-foreground">{duration(row.use_time)}</div>
+                            </div>
+                            <div>
+                                <div className="text-[11px] text-muted-foreground">缓存</div>
+                                <div className="mt-1 text-card-foreground">读 {shortNumber(row.cache_read_tokens)} / 写 {shortNumber(row.cache_write_tokens)}</div>
+                            </div>
                         </div>
                     </div>
                 ))}
             </div>
-        </div>
+            <div className="hidden overflow-hidden rounded-2xl border border-card-border bg-background/40 md:block">
+                <div className="overflow-x-auto">
+                    <div className="min-w-[44rem]">
+                        <div className="grid grid-cols-[9rem_1fr_1fr_7rem_7rem] gap-3 border-b border-card-border px-4 py-3 text-[11px] text-muted-foreground">
+                            <div>时间 / IP</div>
+                            <div>模型</div>
+                            <div>渠道 / Key</div>
+                            <div>状态</div>
+                            <div>缓存</div>
+                        </div>
+                        <div className="max-h-[24rem] overflow-y-auto">
+                            {rows.map((row) => (
+                                <div key={row.id} className="grid grid-cols-[9rem_1fr_1fr_7rem_7rem] gap-3 border-b border-card-border/60 px-4 py-3 text-xs last:border-b-0">
+                                    <div className="space-y-1">
+                                        <div className="font-medium text-card-foreground">{new Date(row.time * 1000).toLocaleTimeString()}</div>
+                                        <div className="break-all text-muted-foreground">{row.client_ip || '-'}</div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="break-all text-card-foreground">{row.actual_model_name || row.request_model_name}</div>
+                                        <div className="break-all text-muted-foreground">{row.request_model_name}</div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="break-all text-card-foreground">{row.channel_name || `Channel ${row.channel_id}`}</div>
+                                        <div className="text-muted-foreground">Key #{row.channel_key_id || '-'}</div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className={cn('font-medium', row.success ? 'text-emerald-600 dark:text-emerald-300' : 'text-destructive')}>
+                                            {row.success ? '成功' : '失败'}
+                                        </div>
+                                        <div className="text-muted-foreground">{duration(row.use_time)}</div>
+                                    </div>
+                                    <div className="space-y-1 text-muted-foreground">
+                                        <div>读 {shortNumber(row.cache_read_tokens)}</div>
+                                        <div>写 {shortNumber(row.cache_write_tokens)}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </>
     );
 }
 
@@ -290,6 +330,18 @@ function SeriesChart({ data, metric, chartType }: { data: OpsSeriesPoint[]; metr
     })), [data, metric]);
 
     const peak = useMemo(() => chartData.reduce((value, point) => Math.max(value, point.chartMetric), 0), [chartData]);
+    const hasObservedTraffic = useMemo(
+        () => chartData.some((point) => (point.success_count + point.failure_count + point.skipped_count) > 0),
+        [chartData],
+    );
+
+    if (!hasObservedTraffic) {
+        return (
+            <div className="flex h-[20rem] items-center justify-center rounded-2xl border border-dashed border-card-border bg-background/35 px-6 text-center text-sm leading-6 text-muted-foreground">
+                最近 12 小时暂无可绘制的{metricLabel(metric)}趋势数据。
+            </div>
+        );
+    }
 
     return (
         <ChartContainer config={chartConfig} className="h-[20rem] w-full">
@@ -371,53 +423,38 @@ function ScopeWorkspace({
         () => sortedEntities.find((item) => item.entity_key === selectedEntityKey) ?? null,
         [selectedEntityKey, sortedEntities],
     );
+    const requestCount = selectedEntity ? selectedEntity.success_count + selectedEntity.failure_count : 0;
 
     const metrics: ChartMetric[] = scope === 'ip'
         ? ['success_rate', 'request_count', 'avg_latency_ms']
         : ['success_rate', 'request_count', 'avg_latency_ms', 'cache_hit_rate', 'cache_rate', 'cache_read_token', 'cache_write_token'];
 
-    return (
-        <section className="grid gap-5 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
-            <div className="space-y-4">
-                <div className="rounded-3xl border border-card-border bg-card p-4">
-                    <div className="text-lg font-semibold text-card-foreground">{title}</div>
-                    <div className="mt-1 text-xs leading-5 text-muted-foreground">{desc}</div>
-                </div>
-                <div className="space-y-3">
-                    {(scope === 'overall' ? [] : sortedEntities).map((item) => (
-                        <EntityCard
-                            key={item.entity_key}
-                            item={item}
-                            metric={metric}
-                            active={item.entity_key === selectedEntityKey}
-                            onClick={() => setSelectedEntityKey(item.entity_key)}
-                        />
-                    ))}
-                    {scope !== 'overall' && !sortedEntities.length ? (
-                        <div className="rounded-2xl border border-dashed border-card-border bg-background/35 px-4 py-6 text-sm text-muted-foreground">
-                            当前 12 小时内还没有这个维度的统计数据。
-                        </div>
-                    ) : null}
-                </div>
-            </div>
-            <div className="space-y-4">
-                <div className="rounded-3xl border border-card-border bg-card p-4">
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                        <div className="space-y-2">
+    const mainPanel = (
+        <div className="space-y-4">
+            <div className="rounded-3xl border border-card-border bg-card p-4">
+                <div className="flex flex-col gap-4">
+                    <div className="space-y-2">
+                        <div className="text-base font-semibold text-card-foreground">{title}</div>
+                        <div className="text-xs leading-5 text-muted-foreground">{desc}</div>
+                    </div>
+                    <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
+                        <div className="min-w-0 space-y-2">
                             <div className="text-sm text-muted-foreground">当前对象</div>
                             <div className="text-xl font-semibold text-card-foreground">
-                                {scope === 'overall' ? '全局成功率' : (selectedEntity?.entity_label || selectedEntityKey || '暂无对象')}
+                                {scope === 'overall' ? '全局聚合' : (selectedEntity?.entity_label || selectedEntityKey || '暂无对象')}
                             </div>
                             {selectedEntity ? (
                                 <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                    <span>{selectedEntity.success_count + selectedEntity.failure_count} 请求</span>
+                                    <span>{requestCount} 请求</span>
                                     <span>成功率 {percent(selectedEntity.success_rate)}</span>
                                     <span>缓存率 {percent(selectedEntity.cache_rate)}</span>
-                                    <span>平均延迟 {duration(selectedEntity.avg_latency_ms)}</span>
+                                    <span>延迟 {duration(selectedEntity.avg_latency_ms)}</span>
                                 </div>
-                            ) : null}
+                            ) : (
+                                <div className="text-xs leading-5 text-muted-foreground">暂无有效请求，图表会在新流量进入后自动更新。</div>
+                            )}
                         </div>
-                        <div className="flex flex-col gap-2">
+                        <div className="flex flex-col gap-2 2xl:max-w-[36rem] 2xl:items-end">
                             <div className="flex flex-wrap gap-2">
                                 {metrics.map((item) => (
                                     <button
@@ -433,7 +470,7 @@ function ScopeWorkspace({
                                     </button>
                                 ))}
                             </div>
-                            <div className="flex flex-wrap gap-2 xl:justify-end">
+                            <div className="flex flex-wrap gap-2 2xl:justify-end">
                                 {CHART_TYPES.map((item) => {
                                     const Icon = item.icon;
                                     return (
@@ -454,22 +491,54 @@ function ScopeWorkspace({
                             </div>
                         </div>
                     </div>
-                    <div className="mt-4 rounded-3xl border border-card-border bg-background/40 p-3">
+                    <div className="rounded-2xl border border-card-border bg-background/40 p-3">
                         <SeriesChart data={series} metric={metric} chartType={chartType} />
                     </div>
                 </div>
+            </div>
 
-                <div className="rounded-3xl border border-card-border bg-card p-4">
-                    <div className="flex items-center gap-2 text-lg font-semibold text-card-foreground">
-                        <Waypoints className="size-4.5 text-primary" />
-                        最近调用明细
-                    </div>
-                    <div className="mt-1 text-xs leading-5 text-muted-foreground">只展示最近 12 小时内与当前维度相关的调用明细，用于二级排查。</div>
-                    <div className="mt-4">
-                        <DetailsTable rows={details} />
-                    </div>
+            <div className="rounded-3xl border border-card-border bg-card p-4">
+                <div className="flex items-center gap-2 text-base font-semibold text-card-foreground">
+                    <Waypoints className="size-4.5 text-primary" />
+                    最近明细
+                </div>
+                <div className="mt-1 text-xs leading-5 text-muted-foreground">当前维度最近 12 小时调用记录。</div>
+                <div className="mt-4">
+                    <DetailsTable rows={details} />
                 </div>
             </div>
+        </div>
+    );
+
+    if (scope === 'overall') {
+        return mainPanel;
+    }
+
+    return (
+        <section className="grid items-start gap-4 2xl:grid-cols-[320px_minmax(0,1fr)]">
+            <div className="space-y-4">
+                <div className="rounded-3xl border border-card-border bg-card p-4">
+                    <div className="text-base font-semibold text-card-foreground">{title}</div>
+                    <div className="mt-1 text-xs leading-5 text-muted-foreground">{desc}</div>
+                </div>
+                <div className="space-y-3">
+                    {sortedEntities.map((item) => (
+                        <EntityCard
+                            key={item.entity_key}
+                            item={item}
+                            metric={metric}
+                            active={item.entity_key === selectedEntityKey}
+                            onClick={() => setSelectedEntityKey(item.entity_key)}
+                        />
+                    ))}
+                    {!sortedEntities.length ? (
+                        <div className="rounded-2xl border border-dashed border-card-border bg-background/35 px-4 py-6 text-sm text-muted-foreground">
+                            当前 12 小时暂无数据。
+                        </div>
+                    ) : null}
+                </div>
+            </div>
+            {mainPanel}
         </section>
     );
 }
@@ -494,24 +563,27 @@ export function Ops() {
     const totalRequests = total ? total.success_count + total.failure_count : 0;
 
     return (
-        <PageWrapper data-testid="ops-page" className="h-full min-h-0 overflow-y-auto overscroll-contain space-y-5 pb-24 md:pb-4 rounded-t-3xl md:space-y-6">
-            <section className="rounded-3xl border border-card-border bg-card p-5 sm:p-6">
-                <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="max-w-4xl">
+        <PageWrapper data-testid="ops-page" className="h-full min-h-0 overflow-y-auto overscroll-contain space-y-4 rounded-t-3xl pb-24 md:space-y-5 md:pb-4">
+            <section className="rounded-3xl border border-card-border bg-card p-4 sm:p-5">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="max-w-4xl space-y-3">
                         <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] text-primary">
                             <ShieldCheck className="size-3.5" />
-                            独立运维工作台
+                            运维工作台
                         </div>
-                        <div className="mt-3 text-2xl font-semibold tracking-tight text-card-foreground sm:text-[2rem]">成功率、缓存与调用观测</div>
-                        <div className="mt-2 text-sm leading-6 text-muted-foreground">统一观察总成功率、模型/渠道/双 Key 成功率、缓存命中与缓存率，以及近 12 小时 IP 调用情况。</div>
+                        <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:gap-3">
+                            <div className="text-2xl font-semibold tracking-tight text-card-foreground">成功率与缓存概览</div>
+                            <div className="inline-flex items-center rounded-full border border-card-border bg-background/55 px-3 py-1 text-xs text-muted-foreground">最近 12 小时 · 5 分钟聚合</div>
+                        </div>
+                        <div className="text-sm leading-6 text-muted-foreground">统一查看模型、渠道、双 Key、缓存与 IP 的请求表现。</div>
                     </div>
                     <div className="rounded-2xl border border-card-border bg-background/55 px-4 py-3 text-sm text-muted-foreground">
-                        聚合窗口：最近 12 小时
-                        <div className="mt-1 text-xs">5 分钟聚合桶 + 最近明细下钻</div>
+                        保留策略
+                        <div className="mt-1 text-xs">12 小时聚合桶 + 最近明细</div>
                     </div>
                 </div>
 
-                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <SummaryCard title="总成功率" value={total ? percent(total.success_rate) : '-'} hint={`${shortNumber(totalRequests)} 请求`} icon={ShieldCheck} />
                     <SummaryCard title="缓存命中率" value={total ? percent(total.cache_hit_rate) : '-'} hint={`读取 ${shortNumber(total?.cache_read_token ?? 0)}`} icon={Database} />
                     <SummaryCard title="缓存率" value={total ? percent(total.cache_rate) : '-'} hint={`写入 ${shortNumber(total?.cache_write_token ?? 0)}`} icon={Layers3} />
@@ -534,10 +606,10 @@ export function Ops() {
 
                 <TabsContents className="mt-4">
                     <TabsContent value="overview">
-                        <section className="grid gap-5 xl:grid-cols-2">
+                        <section className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
                             <div className="rounded-3xl border border-card-border bg-card p-4">
-                                <div className="text-lg font-semibold text-card-foreground">热点维度</div>
-                                <div className="mt-1 text-xs text-muted-foreground">先看过去 12 小时最活跃的模型、渠道、Key 和 IP，再进入下方二级页签细查。</div>
+                                <div className="text-base font-semibold text-card-foreground">重点对象</div>
+                                <div className="mt-1 text-xs text-muted-foreground">最近 12 小时活跃对象。</div>
                                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                                     {[{
                                         title: '模型',
@@ -554,14 +626,20 @@ export function Ops() {
                                     }].map((group) => (
                                         <div key={group.title} className="rounded-2xl border border-card-border bg-background/40 p-3">
                                             <div className="mb-3 text-sm font-medium text-card-foreground">{group.title}</div>
-                                            <div className="space-y-2">
-                                                {group.items.slice(0, 4).map((item) => (
-                                                    <div key={item.entity_key} className="flex items-center justify-between gap-3 rounded-xl border border-card-border/60 bg-background/60 px-3 py-2">
-                                                        <div className="min-w-0 truncate text-sm text-card-foreground">{item.entity_label || item.entity_key}</div>
-                                                        <div className="text-xs text-muted-foreground">{percent(item.success_rate)}</div>
-                                                    </div>
-                                                ))}
-                                            </div>
+                                            {group.items.length ? (
+                                                <div className="space-y-2">
+                                                    {group.items.slice(0, 4).map((item) => (
+                                                        <div key={item.entity_key} className="flex items-center justify-between gap-3 rounded-xl border border-card-border/60 bg-background/60 px-3 py-2">
+                                                            <div className="min-w-0 truncate text-sm text-card-foreground">{item.entity_label || item.entity_key}</div>
+                                                            <div className="text-xs text-muted-foreground">{percent(item.success_rate)}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="rounded-xl border border-dashed border-card-border/70 bg-background/30 px-3 py-6 text-sm text-muted-foreground">
+                                                    暂无数据
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
@@ -569,7 +647,7 @@ export function Ops() {
 
                             <ScopeWorkspace
                                 title="全局趋势"
-                                desc="全局趋势按请求级成功率、缓存率和延迟聚合，可直接切换折线、柱状和点状图。"
+                                desc="按请求聚合成功率、缓存率与延迟。"
                                 scope="overall"
                                 metric={metric}
                                 onMetricChange={setMetric}
@@ -581,8 +659,8 @@ export function Ops() {
 
                     <TabsContent value="model">
                         <ScopeWorkspace
-                            title="模型成功率"
-                            desc="按模型查看成功率、缓存命中、缓存率和延迟变化。"
+                            title="模型趋势"
+                            desc="按模型查看成功率、缓存率与延迟。"
                             scope="model"
                             metric={metric}
                             onMetricChange={setMetric}
@@ -593,8 +671,8 @@ export function Ops() {
 
                     <TabsContent value="channel">
                         <ScopeWorkspace
-                            title="渠道成功率"
-                            desc="按渠道查看尝试结果。失败重试会单独计入对应渠道，便于识别不稳定节点。"
+                            title="渠道趋势"
+                            desc="按渠道查看成功率、缓存率与延迟。"
                             scope="channel"
                             metric={metric}
                             onMetricChange={setMetric}
@@ -623,8 +701,8 @@ export function Ops() {
                             ))}
                         </div>
                         <ScopeWorkspace
-                            title={keyScope === 'channel_key' ? '渠道 Key 成功率' : '分发 Key 成功率'}
-                            desc={keyScope === 'channel_key' ? '按渠道内部 Key 观察成功率与缓存命中。' : '按用户分发 Key 观察调用成功率、缓存率与延迟。'}
+                            title={keyScope === 'channel_key' ? '渠道 Key 趋势' : '分发 Key 趋势'}
+                            desc={keyScope === 'channel_key' ? '按渠道 Key 查看成功率、缓存率与延迟。' : '按分发 Key 查看成功率、缓存率与延迟。'}
                             scope={keyScope}
                             metric={metric}
                             onMetricChange={setMetric}
@@ -655,8 +733,8 @@ export function Ops() {
                             ))}
                         </div>
                         <ScopeWorkspace
-                            title="缓存命中与缓存率"
-                            desc="按维度查看缓存命中率、缓存率、缓存读取和缓存写入变化。"
+                            title="缓存趋势"
+                            desc="按维度查看缓存命中、缓存率与缓存读写。"
                             scope={cacheScope}
                             metric={metric}
                             onMetricChange={setMetric}
@@ -667,8 +745,8 @@ export function Ops() {
 
                     <TabsContent value="ip">
                         <ScopeWorkspace
-                            title="IP 访问统计"
-                            desc="按 IP 查看调用成功率、请求量和延迟。该统计从请求链路底部采样并进入 12 小时聚合桶。"
+                            title="IP 趋势"
+                            desc="按 IP 查看成功率、请求量与延迟。"
                             scope="ip"
                             metric={metric}
                             onMetricChange={setMetric}
