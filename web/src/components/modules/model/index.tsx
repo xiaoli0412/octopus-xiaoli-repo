@@ -10,7 +10,7 @@ export function Model() {
     const { data: models } = useModelList();
     const pageKey = 'model' as const;
     const searchTerm = useSearchStore((s) => s.getSearchTerm(pageKey));
-    const layout = useToolbarViewOptionsStore((s) => s.getLayout(pageKey));
+    const modelDensity = useToolbarViewOptionsStore((s) => s.modelDensity);
     const sortOrder = useToolbarViewOptionsStore((s) => s.getSortOrder(pageKey));
     const filter = useToolbarViewOptionsStore((s) => s.modelFilter);
 
@@ -42,17 +42,18 @@ export function Model() {
         return bySearch;
     }, [sortedModels, searchTerm, filter]);
 
-    const estimateItemHeight = layout === 'list' ? 92 : 156;
+    const estimateItemHeight = modelDensity === 'compact' ? 126 : 156;
 
     return (
-        <div data-testid="model-page" data-layout={layout} className="h-full min-h-0">
+        <div data-testid="model-page" data-layout="grid" data-density={modelDensity} className="h-full min-h-0">
             <VirtualizedGrid
                 items={visibleModels}
-                layout={layout}
-                columns={{ default: 1, md: layout === 'list' ? 1 : 2, lg: layout === 'list' ? 1 : 3 }}
+                layout="grid"
+                columns={{ default: 1, md: 2, lg: 3, xl: 3, '2xl': 3 }}
                 estimateItemHeight={estimateItemHeight}
                 getItemKey={(model) => `model-${model.name}`}
-                renderItem={(model, index) => <ModelItem model={model} layout={layout} index={index} />}
+                gap={modelDensity === 'compact' ? 10 : 12}
+                renderItem={(model, index) => <ModelItem model={model} density={modelDensity} index={index} />}
             />
         </div>
     );

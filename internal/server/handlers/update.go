@@ -4,12 +4,12 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/conf"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/resp"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/update"
-	"github.com/gin-gonic/gin"
 )
 
 var runUpdateCore = update.UpdateCore
@@ -24,6 +24,10 @@ func init() {
 		AddRoute(
 			router.NewRoute("/now-version", http.MethodGet).
 				Handle(getNowVersion),
+		).
+		AddRoute(
+			router.NewRoute("/status", http.MethodGet).
+				Handle(getUpdateStatus),
 		).
 		AddRoute(
 			router.NewRoute("", http.MethodPost).
@@ -44,11 +48,19 @@ func getNowVersion(c *gin.Context) {
 	resp.Success(c, conf.Version)
 }
 
+func getUpdateStatus(c *gin.Context) {
+	resp.Success(c, update.GetStatusInfo())
+}
+
 func updateFunc(c *gin.Context) {
 	err := runUpdateCore()
 	if err != nil {
 		if errors.Is(err, update.ErrUpdateInProgress) {
 			resp.Error(c, http.StatusConflict, err.Error())
+			return
+		}
+		if errors.Is(err, update.ErrUpdateUnsupportedPlatform) {
+			resp.Error(c, http.StatusNotImplemented, err.Error())
 			return
 		}
 		resp.Error(c, http.StatusInternalServerError, err.Error())

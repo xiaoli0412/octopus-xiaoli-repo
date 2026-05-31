@@ -15,7 +15,7 @@ import {
 	XAxis,
 	YAxis,
 } from 'recharts';
-import { Activity, BarChart3, ChartColumn, Flame, Layers3, Network } from 'lucide-react';
+import { Activity, BarChart3, ChartColumn, Flame } from 'lucide-react';
 
 import { useStatsDaily, useStatsHourly, useStatsTokenBreakdown } from '@/api/endpoints/stats';
 import { AnimatedNumber } from '@/components/common/AnimatedNumber';
@@ -78,25 +78,61 @@ function heatTone(value: number, max: number) {
 }
 
 function HeatmapPanel({ data, metric, t }: { data: HeatPoint[]; metric: TrendMetric; t: ReturnType<typeof useTranslations<'home.chart'>> }) {
+	const maxValue = data.reduce((value, point) => Math.max(value, point[metric]), 0);
+	const formattedPeak = formatMetricValue(metric, maxValue);
+
 	return (
-		<div className="grid h-full gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-			{data.map((point) => {
-				const formatted = formatMetricValue(metric, point[metric]);
-				return (
-					<div
-						key={point.date}
-						className="rounded-2xl border border-border/50 p-3"
-						style={{ background: point.tone }}
-					>
-						<div className="text-[11px] text-muted-foreground">{point.date}</div>
-						<div className="mt-2 text-sm font-semibold text-foreground">
-							{formatted.value}
-							<span className="ml-1 text-xs text-muted-foreground">{formatted.unit}</span>
-						</div>
-						<div className="mt-1 text-[11px] text-muted-foreground">{getMetricLabel(metric, t)}</div>
+		<div className="space-y-3">
+			<div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+				<div className="space-y-1">
+					<div className="text-[11px] text-muted-foreground">{t('view.heatmap')}</div>
+					<div className="text-sm font-semibold text-foreground">{getMetricLabel(metric, t)}</div>
+				</div>
+				<div className="inline-flex items-center gap-2 self-start rounded-full border border-border/60 bg-background/80 px-2.5 py-1.5 text-[10px] text-muted-foreground">
+					<div className="flex items-center gap-1">
+						<span className="h-2.5 w-2.5 rounded-full border border-border/50 bg-muted/70" />
+						<span className="h-2.5 w-2.5 rounded-full border border-border/40" style={{ background: heatTone(maxValue * 0.35, maxValue) }} />
+						<span className="h-2.5 w-2.5 rounded-full border border-border/40" style={{ background: heatTone(maxValue * 0.7, maxValue) }} />
+						<span className="h-2.5 w-2.5 rounded-full border border-border/40" style={{ background: heatTone(maxValue, maxValue) }} />
 					</div>
-				);
-			})}
+					<span className="font-medium text-foreground">{formattedPeak.value}</span>
+					{formattedPeak.unit ? <span>{formattedPeak.unit}</span> : null}
+				</div>
+			</div>
+			<div className="grid gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
+				{data.map((point) => {
+					const formatted = formatMetricValue(metric, point[metric]);
+					const isPeak = maxValue > 0 && point[metric] === maxValue;
+
+					return (
+						<div
+							key={point.date}
+							className={cn(
+								'relative overflow-hidden rounded-xl border px-2.5 py-2.5 transition-colors',
+								isPeak
+									? 'border-primary/30 bg-background/88 shadow-[0_10px_24px_-18px_color-mix(in_oklab,var(--primary)_75%,transparent)]'
+									: 'border-border/55 bg-background/78',
+							)}
+							style={{
+								backgroundImage:
+									point.heat > 0
+										? `linear-gradient(180deg, ${point.tone} 0%, color-mix(in oklab, var(--background) 95%, transparent) 74%)`
+										: undefined,
+							}}
+						>
+							<div className="absolute inset-x-0 top-0 h-1.5 opacity-90" style={{ background: point.tone }} />
+							<div className="flex items-start justify-between gap-2">
+								<div className="text-[10px] font-medium text-muted-foreground">{point.date}</div>
+								<span className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full border border-white/35" style={{ background: point.tone }} />
+							</div>
+							<div className="mt-2 flex items-end gap-1 text-foreground">
+								<span className="text-sm font-semibold leading-none tabular-nums">{formatted.value}</span>
+								{formatted.unit ? <span className="text-[10px] text-muted-foreground">{formatted.unit}</span> : null}
+							</div>
+						</div>
+					);
+				})}
+			</div>
 		</div>
 	);
 }
@@ -121,6 +157,7 @@ export function StatsChart() {
 	const [period, setPeriod] = useState<typeof PERIODS[number]>('1');
 	const [metric, setMetric] = useState<TrendMetric>('cost');
 	const [view, setView] = useState<TrendView>('area');
+	const isHeatmapView = view === 'heatmap';
 
 	const sortedDaily = useMemo(() => {
 		if (!statsDaily) return [];
@@ -225,14 +262,14 @@ export function StatsChart() {
 		);
 	}, [chartData, metric, peakValue, view]);
 
-	const chartHeight = view === 'heatmap' ? 'h-[19rem]' : 'h-[18rem]';
+	const chartHeight = 'h-[18rem]';
 	const channelUsage = tokenBreakdown?.by_channel.length ?? 0;
 
 	const periodLabel = period === '1' ? t('period.today') : period === '7' ? t('period.last7Days') : t('period.last30Days');
 
 	return (
 		<section data-testid="home-stats-chart-section" className="rounded-3xl border border-card-border bg-card p-4 text-card-foreground custom-shadow sm:p-5">
-			<div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+			<div className={cn('flex flex-col', isHeatmapView ? 'gap-3' : 'gap-4 xl:flex-row xl:items-start xl:justify-between')}>
 				<div className="space-y-3">
 					<div>
 						<div className="text-lg font-semibold text-foreground">{t('title')}</div>
@@ -246,7 +283,7 @@ export function StatsChart() {
 					</div>
 				</div>
 
-				<div className="flex flex-col gap-2.5 xl:items-end">
+				<div className={cn('flex flex-col gap-2.5', isHeatmapView ? '' : 'xl:items-end')}>
 					<div className="flex flex-wrap gap-2 xl:justify-end">
 						{([
 							{ key: 'cost', label: t('metric.cost') },
@@ -304,11 +341,16 @@ export function StatsChart() {
 				</div>
 			</div>
 
-			<div className="mt-4 rounded-3xl border border-border/60 bg-background/45 p-3 sm:p-4">
-				{view === 'heatmap' ? (
-					<div className={cn(chartHeight, 'overflow-y-auto')}>
-						<HeatmapPanel data={heatmapData} metric={metric} t={t} />
-					</div>
+			<div
+				data-testid="home-stats-chart"
+				className={cn(
+					isHeatmapView
+						? 'mt-3 rounded-[1.8rem] border border-border/60 bg-[linear-gradient(180deg,color-mix(in_oklab,var(--background)_94%,transparent),color-mix(in_oklab,var(--background)_84%,var(--card)))] p-3 sm:p-3.5'
+						: 'mt-4 rounded-3xl border border-border/60 bg-background/45 p-3 sm:p-4',
+				)}
+			>
+				{isHeatmapView ? (
+					<HeatmapPanel data={heatmapData} metric={metric} t={t} />
 				) : (
 					<ChartContainer config={chartConfig} className={cn(chartHeight, 'w-full')}>
 						{chartNode}

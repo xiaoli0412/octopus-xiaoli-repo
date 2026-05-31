@@ -41,12 +41,29 @@ type LatestInfo struct {
 	Message     string `json:"message"`
 }
 
+type StatusInfo struct {
+	Version                  string `json:"version"`
+	SelfUpdateSupported      bool   `json:"self_update_supported"`
+	SelfUpdateUnsupportedReason string `json:"self_update_unsupported_reason,omitempty"`
+}
+
 var github_pat = os.Getenv(strings.ToUpper(conf.APP_NAME) + "_GITHUB_PAT")
 
 var (
 	osRename = os.Rename
 	osRemove = os.Remove
 )
+
+func GetStatusInfo() StatusInfo {
+	status := StatusInfo{
+		Version:             conf.Version,
+		SelfUpdateSupported: currentRuntimeGOOS != "windows",
+	}
+	if !status.SelfUpdateSupported {
+		status.SelfUpdateUnsupportedReason = ErrUpdateUnsupportedPlatform.Error()
+	}
+	return status
+}
 
 // doRequestWithFallback performs an HTTP GET request, first without proxy, then with proxy if failed.
 func doRequestWithFallback(url string, maxBytes int64, resource string) ([]byte, error) {

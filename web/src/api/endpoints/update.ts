@@ -12,6 +12,12 @@ export interface LatestInfo {
     message: string;
 }
 
+export interface UpdateStatusInfo {
+	version: string;
+	self_update_supported: boolean;
+	self_update_unsupported_reason?: string;
+}
+
 /**
  * 获取最新发布信息 Hook
  * 
@@ -50,6 +56,17 @@ export function useNowVersion() {
     });
 }
 
+export function useUpdateStatus() {
+	return useQuery({
+		queryKey: ['update', 'status'],
+		queryFn: async () => {
+			return apiClient.get<UpdateStatusInfo>('/api/v1/update/status');
+		},
+		refetchInterval: 3600000,
+		refetchOnMount: 'always',
+	});
+}
+
 /**
  * 执行更新 Hook
  * 
@@ -73,6 +90,7 @@ export function useUpdateCore() {
             logger.log('更新成功:', data);
             queryClient.invalidateQueries({ queryKey: ['update', 'latest'] });
             queryClient.invalidateQueries({ queryKey: ['update', 'now-version'] });
+			queryClient.invalidateQueries({ queryKey: ['update', 'status'] });
         },
         onError: (error) => {
             logger.error('更新失败:', error);

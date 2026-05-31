@@ -59,6 +59,9 @@ jobs:
       - name: Go test targeted packages
         run: go test ./internal/op ./internal/server/handlers ./internal/server/middleware ./internal/relay/... ./internal/task ./internal/update -count=1
 
+      - name: Go race test targeted packages
+        run: go test -race ./internal/op ./internal/server/handlers ./internal/server/middleware ./internal/relay/... ./internal/task ./internal/update -count=1
+
       - name: Linux backend smoke
         run: bash scripts/smoke-linux-backend.sh
 

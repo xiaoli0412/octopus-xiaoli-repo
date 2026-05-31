@@ -22,6 +22,7 @@ import {
     useToolbarViewOptionsStore,
     TOOLBAR_PAGES,
     type ToolbarPage,
+    type CardDensity,
     type ChannelFilter,
     type ChannelProviderFilter,
     type GroupFilter,
@@ -55,8 +56,12 @@ export function Toolbar() {
     const searchTerm = useSearchStore((s) => (toolbarItem ? s.searchTerms[toolbarItem] || '' : ''));
     const setSearchTerm = useSearchStore((s) => s.setSearchTerm);
     const layout = useToolbarViewOptionsStore((s) => (toolbarItem ? s.getLayout(toolbarItem) : 'grid'));
+    const channelDensity = useToolbarViewOptionsStore((s) => s.channelDensity);
+    const modelDensity = useToolbarViewOptionsStore((s) => s.modelDensity);
     const sortOrder = useToolbarViewOptionsStore((s) => (toolbarItem ? s.getSortOrder(toolbarItem) : 'asc'));
     const setLayout = useToolbarViewOptionsStore((s) => s.setLayout);
+    const setChannelDensity = useToolbarViewOptionsStore((s) => s.setChannelDensity);
+    const setModelDensity = useToolbarViewOptionsStore((s) => s.setModelDensity);
     const setSortOrder = useToolbarViewOptionsStore((s) => s.setSortOrder);
     const channelFilter = useToolbarViewOptionsStore((s) => s.channelFilter);
     const channelProviderFilter = useToolbarViewOptionsStore((s) => s.channelProviderFilter);
@@ -136,9 +141,38 @@ export function Toolbar() {
         : toolbarItem === 'group'
             ? 'w-24 sm:w-36 md:w-40'
             : 'w-24 sm:w-36 md:w-40';
-    const layoutLabels = toolbarItem === 'model'
+    const isDensityToolbar = toolbarItem === 'channel' || toolbarItem === 'model';
+    const activeDensity: CardDensity = toolbarItem === 'channel' ? channelDensity : modelDensity;
+    const layoutSectionLabel = isDensityToolbar ? t('popover.density') : t('popover.layout');
+    const layoutLabels = isDensityToolbar
         ? { grid: t('popover.normal'), list: t('popover.compact') }
         : { grid: t('popover.grid'), list: t('popover.list') };
+    const densityButtonMap: Record<'grid' | 'list', CardDensity> = {
+        grid: 'normal',
+        list: 'compact',
+    };
+
+    const handleLayoutOptionChange = (value: 'grid' | 'list') => {
+        if (toolbarItem === 'channel') {
+            setChannelDensity(densityButtonMap[value]);
+            return;
+        }
+
+        if (toolbarItem === 'model') {
+            setModelDensity(densityButtonMap[value]);
+            return;
+        }
+
+        setLayout(toolbarItem, value);
+    };
+
+    const isLayoutOptionActive = (value: 'grid' | 'list') => {
+        if (isDensityToolbar) {
+            return activeDensity === densityButtonMap[value];
+        }
+
+        return layout === value;
+    };
 
     const handleFilterChange = (value: string) => {
         switch (toolbarItem) {
@@ -228,15 +262,15 @@ export function Toolbar() {
                     >
                         <div className="grid gap-2.5">
                             <div className="grid gap-2">
-                                <p className="text-xs font-medium text-muted-foreground">{t('popover.layout')}</p>
+                                <p className="text-xs font-medium text-muted-foreground">{layoutSectionLabel}</p>
                                 <div className="grid grid-cols-2 gap-2">
                                     <button
                                         type="button"
                                         data-testid={`toolbar-layout-grid-${toolbarItem}`}
-                                        onClick={() => setLayout(toolbarItem, 'grid')}
+                                        onClick={() => handleLayoutOptionChange('grid')}
                                         className={cn(
                                             'inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary/20',
-                                            layout === 'grid'
+                                            isLayoutOptionActive('grid')
                                                 ? 'border-primary/30 bg-primary text-primary-foreground'
                                                 : 'border-border bg-muted/20 text-foreground hover:bg-muted/30'
                                         )}
@@ -247,10 +281,10 @@ export function Toolbar() {
                                     <button
                                         type="button"
                                         data-testid={`toolbar-layout-list-${toolbarItem}`}
-                                        onClick={() => setLayout(toolbarItem, 'list')}
+                                        onClick={() => handleLayoutOptionChange('list')}
                                         className={cn(
                                             'inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary/20',
-                                            layout === 'list'
+                                            isLayoutOptionActive('list')
                                                 ? 'border-primary/30 bg-primary text-primary-foreground'
                                                 : 'border-border bg-muted/20 text-foreground hover:bg-muted/30'
                                         )}

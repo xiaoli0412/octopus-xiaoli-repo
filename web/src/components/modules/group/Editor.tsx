@@ -3,67 +3,17 @@
 import { useCallback, useMemo, useState, type FormEvent } from 'react';
 import { Check, Plus, Sparkles } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import * as AccordionPrimitive from '@radix-ui/react-accordion';
 import { useModelChannelList, type LLMChannel } from '@/api/endpoints/model';
 import { Button } from '@/components/ui/button';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { HelpHint } from '@/components/common/HelpHint';
 import { cn } from '@/lib/utils';
 import { getModelIcon } from '@/lib/model-icons';
 import type { GroupMode } from '@/api/endpoints/group';
 import type { SelectedMember } from './ItemList';
 import { MemberList } from './ItemList';
 import { matchesGroupName, memberKey, normalizeKey, MODE_LABELS } from './utils';
-
-type GroupEditorCopy = {
-    flowTitle: string;
-    flowHint: string;
-    flowDesc: string;
-    stepLabel: (index: number) => string;
-    flowSteps: {
-        naming: string;
-        mode: string;
-        models: string;
-    };
-    namingSectionTitle: string;
-    namingSectionHint: string;
-    namingSectionDesc: string;
-    modeSectionTitle: string;
-    modeSectionHint: string;
-    modeSectionDesc: string;
-    nameHint: string;
-    matchRegexHint: string;
-    advancedStrategyHint: string;
-    modelPickerTitle: string;
-    modelPickerHint: string;
-    noAvailableModelsTitle: string;
-    noAvailableModelsHint: string;
-    noFilteredModelsHint: string;
-    itemsEmptyTitle: string;
-    itemsEmptyHint: string;
-    selectionSummaryTitle: string;
-    selectionSummaryModels: (count: number) => string;
-    selectionSummaryChannels: (count: number) => string;
-    selectionSummaryWeighted: (count: number) => string;
-    selectionSummaryEmpty: string;
-    selectionSummaryHint: string;
-    weightedModeActive: string;
-    weightedModeInactive: string;
-    retryRounds: string;
-    retryRoundsHint: string;
-    retryDelayMs: string;
-    retryDelayMsHint: string;
-    failoverWindowSec: string;
-    failoverWindowSecHint: string;
-    raceAfterFails: string;
-    raceAfterFailsHint: string;
-    raceConcurrency: string;
-    raceConcurrencyHint: string;
-    advancedStrategy: string;
-    advancedStrategyDesc: string;
-};
 
 export type GroupEditorValues = {
     name: string;
@@ -94,7 +44,6 @@ function ModelPickerSection({
     onAutoAdd,
     autoAddDisabled,
     idPrefix,
-    copy,
     modelFilter,
     onModelFilterChange,
 }: {
@@ -104,7 +53,6 @@ function ModelPickerSection({
     onAutoAdd: () => void;
     autoAddDisabled: boolean;
     idPrefix: string;
-    copy: GroupEditorCopy;
     modelFilter: string;
     onModelFilterChange: (value: string) => void;
 }) {
@@ -146,16 +94,12 @@ function ModelPickerSection({
             .sort((a, b) => a.name.localeCompare(b.name));
     }, [filteredModelChannels, t]);
 
-    const emptyTitle = hasAnyModelChannels ? t('form.noFilteredModels') : copy.noAvailableModelsTitle;
-    const emptyHint = hasAnyModelChannels ? copy.noFilteredModelsHint : copy.noAvailableModelsHint;
+    const emptyTitle = hasAnyModelChannels ? t('form.noFilteredModels') : t('form.noAvailableModelsTitle');
 
     return (
-        <section data-testid={`${idPrefix}-model-picker-section`} className="rounded-2xl border border-border/50 bg-muted/30 p-4">
-            <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                    <span className="truncate text-sm font-medium text-foreground">{copy.modelPickerTitle}</span>
-                    <p className="text-xs text-muted-foreground">{copy.modelPickerHint}</p>
-                </div>
+        <section data-testid={`${idPrefix}-model-picker-section`} className="rounded-xl border border-border/50 bg-muted/20 p-3.5">
+            <div className="flex items-center justify-between gap-3">
+                <div className="truncate text-sm font-medium text-foreground">{t('form.modelPickerTitle')}</div>
                 <Button
                     type="button"
                     variant="outline"
@@ -170,7 +114,7 @@ function ModelPickerSection({
                 </Button>
             </div>
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-3 space-y-3">
                 <Input
                     value={modelFilter}
                     onChange={(event) => onModelFilterChange(event.target.value)}
@@ -180,7 +124,7 @@ function ModelPickerSection({
                 />
 
                 {channels.length > 0 ? (
-                    <div className="grid max-h-56 grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="grid max-h-[24rem] grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 xl:grid-cols-3">
                         {channels.map((channel) => {
                             const total = channel.models.length;
                             const selectedCount = channel.models.reduce(
@@ -189,16 +133,21 @@ function ModelPickerSection({
                             );
 
                             return (
-                                <Accordion key={channel.id} type="single" collapsible className="rounded-xl border border-border/50 bg-background/80 px-3">
+                                <Accordion
+                                    key={channel.id}
+                                    type="single"
+                                    collapsible
+                                    className="rounded-xl border border-border/50 bg-background/80 px-3"
+                                >
                                     <AccordionItem value={`channel-${channel.id}`} className="border-none">
-                                        <AccordionTrigger className="py-3 text-sm font-medium">
+                                        <AccordionTrigger className="py-2.5 text-sm font-medium">
                                             <div className="min-w-0 space-y-1">
                                                 <div className="truncate text-sm font-medium text-foreground">{channel.name}</div>
                                                 <div className="text-xs text-muted-foreground">{selectedCount}/{total}</div>
                                             </div>
                                         </AccordionTrigger>
                                         <AccordionContent>
-                                            <div className="space-y-2">
+                                            <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
                                                 {channel.models.map((model) => {
                                                     const selected = selectedKeys.has(memberKey(model));
                                                     const { Avatar } = getModelIcon(model.name);
@@ -233,9 +182,8 @@ function ModelPickerSection({
                         })}
                     </div>
                 ) : (
-                    <div data-testid={`${idPrefix}-model-empty-state`} className="rounded-xl border border-dashed border-border/60 bg-background/70 p-4">
-                        <div className="font-medium text-foreground">{emptyTitle}</div>
-                        <p className="mt-1 text-xs text-muted-foreground">{emptyHint}</p>
+                    <div data-testid={`${idPrefix}-model-empty-state`} className="rounded-xl border border-dashed border-border/60 bg-background/70 px-3 py-4 text-sm text-muted-foreground">
+                        {emptyTitle}
                     </div>
                 )}
             </div>
@@ -252,7 +200,6 @@ function SortSection({
     showWeight,
     onClear,
     idPrefix,
-    copy,
 }: {
     members: SelectedMember[];
     onReorder: (members: SelectedMember[]) => void;
@@ -262,7 +209,6 @@ function SortSection({
     showWeight: boolean;
     onClear: () => void;
     idPrefix: string;
-    copy: GroupEditorCopy;
 }) {
     const t = useTranslations('group');
     const channelCount = useMemo(() => new Set(members.map((member) => member.channel_id)).size, [members]);
@@ -271,32 +217,25 @@ function SortSection({
     return (
         <section
             data-testid={`${idPrefix}-selected-section`}
-            className="rounded-2xl border border-border/50 bg-muted/30 p-4 xl:sticky xl:top-0 xl:max-h-[calc(100vh-16rem)]"
+            className="rounded-xl border border-border/50 bg-muted/20 p-3.5 xl:max-h-[calc(100vh-19rem)]"
         >
-            <div className="space-y-1">
-                <div className="text-sm font-medium text-foreground">{copy.selectionSummaryTitle}</div>
-                <p className="text-xs text-muted-foreground">{copy.selectionSummaryHint}</p>
-            </div>
-
-            <div className="mt-3">
-                <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                    <span className="rounded-full bg-background px-2 py-1">{copy.selectionSummaryModels(members.length)}</span>
-                    <span className="rounded-full bg-background px-2 py-1">{copy.selectionSummaryChannels(channelCount)}</span>
-                    <span className="rounded-full bg-background px-2 py-1">{copy.selectionSummaryWeighted(weightedCount)}</span>
-                    <span className="rounded-full bg-background px-2 py-1">
-                        {showWeight ? copy.weightedModeActive : copy.weightedModeInactive}
-                    </span>
-                </div>
-            </div>
-
-            <div className="mt-3 flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2">
                 <div className="text-sm font-medium text-foreground">{t('form.items')}</div>
                 <Button type="button" variant="ghost" size="sm" onClick={onClear} disabled={members.length === 0} className="rounded-xl px-2">
                     {t('form.clear')}
                 </Button>
             </div>
 
-            <div className="mt-3 min-h-[12rem]">
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="rounded-full bg-background px-2 py-1">{t('form.selectionSummaryModels', { count: members.length })}</span>
+                <span className="rounded-full bg-background px-2 py-1">{t('form.selectionSummaryChannels', { count: channelCount })}</span>
+                <span className="rounded-full bg-background px-2 py-1">{t('form.selectionSummaryWeighted', { count: weightedCount })}</span>
+                <span className="rounded-full bg-background px-2 py-1">
+                    {showWeight ? t('form.weightedModeActive') : t('form.weightedModeInactive')}
+                </span>
+            </div>
+
+            <div className="mt-3 min-h-[16rem]">
                 {members.length > 0 ? (
                     <MemberList
                         members={members}
@@ -309,9 +248,8 @@ function SortSection({
                         layoutScope={`${idPrefix}-members`}
                     />
                 ) : (
-                    <div data-testid={`${idPrefix}-selected-empty-state`} className="rounded-xl border border-dashed border-border/60 bg-background/70 p-4">
-                        <div className="font-medium text-foreground">{copy.itemsEmptyTitle}</div>
-                        <p className="mt-1 text-xs text-muted-foreground">{copy.itemsEmptyHint}</p>
+                    <div data-testid={`${idPrefix}-selected-empty-state`} className="rounded-xl border border-dashed border-border/60 bg-background/70 px-3 py-4 text-sm text-muted-foreground">
+                        {t('form.itemsEmptyTitle')}
                     </div>
                 )}
             </div>
@@ -338,54 +276,6 @@ export function GroupEditor({
 }) {
     const t = useTranslations('group');
     const { data: modelChannels = [] } = useModelChannelList();
-
-    const copy = useMemo<GroupEditorCopy>(() => ({
-        flowTitle: t('form.flowTitle'),
-        flowHint: t('form.flowHint'),
-        flowDesc: t('form.flowDesc'),
-        stepLabel: (index) => t('form.stepLabel', { index }),
-        flowSteps: {
-            naming: t('form.flowSteps.naming'),
-            mode: t('form.flowSteps.mode'),
-            models: t('form.flowSteps.models'),
-        },
-        namingSectionTitle: t('form.namingSectionTitle'),
-        namingSectionHint: t('form.namingSectionHint'),
-        namingSectionDesc: t('form.namingSectionDesc'),
-        modeSectionTitle: t('form.modeSectionTitle'),
-        modeSectionHint: t('form.modeSectionHint'),
-        modeSectionDesc: t('form.modeSectionDesc'),
-        nameHint: t('form.nameHint'),
-        matchRegexHint: t('form.matchRegexHint'),
-        advancedStrategyHint: t('form.advancedStrategyHint'),
-        modelPickerTitle: t('form.modelPickerTitle'),
-        modelPickerHint: t('form.modelPickerHint'),
-        noAvailableModelsTitle: t('form.noAvailableModelsTitle'),
-        noAvailableModelsHint: t('form.noAvailableModelsHint'),
-        noFilteredModelsHint: t('form.noFilteredModelsHint'),
-        itemsEmptyTitle: t('form.itemsEmptyTitle'),
-        itemsEmptyHint: t('form.itemsEmptyHint'),
-        selectionSummaryTitle: t('form.selectionSummaryTitle'),
-        selectionSummaryModels: (count) => t('form.selectionSummaryModels', { count }),
-        selectionSummaryChannels: (count) => t('form.selectionSummaryChannels', { count }),
-        selectionSummaryWeighted: (count) => t('form.selectionSummaryWeighted', { count }),
-        selectionSummaryEmpty: t('form.selectionSummaryEmpty'),
-        selectionSummaryHint: t('form.selectionSummaryHint'),
-        weightedModeActive: t('form.weightedModeActive'),
-        weightedModeInactive: t('form.weightedModeInactive'),
-        retryRounds: t('form.retryRounds'),
-        retryRoundsHint: t('form.retryRoundsHint'),
-        retryDelayMs: t('form.retryDelayMs'),
-        retryDelayMsHint: t('form.retryDelayMsHint'),
-        failoverWindowSec: t('form.failoverWindowSec'),
-        failoverWindowSecHint: t('form.failoverWindowSecHint'),
-        raceAfterFails: t('form.raceAfterFails'),
-        raceAfterFailsHint: t('form.raceAfterFailsHint'),
-        raceConcurrency: t('form.raceConcurrency'),
-        raceConcurrencyHint: t('form.raceConcurrencyHint'),
-        advancedStrategy: t('form.advancedStrategy'),
-        advancedStrategyDesc: t('form.advancedStrategyDesc'),
-    }), [t]);
 
     const [groupName, setGroupName] = useState(initial?.name ?? '');
     const [matchRegex, setMatchRegex] = useState(initial?.match_regex ?? '');
@@ -515,35 +405,13 @@ export function GroupEditor({
 
     return (
         <form onSubmit={handleSubmit} data-testid={`${idPrefix}-form`} className="flex h-full min-h-0 flex-col">
-            <div className="flex-1 min-h-0 overflow-hidden pr-1">
-                <FieldGroup className="flex h-full min-h-0 flex-col gap-4">
-                    <section data-testid={`${idPrefix}-flow-card`} className="rounded-2xl border border-border/50 bg-muted/30 p-4">
-                        <div className="space-y-1">
-                            <div className="text-sm font-medium text-foreground">{copy.flowTitle}</div>
-                            <p className="text-xs text-muted-foreground">{copy.flowHint}</p>
-                            <p className="text-xs text-muted-foreground">{copy.flowDesc}</p>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                            {(['naming', 'mode', 'models'] as const).map((step, index) => (
-                                <span key={step} className="rounded-full bg-background px-2 py-1">
-                                    {copy.stepLabel(index + 1)} {copy.flowSteps[step as keyof GroupEditorCopy['flowSteps']]}
-                                </span>
-                            ))}
-                        </div>
-                    </section>
-
-                    <section data-testid={`${idPrefix}-naming-section`} className="rounded-2xl border border-border/50 bg-muted/30 p-4">
-                        <div className="space-y-1">
-                            <div className="text-sm font-medium text-foreground">{copy.namingSectionTitle}</div>
-                            <p className="text-xs text-muted-foreground">{copy.namingSectionHint}</p>
-                            <p className="text-xs text-muted-foreground">{copy.namingSectionDesc}</p>
-                        </div>
-
-                        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)]">
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                <FieldGroup className="flex h-full min-h-0 flex-col gap-3">
+                    <section className="rounded-xl border border-border/50 bg-muted/20 p-3.5">
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                             <Field>
                                 <FieldLabel htmlFor={`${idPrefix}-name`}>{t('form.name')}</FieldLabel>
                                 <Input id={`${idPrefix}-name`} value={groupName} onChange={(event) => setGroupName(event.target.value)} className="rounded-xl" />
-                                <p className="mt-1 text-xs text-muted-foreground">{copy.nameHint}</p>
                                 {invalidGroupName ? <p className="mt-1 text-xs text-destructive">{t('form.nameRule')}</p> : null}
                             </Field>
 
@@ -556,33 +424,27 @@ export function GroupEditor({
                                     className="rounded-xl"
                                     placeholder={t('form.matchRegexPlaceholder')}
                                 />
-                                <p className="mt-1 text-xs text-muted-foreground">{copy.matchRegexHint}</p>
                                 {regexError ? <p className="mt-1 text-xs text-destructive">{t('form.matchRegexInvalid')}: {t('form.matchRegexInvalidHint')}</p> : null}
                             </Field>
                         </div>
-                    </section>
 
-                    <section data-testid={`${idPrefix}-mode-section`} className="rounded-2xl border border-border/50 bg-muted/30 p-4">
-                        <div className="space-y-1">
-                            <div className="text-sm font-medium text-foreground">{copy.modeSectionTitle}</div>
-                            <p className="text-xs text-muted-foreground">{copy.modeSectionHint}</p>
-                            <p className="text-xs text-muted-foreground">{copy.modeSectionDesc}</p>
-                        </div>
-
-                        <div className="mt-4 flex gap-1">
+                        <div className="mt-3">
+                            <div className="mb-2 text-sm font-medium text-foreground">{t('form.modeSectionTitle')}</div>
+                        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
                             {([1, 2, 3, 4, 5] as const).map((itemMode) => (
                                 <button
                                     key={itemMode}
                                     type="button"
                                     onClick={() => setMode(itemMode)}
-                                    className={cn('flex-1 rounded-lg py-1 text-xs transition-colors', mode === itemMode ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80')}
+                                    className={cn('rounded-lg py-2 text-xs transition-colors', mode === itemMode ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted')}
                                 >
                                     {t(`mode.${MODE_LABELS[itemMode]}`)}
                                 </button>
                             ))}
                         </div>
+                        </div>
 
-                        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
                             <Field>
                                 <FieldLabel htmlFor={`${idPrefix}-first-token-timeout`}>{t('form.firstTokenTimeOut')}</FieldLabel>
                                 <Input
@@ -595,7 +457,6 @@ export function GroupEditor({
                                     onChange={(event) => setFirstTokenTimeOut(parsePositiveInt(event.target.value))}
                                     className="rounded-xl"
                                 />
-                                <p className="mt-1 text-xs text-muted-foreground">{t('form.firstTokenTimeOutHint')}</p>
                             </Field>
 
                             <Field>
@@ -610,46 +471,37 @@ export function GroupEditor({
                                     onChange={(event) => setSessionKeepTime(parsePositiveInt(event.target.value))}
                                     className="rounded-xl"
                                 />
-                                <p className="mt-1 text-xs text-muted-foreground">{t('form.sessionKeepTimeHint')}</p>
                             </Field>
                         </div>
                     </section>
 
                     <section data-testid={`${idPrefix}-advanced-strategy-section`}>
-                        <Accordion type="single" collapsible className="rounded-2xl border border-border/50 bg-muted/20 px-4">
+                        <Accordion type="single" collapsible className="rounded-xl border border-border/50 bg-muted/10 px-3">
                             <AccordionItem data-testid={`${idPrefix}-advanced-strategy-item`} value="advanced-strategy" className="border-none">
-                                <AccordionTrigger data-testid="group-advanced-strategy-trigger" className="py-3" addon={<HelpHint className="mt-1 size-3.5">{copy.advancedStrategyHint}</HelpHint>}>
-                                    <div className="space-y-1">
-                                        <div className="text-sm font-medium text-foreground">{copy.advancedStrategy}</div>
-                                        <div className="text-xs text-muted-foreground">{copy.advancedStrategyDesc}</div>
-                                    </div>
+                                <AccordionTrigger data-testid="group-advanced-strategy-trigger" className="py-3 text-sm font-medium text-foreground">
+                                    {t('form.advancedStrategy')}
                                 </AccordionTrigger>
                                 <AccordionContent>
-                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                    <div className="grid grid-cols-1 gap-3 pb-1 md:grid-cols-2 xl:grid-cols-3">
                                         <Field>
-                                            <FieldLabel htmlFor={`${idPrefix}-retry-rounds`}>{copy.retryRounds}</FieldLabel>
+                                            <FieldLabel htmlFor={`${idPrefix}-retry-rounds`}>{t('form.retryRounds')}</FieldLabel>
                                             <Input id={`${idPrefix}-retry-rounds`} type="number" inputMode="numeric" min={0} step={1} value={String(retryRounds)} onChange={(event) => setRetryRounds(parsePositiveInt(event.target.value))} className="rounded-xl" />
-                                            <p className="mt-1 text-xs text-muted-foreground">{copy.retryRoundsHint}</p>
                                         </Field>
                                         <Field>
-                                            <FieldLabel htmlFor={`${idPrefix}-retry-delay-ms`}>{copy.retryDelayMs}</FieldLabel>
+                                            <FieldLabel htmlFor={`${idPrefix}-retry-delay-ms`}>{t('form.retryDelayMs')}</FieldLabel>
                                             <Input id={`${idPrefix}-retry-delay-ms`} type="number" inputMode="numeric" min={0} step={1} value={String(retryDelayMs)} onChange={(event) => setRetryDelayMs(parsePositiveInt(event.target.value))} className="rounded-xl" />
-                                            <p className="mt-1 text-xs text-muted-foreground">{copy.retryDelayMsHint}</p>
                                         </Field>
                                         <Field>
-                                            <FieldLabel htmlFor={`${idPrefix}-failover-window-sec`}>{copy.failoverWindowSec}</FieldLabel>
+                                            <FieldLabel htmlFor={`${idPrefix}-failover-window-sec`}>{t('form.failoverWindowSec')}</FieldLabel>
                                             <Input id={`${idPrefix}-failover-window-sec`} type="number" inputMode="numeric" min={0} step={1} value={String(failoverWindowSec)} onChange={(event) => setFailoverWindowSec(parsePositiveInt(event.target.value))} className="rounded-xl" />
-                                            <p className="mt-1 text-xs text-muted-foreground">{copy.failoverWindowSecHint}</p>
                                         </Field>
                                         <Field>
-                                            <FieldLabel htmlFor={`${idPrefix}-race-after-fails`}>{copy.raceAfterFails}</FieldLabel>
+                                            <FieldLabel htmlFor={`${idPrefix}-race-after-fails`}>{t('form.raceAfterFails')}</FieldLabel>
                                             <Input id={`${idPrefix}-race-after-fails`} type="number" inputMode="numeric" min={0} step={1} value={String(raceAfterFails)} onChange={(event) => setRaceAfterFails(parsePositiveInt(event.target.value))} className="rounded-xl" />
-                                            <p className="mt-1 text-xs text-muted-foreground">{copy.raceAfterFailsHint}</p>
                                         </Field>
                                         <Field>
-                                            <FieldLabel htmlFor={`${idPrefix}-race-concurrency`}>{copy.raceConcurrency}</FieldLabel>
+                                            <FieldLabel htmlFor={`${idPrefix}-race-concurrency`}>{t('form.raceConcurrency')}</FieldLabel>
                                             <Input id={`${idPrefix}-race-concurrency`} type="number" inputMode="numeric" min={0} step={1} value={String(raceConcurrency)} onChange={(event) => setRaceConcurrency(parsePositiveInt(event.target.value))} className="rounded-xl" />
-                                            <p className="mt-1 text-xs text-muted-foreground">{copy.raceConcurrencyHint}</p>
                                         </Field>
                                     </div>
                                 </AccordionContent>
@@ -657,16 +509,15 @@ export function GroupEditor({
                         </Accordion>
                     </section>
 
-                    <div className="flex-1 min-h-0">
-                        <div className="grid h-full min-h-0 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)]">
+                    <div className="flex-1 min-h-[18rem]">
+                        <div className="grid h-full min-h-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
                             <ModelPickerSection
-                                modelChannels={matchedModelChannels}
+                                modelChannels={modelChannels}
                                 selectedMembers={selectedMembers}
                                 onAdd={handleAddMember}
                                 onAutoAdd={handleAutoAdd}
                                 autoAddDisabled={autoAddDisabled}
                                 idPrefix={idPrefix}
-                                copy={copy}
                                 modelFilter={modelFilter}
                                 onModelFilterChange={setModelFilter}
                             />
@@ -680,7 +531,6 @@ export function GroupEditor({
                                 showWeight={mode === 4}
                                 onClear={handleClearMembers}
                                 idPrefix={idPrefix}
-                                copy={copy}
                             />
                         </div>
                     </div>

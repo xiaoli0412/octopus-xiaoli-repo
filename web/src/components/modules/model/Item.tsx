@@ -12,16 +12,18 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/animate-ui
 import { ModelDeleteOverlay, ModelEditOverlay } from './ItemOverlays';
 import { cn } from '@/lib/utils';
 import { createPortal } from 'react-dom';
+import type { ModelCardDensity } from '@/components/modules/toolbar/view-options-store';
 
 interface ModelItemProps {
     model: LLMInfo;
-    layout: 'grid' | 'list';
+    density: ModelCardDensity;
     index: number;
 }
 
-export const ModelItem = memo(function ModelItem({ model, layout, index }: ModelItemProps) {
+export const ModelItem = memo(function ModelItem({ model, density, index }: ModelItemProps) {
     const t = useTranslations('model');
     const tSetting = useTranslations('setting.llmRouteTarget');
+    const isCompact = density === 'compact';
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [overlayRect, setOverlayRect] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -169,18 +171,22 @@ export const ModelItem = memo(function ModelItem({ model, layout, index }: Model
             ref={cardRef}
             data-testid={typeof index === 'number' ? `model-card-${index}` : undefined}
             data-model-name={model.name}
-            data-layout={layout}
+            data-layout="grid"
+            data-density={density}
             data-slot="model-card"
             className={cn(
-                'group relative min-h-[7.25rem] rounded-3xl border border-border bg-card transition-all duration-300 flex items-center gap-3 px-3.5 py-3.5',
+                'group relative flex items-center border border-border bg-card transition-all duration-300',
+                isCompact
+                    ? 'min-h-[6.25rem] gap-2.5 rounded-[1.6rem] px-3 py-3'
+                    : 'min-h-[7.25rem] gap-3 rounded-3xl px-3.5 py-3.5',
                 (isEditOpen || confirmDelete) && 'z-50'
             )}
         >
-            <ModelAvatar size={layout === 'grid' ? 46 : 52} />
+            <ModelAvatar size={isCompact ? 40 : 46} />
 
-            <div className="flex-1 min-w-0 flex flex-col justify-center gap-1.5">
+            <div className={cn('flex-1 min-w-0 flex flex-col justify-center', isCompact ? 'gap-1' : 'gap-1.5')}>
                 <Tooltip side="top" sideOffset={10} align="start">
-                    <TooltipTrigger className='text-[15px] font-semibold text-card-foreground leading-tight truncate'>
+                    <TooltipTrigger className={cn('font-semibold text-card-foreground leading-tight truncate text-left', isCompact ? 'text-[13px]' : 'text-[15px]')}>
                         {model.name}
                     </TooltipTrigger>
                     <TooltipContent key={model.name}>
@@ -188,37 +194,37 @@ export const ModelItem = memo(function ModelItem({ model, layout, index }: Model
                     </TooltipContent>
                 </Tooltip>
 
-                <p className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-                    <ArrowDownToLine className="size-3.5" style={{ color: brandColor }} />
+                <p className={cn('flex items-center text-muted-foreground', isCompact ? 'gap-1 text-[11px]' : 'gap-1.5 text-[13px]')}>
+                    <ArrowDownToLine className={cn(isCompact ? 'size-3' : 'size-3.5')} style={{ color: brandColor }} />
                     {t('card.inputCache')}
                     <span className="tabular-nums">{model.input.toFixed(2)}/{model.cache_read.toFixed(2)}$</span>
                 </p>
 
-                <p className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-                    <ArrowUpFromLine className="size-3.5" style={{ color: brandColor }} />
+                <p className={cn('flex items-center text-muted-foreground', isCompact ? 'gap-1 text-[11px]' : 'gap-1.5 text-[13px]')}>
+                    <ArrowUpFromLine className={cn(isCompact ? 'size-3' : 'size-3.5')} style={{ color: brandColor }} />
                     {t('card.outputCache')}
                     <span className="tabular-nums">{model.output.toFixed(2)}/{model.cache_write.toFixed(2)}$</span>
                 </p>
 
-                {layout === 'grid' ? (
-                    <div data-slot="model-card-meta" className="flex flex-wrap gap-1.5 pt-0.5 text-[10px] text-muted-foreground">
-                        {metaItems.map((item) => (
-                            <span key={item.key} className="rounded-full border border-border/60 bg-muted/30 px-1.5 py-0.5">
-                                {item.label}: {item.value}
-                            </span>
-                        ))}
-                    </div>
-                ) : null}
-
-                {layout === 'list' ? (
-                    <div data-slot="model-card-meta-compact" className="flex flex-wrap gap-2 pt-1 text-[11px] text-muted-foreground">
-                        {metaItems.map((item) => (
-                            <span key={item.key} className="rounded-full border border-border/60 bg-muted/30 px-2 py-0.5">
-                                {item.label}: {item.value}
-                            </span>
-                        ))}
-                    </div>
-                ) : null}
+                <div
+                    data-slot={isCompact ? 'model-card-meta-compact' : 'model-card-meta'}
+                    className={cn(
+                        'flex flex-wrap text-muted-foreground',
+                        isCompact ? 'gap-1 pt-0.5 text-[9px]' : 'gap-1.5 pt-0.5 text-[10px]'
+                    )}
+                >
+                    {metaItems.map((item) => (
+                        <span
+                            key={item.key}
+                            className={cn(
+                                'rounded-full border border-border/60 bg-muted/30',
+                                isCompact ? 'px-1.5 py-0.5' : 'px-1.5 py-0.5'
+                            )}
+                        >
+                            {item.label}: {item.value}
+                        </span>
+                    ))}
+                </div>
             </div>
 
             <div
@@ -233,10 +239,13 @@ export const ModelItem = memo(function ModelItem({ model, layout, index }: Model
                     type="button"
                     onClick={handleEditClick}
                     disabled={isEditOpen || confirmDelete}
-                    className="h-8 w-8 flex items-center justify-center rounded-lg bg-muted/60 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                    className={cn(
+                        'flex items-center justify-center bg-muted/60 text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50',
+                        isCompact ? 'h-7 w-7 rounded-lg' : 'h-8 w-8 rounded-lg'
+                    )}
                     title={t('card.edit')}
                 >
-                    <Pencil className="size-4" />
+                    <Pencil className={cn(isCompact ? 'size-3.5' : 'size-4')} />
                 </motion.button>
 
                 <motion.button
@@ -244,10 +253,13 @@ export const ModelItem = memo(function ModelItem({ model, layout, index }: Model
                     type="button"
                     onClick={handleDeleteClick}
                     disabled={isEditOpen || confirmDelete}
-                    className="h-8 w-8 flex items-center justify-center rounded-lg bg-destructive/10 text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground disabled:opacity-50"
+                    className={cn(
+                        'flex items-center justify-center bg-destructive/10 text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground disabled:opacity-50',
+                        isCompact ? 'h-7 w-7 rounded-lg' : 'h-8 w-8 rounded-lg'
+                    )}
                     title={t('card.delete')}
                 >
-                    <Trash2 className="size-4" />
+                    <Trash2 className={cn(isCompact ? 'size-3.5' : 'size-4')} />
                 </motion.button>
             </div>
 

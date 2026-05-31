@@ -210,8 +210,9 @@ if ($startBackend) {
 }
 
 if ($startFrontend) {
-    $nodeCommand = Get-RequiredCommand -Name 'node' -InstallHint 'Install Node.js 18+ and make sure it is on PATH.'
-    $pnpmCommand = Get-RequiredCommand -Name 'pnpm' -InstallHint 'Install pnpm and make sure it is on PATH.'
+    . (Join-Path $scriptDir 'use-node-env.ps1')
+    $nodeCommand = [pscustomobject]@{ Source = $env:NODEEXE }
+    $pnpmCommand = [pscustomobject]@{ Source = $env:PNPMEXE }
     Assert-MinimumVersion -ToolName 'Node.js' -ActualText (& $nodeCommand.Source --version) -MinimumVersion ([version]'18.0.0')
     Assert-MinimumVersion -ToolName 'pnpm' -ActualText (& $pnpmCommand.Source --version) -MinimumVersion ([version]'7.0.0')
 }

@@ -5,9 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	serverauth "github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/auth"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
-	"github.com/gin-gonic/gin"
 )
 
 func TestAdminPostRoutesRequireJSONForEmptyBody(t *testing.T) {

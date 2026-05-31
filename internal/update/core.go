@@ -14,8 +14,10 @@ import (
 )
 
 var ErrUpdateInProgress = errors.New("update already in progress")
+var ErrUpdateUnsupportedPlatform = errors.New("self-update is not supported on Windows; replace the binary or container image manually")
 
 var updateInProgress atomic.Bool
+var currentRuntimeGOOS = runtime.GOOS
 var exitProcess = os.Exit
 var startReplacementProcess = func(execPath string, args []string) error {
 	cmd := exec.Command(execPath, args...)
@@ -26,6 +28,9 @@ var startReplacementProcess = func(execPath string, args []string) error {
 }
 
 func UpdateCore() error {
+	if currentRuntimeGOOS == "windows" {
+		return ErrUpdateUnsupportedPlatform
+	}
 	if !updateInProgress.CompareAndSwap(false, true) {
 		return ErrUpdateInProgress
 	}
@@ -139,4 +144,12 @@ func restartExecutableForPlatform(goos, execPath string, args []string) {
 		updateInProgress.Store(false)
 		log.Errorf("restarting failed: %v", err)
 	}
+}
+
+func CurrentRuntimeGOOSForTest() string {
+	return currentRuntimeGOOS
+}
+
+func SetCurrentRuntimeGOOSForTest(value string) {
+	currentRuntimeGOOS = value
 }

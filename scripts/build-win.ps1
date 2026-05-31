@@ -157,6 +157,7 @@ function Ensure-Directory {
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Get-NormalizedPath -Path (Join-Path $scriptDir '..')
 . (Join-Path $scriptDir 'use-go-env.ps1')
+. (Join-Path $scriptDir 'use-node-env.ps1')
 $webDir = Join-Path $repoRoot 'web'
 $staticDir = Join-Path $repoRoot 'static'
 $versionFile = Join-Path $repoRoot 'VERSION'
@@ -179,8 +180,8 @@ Assert-PathWithinRoot -RootPath $repoRoot -CandidatePath $binDir -Label 'Build o
 
 Write-Step -Message 'Checking required tools'
 $goCommand = [pscustomobject]@{ Source = $env:GOEXE }
-$nodeCommand = Get-RequiredCommand -Name 'node' -InstallHint 'Install Node.js 18+ and make sure it is on PATH.'
-$pnpmCommand = Get-RequiredCommand -Name 'pnpm' -InstallHint 'Install pnpm and make sure it is on PATH.'
+$nodeCommand = [pscustomobject]@{ Source = $env:NODEEXE }
+$pnpmCommand = [pscustomobject]@{ Source = $env:PNPMEXE }
 $gitCommand = Get-Command -Name 'git' -ErrorAction SilentlyContinue
 
 Assert-MinimumVersion -ToolName 'Go' -ActualText (& $goCommand.Source version) -MinimumVersion ([version]'1.24.4')

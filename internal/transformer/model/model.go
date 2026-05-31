@@ -321,7 +321,6 @@ func (r *InternalLLMRequest) fillMissingToolCallIDs() {
 	}
 }
 
-
 func (r *InternalLLMRequest) fillMissingToolCallIDsFromToolMessages() {
 	for msgIndex := 0; msgIndex < len(r.Messages); msgIndex++ {
 		msg := &r.Messages[msgIndex]
@@ -751,6 +750,30 @@ type Usage struct {
 	// Anthropic specific fields
 	AnthropicUsage           bool  `json:"-"`
 	CacheCreationInputTokens int64 `json:"-"`
+}
+
+func (u *Usage) UnmarshalJSON(data []byte) error {
+	type usageAlias struct {
+		PromptTokens             int64                    `json:"prompt_tokens"`
+		CompletionTokens         int64                    `json:"completion_tokens"`
+		TotalTokens              int64                    `json:"total_tokens"`
+		PromptTokensDetails      *PromptTokensDetails     `json:"prompt_tokens_details"`
+		CompletionTokensDetails  *CompletionTokensDetails `json:"completion_tokens_details"`
+		CacheCreationInputTokens int64                    `json:"cache_creation_input_tokens"`
+	}
+
+	var decoded usageAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+
+	u.PromptTokens = decoded.PromptTokens
+	u.CompletionTokens = decoded.CompletionTokens
+	u.TotalTokens = decoded.TotalTokens
+	u.PromptTokensDetails = decoded.PromptTokensDetails
+	u.CompletionTokensDetails = decoded.CompletionTokensDetails
+	u.CacheCreationInputTokens = decoded.CacheCreationInputTokens
+	return nil
 }
 
 func (u *Usage) GetCompletionTokens() *int64 {

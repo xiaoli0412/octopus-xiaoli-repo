@@ -120,6 +120,58 @@ function Resolve-NodeExe {
 	throw 'Unable to find a runnable node.exe. Set OCTOPUS_NODE_BIN to a valid Node bin directory.'
 }
 
+function Resolve-PnpmVersion {
+	param(
+		[Parameter(Mandatory = $true)]
+		[string]$RepoRoot
+	)
+
+	$candidates = @(
+		(Join-Path $RepoRoot 'web\package.json')
+		(Join-Path $RepoRoot 'package.json')
+	)
+
+	foreach ($candidate in $candidates) {
+		if (-not (Test-Path -LiteralPath $candidate)) {
+			continue
+		}
+
+		try {
+			$packageJson = Get-Content -LiteralPath $candidate -Raw | ConvertFrom-Json -ErrorAction Stop
+		}
+		catch {
+			throw ('Unable to parse package.json for pnpm version: ' + $candidate + ' (' + $_.Exception.Message + ')')
+		}
+
+		$packageManager = [string]$packageJson.packageManager
+		if ([string]::IsNullOrWhiteSpace($packageManager)) {
+			continue
+		}
+
+		$match = [regex]::Match($packageManager, '^pnpm@(?<version>[^+]+)')
+		if ($match.Success) {
+			return $match.Groups['version'].Value
+		}
+	}
+
+	if (-not [string]::IsNullOrWhiteSpace($env:OCTOPUS_PNPM_VERSION)) {
+		return $env:OCTOPUS_PNPM_VERSION.Trim()
+	}
+
+	throw 'Unable to resolve the required pnpm version from packageManager. Set OCTOPUS_PNPM_VERSION explicitly if needed.'
+}
+
+function Set-AsciiFile {
+	param(
+		[Parameter(Mandatory = $true)]
+		[string]$Path,
+		[Parameter(Mandatory = $true)]
+		[string]$Content
+	)
+
+	[System.IO.File]::WriteAllText($Path, $Content, [System.Text.Encoding]::ASCII)
+}
+
 Ensure-CoreWindowsEnvironment
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -142,15 +194,61 @@ if (-not (Test-Path -LiteralPath $userConfigPath)) {
 $nodeExe = Resolve-NodeExe
 $nodeBin = Split-Path -Parent $nodeExe
 $corepackCli = Join-Path $nodeBin 'node_modules\corepack\dist\corepack.js'
+$pnpmVersion = Resolve-PnpmVersion -RepoRoot $repoRoot
+$pnpmSpec = 'pnpm@' + $pnpmVersion
+$pnpmWrapperPath = Join-Path $toolCacheRoot 'pnpm.cmd'
 
 if (($env:PATH -split ';') -notcontains $nodeBin) {
 	$env:PATH = $nodeBin + ';' + $env:PATH
+}
+
+$pnpmVersionText = (& $nodeExe $corepackCli $pnpmSpec '--version').Trim()
+if ([string]::IsNullOrWhiteSpace($pnpmVersionText)) {
+	throw ('Failed to resolve ' + $pnpmSpec + ' through corepack.')
+}
+
+$pnpmWrapper = @"
+@echo off
+setlocal
+"%NODEEXE%" "%COREPACK_CLI%" $pnpmSpec %*
+"@
+$shouldWriteWrapper = $true
+if (Test-Path -LiteralPath $pnpmWrapperPath) {
+	try {
+		$existingWrapper = Get-Content -LiteralPath $pnpmWrapperPath -Raw -ErrorAction Stop
+		if ($existingWrapper -eq $pnpmWrapper) {
+			$shouldWriteWrapper = $false
+		}
+	}
+	catch {
+		$shouldWriteWrapper = $true
+	}
+}
+
+if ($shouldWriteWrapper) {
+	try {
+		Set-AsciiFile -Path $pnpmWrapperPath -Content $pnpmWrapper
+	}
+	catch {
+		if (-not (Test-Path -LiteralPath $pnpmWrapperPath)) {
+			throw
+		}
+
+		$existingWrapper = Get-Content -LiteralPath $pnpmWrapperPath -Raw -ErrorAction Stop
+		if ($existingWrapper -ne $pnpmWrapper) {
+			throw
+		}
+	}
 }
 
 $env:NODEEXE = $nodeExe
 $env:NODE_BIN = $nodeBin
 $env:COREPACK_HOME = $corepackHome
 $env:PNPM_HOME = $pnpmHome
+$env:COREPACK_CLI = $corepackCli
+$env:PNPMEXE = $pnpmWrapperPath
+$env:OCTOPUS_PNPM_VERSION = $pnpmVersion
+$env:OCTOPUS_PNPM_SPEC = $pnpmSpec
 $env:XDG_CONFIG_HOME = $xdgConfigHome
 $env:npm_config_userconfig = $userConfigPath
 
@@ -163,11 +261,11 @@ function global:pnpm {
 		[object[]]$Arguments
 	)
 
-	if (-not (Test-Path -LiteralPath $corepackCli)) {
-		throw ('corepack CLI not found: ' + $corepackCli)
+	if (-not (Test-Path -LiteralPath $env:PNPMEXE)) {
+		throw ('pnpm wrapper not found: ' + $env:PNPMEXE)
 	}
 
-	& $nodeExe $corepackCli 'pnpm' @Arguments
+	& $env:PNPMEXE @Arguments
 }
 
 $version = & $nodeExe -v
@@ -179,4 +277,7 @@ Write-Host ('  APPDATA=' + $env:APPDATA)
 Write-Host ('  NODEEXE=' + $nodeExe)
 Write-Host ('  NODE_VERSION=' + $version)
 Write-Host ('  COREPACK_HOME=' + $env:COREPACK_HOME)
+Write-Host ('  COREPACK_CLI=' + $env:COREPACK_CLI)
 Write-Host ('  PNPM_HOME=' + $env:PNPM_HOME)
+Write-Host ('  PNPMEXE=' + $env:PNPMEXE)
+Write-Host ('  PNPM_VERSION=' + $pnpmVersionText)

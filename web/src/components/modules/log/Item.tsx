@@ -237,7 +237,7 @@ export function LogCard({ log }: { log: RelayLog }) {
                                     <Pin className="size-3.5 shrink-0 text-amber-500" />
                                 )}
                             </div>
-                            <div className="grid grid-cols-2 md:grid-cols-6 gap-x-4 gap-y-2 text-xs tabular-nums text-muted-foreground">
+                            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-x-4 gap-y-2 text-xs tabular-nums text-muted-foreground">
                                 <div className="flex items-center gap-1.5">
                                     <Clock className="size-3.5 shrink-0" style={{ color: brandColor }} />
                                     <span>{formatTime(log.time, locale)}</span>
@@ -257,6 +257,14 @@ export function LogCard({ log }: { log: RelayLog }) {
                                 <div className="flex items-center gap-1.5">
                                     <ArrowUpFromLine className="size-3.5 shrink-0 text-purple-500" />
                                     <span>{t('output')} {formatNumberByLocale(log.output_tokens, locale)}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="size-2.5 shrink-0 rounded-full bg-sky-500/85" />
+                                    <span>{t('cacheRead')} {formatNumberByLocale(log.cache_read_tokens, locale)}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="size-2.5 shrink-0 rounded-full bg-orange-500/85" />
+                                    <span>{t('cacheWrite')} {formatNumberByLocale(log.cache_write_tokens, locale)}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <DollarSign className="size-3.5 shrink-0 text-emerald-500" />
@@ -458,6 +466,14 @@ export function LogCard({ log }: { log: RelayLog }) {
                             <div className="flex items-center gap-1.5">
                                 <Cpu className="size-3.5 text-blue-500" />
                                 <span>{t('totalTime')}: {formatDuration(log.use_time)}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="size-2.5 shrink-0 rounded-full bg-sky-500/85" />
+                                <span>{t('cacheRead')}: {formatNumberByLocale(log.cache_read_tokens, locale)}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="size-2.5 shrink-0 rounded-full bg-orange-500/85" />
+                                <span>{t('cacheWrite')}: {formatNumberByLocale(log.cache_write_tokens, locale)}</span>
                             </div>
                             <div className="flex items-center gap-1.5">
                                 <DollarSign className="size-3.5 text-emerald-500" />

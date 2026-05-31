@@ -10,16 +10,12 @@ import { AnimatedNumber } from '@/components/common/AnimatedNumber';
 import { Tabs, TabsContent, TabsContents, TabsList, TabsTrigger } from '@/components/animate-ui/components/animate/tabs';
 import { cn } from '@/lib/utils';
 
-type SortMode = 'cost' | 'count' | 'token';
-type ChannelData = NonNullable<ReturnType<typeof useChannelList>['data']>[number];
-
 type RankedChannel = {
 	id: number;
 	name: string;
 	summary: string;
 	value: string;
 	unit?: string;
-	rawValue: number;
 };
 
 function rankIcon(rank: number) {
@@ -61,7 +57,6 @@ export function Rank() {
 				summary: `${t('requestCount')} ${channel.formatted.request_count.formatted.value}${channel.formatted.request_count.formatted.unit}`,
 				value: channel.formatted.total_cost.formatted.value,
 				unit: channel.formatted.total_cost.formatted.unit,
-				rawValue: channel.formatted.total_cost.raw,
 			}));
 	}, [channelData, t]);
 
@@ -81,7 +76,6 @@ export function Rank() {
 					summary: `${t('successRate')} ${successRate.toFixed(1)}%`,
 					value: channel.formatted.request_count.formatted.value,
 					unit: channel.formatted.request_count.formatted.unit,
-					rawValue: channel.formatted.request_count.raw,
 				};
 			});
 	}, [channelData, t]);
@@ -99,12 +93,11 @@ export function Rank() {
 					summary: `${t('requestCount')} ${channel.formatted.request_count.formatted.value}${channel.formatted.request_count.formatted.unit}`,
 					value: token?.value ?? '0.00',
 					unit: token?.unit,
-					rawValue: token?.raw ?? 0,
 				};
 			});
 	}, [channelData, t, tokenByChannel]);
 
-	function renderList(items: RankedChannel[]) {
+	function renderList(items: RankedChannel[], metricLabel: string) {
 		if (items.length === 0) {
 			return (
 				<div className="flex min-h-[17rem] flex-col items-center justify-center rounded-3xl border border-dashed border-border/60 bg-background/40 text-muted-foreground">
@@ -115,29 +108,45 @@ export function Rank() {
 		}
 
 		return (
-			<div className="max-h-[22rem] space-y-2 overflow-y-auto pr-1">
-				{items.map((item, index) => {
-					const rank = index + 1;
-					return (
-						<div key={item.id} className="rounded-2xl border border-border/60 bg-background/45 px-3.5 py-3 transition hover:border-primary/20 hover:bg-background/70">
-							<div className="grid grid-cols-[auto,minmax(0,1fr),auto] items-center gap-3">
-								<div className="flex h-8 w-8 items-center justify-center rounded-xl border border-border/50 bg-card/70">
-									{rankIcon(rank)}
-								</div>
-								<div className="min-w-0">
-									<div className="break-all text-sm font-medium text-foreground">{item.name}</div>
-									<div className="mt-1 text-[11px] text-muted-foreground">{item.summary}</div>
-								</div>
-								<div className="text-right">
-									<div className={cn('text-lg font-semibold tabular-nums text-foreground', rank <= 3 ? 'text-primary' : undefined)}>
-										<AnimatedNumber value={item.value} />
-										{item.unit ? <span className="ml-1 text-xs text-muted-foreground">{item.unit}</span> : null}
+			<div className="max-h-[23rem] overflow-y-auto pr-1">
+				<div data-testid="home-rank-list" className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+					{items.map((item, index) => {
+						const rank = index + 1;
+						return (
+							<article
+								key={item.id}
+								data-testid={`home-rank-card-${rank}`}
+								className="h-full rounded-2xl border border-border/60 bg-background/45 px-3.5 py-3 transition hover:border-primary/20 hover:bg-background/72"
+							>
+								<div className="flex h-full flex-col gap-3">
+									<div className="flex items-start justify-between gap-3">
+										<div className="flex min-w-0 items-start gap-3">
+											<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-card/70">
+												{rankIcon(rank)}
+											</div>
+											<div className="min-w-0">
+												<div className="break-all text-sm font-medium leading-5 text-foreground">{item.name}</div>
+												<div className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{item.summary}</div>
+											</div>
+										</div>
+										<div className="shrink-0 rounded-full border border-border/50 bg-card/75 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+											TOP {rank}
+										</div>
+									</div>
+									<div className="flex items-end justify-between gap-3 border-t border-border/50 pt-2.5">
+										<div className="text-[11px] text-muted-foreground">{metricLabel}</div>
+										<div className="text-right">
+											<div className={cn('text-lg font-semibold tabular-nums leading-none text-foreground', rank <= 3 ? 'text-primary' : undefined)}>
+												<AnimatedNumber value={item.value} />
+												{item.unit ? <span className="ml-1 text-xs text-muted-foreground">{item.unit}</span> : null}
+											</div>
+										</div>
 									</div>
 								</div>
-							</div>
-						</div>
-					);
-				})}
+							</article>
+						);
+					})}
+				</div>
 			</div>
 		);
 	}
@@ -150,7 +159,7 @@ export function Rank() {
 						<div className="text-lg font-semibold text-foreground">{t('title')}</div>
 						<div className="mt-1 text-xs leading-5 text-muted-foreground">{t('subtitle')}</div>
 					</div>
-					<TabsList className="w-fit bg-background/60">
+					<TabsList className="w-full justify-start bg-background/60 sm:w-fit">
 						<TabsTrigger value="cost">{t('sortByCost')}</TabsTrigger>
 						<TabsTrigger value="count">{t('sortByCount')}</TabsTrigger>
 						<TabsTrigger value="token">{t('sortByToken')}</TabsTrigger>
@@ -158,9 +167,9 @@ export function Rank() {
 				</div>
 
 				<TabsContents className="mt-4">
-					<TabsContent value="cost">{renderList(costItems)}</TabsContent>
-					<TabsContent value="count">{renderList(countItems)}</TabsContent>
-					<TabsContent value="token">{renderList(tokenItems)}</TabsContent>
+					<TabsContent value="cost">{renderList(costItems, t('sortByCost'))}</TabsContent>
+					<TabsContent value="count">{renderList(countItems, t('sortByCount'))}</TabsContent>
+					<TabsContent value="token">{renderList(tokenItems, t('sortByToken'))}</TabsContent>
 				</TabsContents>
 			</Tabs>
 		</section>

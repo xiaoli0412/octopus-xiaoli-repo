@@ -4,9 +4,36 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
 	"testing"
 	"time"
 )
+
+func TestClonedDefaultTransportSetsResponseHeaderTimeout(t *testing.T) {
+	transport, err := clonedDefaultTransport()
+	if err != nil {
+		t.Fatalf("clonedDefaultTransport() error = %v", err)
+	}
+	if transport == nil {
+		t.Fatal("clonedDefaultTransport() = nil, want transport")
+	}
+	if transport == http.DefaultTransport {
+		t.Fatal("clonedDefaultTransport() should return a clone, not the default transport")
+	}
+	if transport.ResponseHeaderTimeout != defaultResponseHeaderTimeout {
+		t.Fatalf("ResponseHeaderTimeout = %v, want %v", transport.ResponseHeaderTimeout, defaultResponseHeaderTimeout)
+	}
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		t.Fatal("http.DefaultTransport is not *http.Transport")
+	}
+	if defaultTransport.ResponseHeaderTimeout == defaultResponseHeaderTimeout {
+		return
+	}
+	if defaultTransport.ResponseHeaderTimeout == transport.ResponseHeaderTimeout {
+		t.Fatal("mutating the clone should not mutate http.DefaultTransport")
+	}
+}
 
 func TestGetHTTPClientCustomProxyAllowsSocksScheme(t *testing.T) {
 	if _, err := GetHTTPClientCustomProxy("socks://127.0.0.1:1080"); err != nil {

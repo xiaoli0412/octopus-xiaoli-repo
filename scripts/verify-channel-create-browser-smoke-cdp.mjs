@@ -1321,24 +1321,26 @@ async function waitForDocModalReady(connection, sessionId, timeoutMs = 20000) {
 
 async function waitForHomeStatsLoaded(connection, sessionId, timeoutMs = 20000) {
   const startedAt = Date.now();
+  let lastSnapshot = null;
 
   while (Date.now() - startedAt < timeoutMs) {
     const snapshot = await evaluateCdp(connection, sessionId, `(() => ({
       totalSummaryCards: document.querySelectorAll('[data-testid^="home-total-summary-card-"]').length,
       breakdownLists: document.querySelectorAll('[data-testid="home-breakdown-lists"] > div').length,
-      rankItems: document.querySelectorAll('[data-testid="home-rank-section"] [class*="rounded-2xl"]').length,
-      activityCells: document.querySelectorAll('[data-testid="home-activity-grid"] button').length,
+      rankItems: document.querySelectorAll('[data-testid^="home-rank-card-"]').length,
+      activityCells: document.querySelectorAll('[data-testid="home-activity-grid"] > div').length,
       chartSvg: !!document.querySelector('[data-testid="home-stats-chart"] svg'),
     }))()`);
+    lastSnapshot = snapshot;
 
-    if (snapshot.totalSummaryCards >= 3 && snapshot.breakdownLists >= 3 && snapshot.chartSvg && snapshot.activityCells > 0) {
+    if (snapshot.totalSummaryCards >= 4 && snapshot.breakdownLists >= 2 && snapshot.rankItems > 0 && snapshot.chartSvg && snapshot.activityCells > 0) {
       return snapshot;
     }
 
     await sleep(500);
   }
 
-  throw new Error('Timed out waiting for homepage stats widgets to populate');
+  throw new Error(`Timed out waiting for homepage stats widgets to populate. Last snapshot: ${JSON.stringify(lastSnapshot)}`);
 }
 
 async function waitForAILearningDataLoaded(connection, sessionId, timeoutMs = 20000) {
@@ -1960,8 +1962,8 @@ async function main() {
       assert.equal(homePage.homePage, true, 'home page root should exist');
 
       const loaded = await waitForHomeStatsLoaded(page.pageConnection, page.sessionId);
-      assert.ok(loaded.totalSummaryCards >= 3, 'homepage should render three total summary cards');
-      assert.ok(loaded.breakdownLists >= 3, 'homepage should render three token breakdown lists');
+      assert.ok(loaded.totalSummaryCards >= 4, 'homepage should render four total summary cards');
+      assert.ok(loaded.breakdownLists >= 2, 'homepage should render provider plus one selected breakdown list');
       assert.equal(loaded.chartSvg, true, 'homepage chart should render an svg');
       assert.ok(loaded.activityCells > 0, 'homepage activity grid should render day cells');
 
@@ -1976,12 +1978,14 @@ async function main() {
         activityWidth: document.querySelector('[data-testid="home-activity-section"]')?.getBoundingClientRect().width ?? 0,
         runtimeVisible: !!document.querySelector('[data-testid="home-runtime-panel"]'),
         breakdownListCount: document.querySelectorAll('[data-testid="home-breakdown-lists"] > div').length,
+        rankCardCount: document.querySelectorAll('[data-testid^="home-rank-card-"]').length,
       }))()`);
       assert.ok(desktop.homePageWidth > 0, 'homepage should be visible on desktop');
       assert.ok(desktop.totalWidth > 0 && desktop.mainGridWidth > 0, 'homepage main sections should be visible on desktop');
       assert.ok(desktop.breakdownWidth > 0 && desktop.chartWidth > 0 && desktop.rankWidth > 0 && desktop.activityWidth > 0, 'homepage cards should remain visible on desktop');
       assert.equal(desktop.runtimeVisible, false, 'runtime details should stay collapsed by default');
-      assert.equal(desktop.breakdownListCount, 3, 'homepage should show provider/channel/model lists');
+      assert.equal(desktop.breakdownListCount, 2, 'homepage should show provider plus the selected dimension breakdown');
+      assert.ok(desktop.rankCardCount >= 1, 'homepage should show ranking cards on desktop');
 
       const runtimeToggleClicked = await clickSelectorViaCdp(page.pageConnection, page.sessionId, '[data-testid="home-runtime-toggle"]');
       assert.equal(runtimeToggleClicked, true, 'homepage runtime toggle should be clickable');
@@ -2026,6 +2030,7 @@ async function main() {
         pageMode: page.pageMode,
         pageBootstrap,
         breakdownListCount: desktop.breakdownListCount,
+        rankCardCount: desktop.rankCardCount,
         activityCells: loaded.activityCells,
         mobileWidth: mobile.width,
         result: 'home-layout-browser-smoke-cdp passed',

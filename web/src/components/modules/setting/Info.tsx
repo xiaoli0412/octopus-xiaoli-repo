@@ -3,12 +3,13 @@
 import { useTranslations } from 'next-intl';
 import { Info, Tag, Github, AlertTriangle, Download, Loader2 } from 'lucide-react';
 import { APP_VERSION, GITHUB_REPO } from '@/lib/info';
-import { useLatestInfo, useNowVersion, useUpdateCore } from '@/api/endpoints/update';
+import { useLatestInfo, useNowVersion, useUpdateCore, useUpdateStatus } from '@/api/endpoints/update';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/common/Toast';
 import { isOctopusCacheName, isFontCacheName, SW_MESSAGE_TYPE } from '@/lib/sw';
 import { formatReleaseTagDisplay, isSameReleaseVersion } from './info-logic';
 
+const WINDOWS_UPDATE_UNSUPPORTED_TEXT = 'self-update is not supported on windows';
 function resolveUpdateErrorMessage(error: unknown) {
     if (error instanceof Error) return error.message;
     if (error && typeof error === 'object' && 'message' in error) {
@@ -18,20 +19,47 @@ function resolveUpdateErrorMessage(error: unknown) {
     return undefined;
 }
 
+function isUnsupportedUpdateError(error: unknown) {
+    if (!error || typeof error !== 'object') return false;
+
+    const code = 'code' in error ? (error as { code?: unknown }).code : undefined;
+    if (code === 501) return true;
+
+    const message = resolveUpdateErrorMessage(error);
+    return typeof message === 'string'
+        && message.toLowerCase().includes(WINDOWS_UPDATE_UNSUPPORTED_TEXT);
+}
+
+function getLocalizedUnsupportedReason(reason: string | undefined, fallback: string) {
+    const normalizedReason = reason?.trim();
+    if (!normalizedReason) return fallback;
+
+    return normalizedReason.toLowerCase().includes(WINDOWS_UPDATE_UNSUPPORTED_TEXT)
+        ? fallback
+        : normalizedReason;
+}
 export function SettingInfo() {
     const t = useTranslations('setting');
     const latestInfoQuery = useLatestInfo();
     const nowVersionQuery = useNowVersion();
+    const updateStatusQuery = useUpdateStatus();
     const updateCore = useUpdateCore();
 
     const backendNowVersion = nowVersionQuery.data || '';
     const latestVersion = latestInfoQuery.data?.tag_name || '';
     const latestVersionLabel = formatReleaseTagDisplay(latestVersion);
+    const updateStatus = updateStatusQuery.data;
 
     // 前端版本与后端当前版本不一致 → 浏览器缓存问题
     const isCacheMismatch = !!backendNowVersion && !isSameReleaseVersion(backendNowVersion, APP_VERSION);
     // 最新版本与后端当前版本不一致 → 有新版本可更新
     const hasNewVersion = !!latestVersion && !!backendNowVersion && !isSameReleaseVersion(latestVersion, backendNowVersion);
+    const hasResolvedUpdateCapability = updateStatusQuery.isSuccess;
+    const selfUpdateSupported = updateStatus?.self_update_supported ?? false;
+    const updateUnsupportedDescription = getLocalizedUnsupportedReason(
+        updateStatus?.self_update_unsupported_reason,
+        t('info.updateUnsupportedHint')
+    );
 
     const clearCacheAndReload = async () => {
         // 通知 Service Worker 清理缓存
@@ -61,6 +89,13 @@ export function SettingInfo() {
     };
 
     const handleUpdate = () => {
+        if (!hasResolvedUpdateCapability) {
+            return;
+        }
+        if (!selfUpdateSupported) {
+            toast.error(t('info.updateUnsupported'), { description: updateUnsupportedDescription });
+            return;
+        }
         updateCore.mutate(undefined, {
             onSuccess: () => {
                 toast.success(t('info.updateSuccess'));
@@ -70,6 +105,10 @@ export function SettingInfo() {
                 }, 1500);
             },
             onError: (error) => {
+                if (isUnsupportedUpdateError(error)) {
+                    toast.error(t('info.updateUnsupported'), { description: updateUnsupportedDescription });
+                    return;
+                }
                 const description = resolveUpdateErrorMessage(error);
                 toast.error(t('info.updateFailed'), description ? { description } : undefined);
             }
@@ -159,7 +198,7 @@ export function SettingInfo() {
             )}
 
             {/* 有新版本可更新 */}
-            {hasNewVersion && (
+            {hasNewVersion && hasResolvedUpdateCapability && selfUpdateSupported && (
                 <div className="p-3 bg-primary/10 border border-primary/20 rounded-xl space-y-2">
                     <div className="flex items-start gap-3">
                         <Download className="h-5 w-5 text-primary shrink-0 mt-0.5" />
@@ -177,11 +216,27 @@ export function SettingInfo() {
                             variant="default"
                             size="sm"
                             onClick={handleUpdate}
-                            disabled={updateCore.isPending}
+                            disabled={updateCore.isPending || !hasResolvedUpdateCapability}
                             className="rounded-xl"
                         >
                             {updateCore.isPending ? t('info.updating') : t('info.updateNow')}
                         </Button>
+                    </div>
+                </div>
+            )}
+
+            {hasNewVersion && hasResolvedUpdateCapability && !selfUpdateSupported && (
+                <div className="p-3 bg-muted/50 border border-border rounded-xl space-y-2">
+                    <div className="flex items-start gap-3">
+                        <AlertTriangle className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                        <div className="flex-1 space-y-1">
+                            <p className="text-sm text-card-foreground font-medium">
+                                {t('info.updateUnsupported')}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                {updateUnsupportedDescription}
+                            </p>
+                        </div>
                     </div>
                 </div>
             )}

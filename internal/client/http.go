@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
@@ -20,6 +21,8 @@ var (
 	systemProxyURL     string
 	clientLock         sync.RWMutex
 )
+
+const defaultResponseHeaderTimeout = 30 * time.Second
 
 // GetHTTPClientSystemProxy returns a cached http.Client.
 // - useProxy=false: bypass proxy
@@ -93,7 +96,11 @@ func clonedDefaultTransport() (*http.Transport, error) {
 	if !ok {
 		return nil, fmt.Errorf("default transport is not *http.Transport")
 	}
-	return transport.Clone(), nil
+	cloned := transport.Clone()
+	if cloned.ResponseHeaderTimeout <= 0 {
+		cloned.ResponseHeaderTimeout = defaultResponseHeaderTimeout
+	}
+	return cloned, nil
 }
 
 func newHTTPClientNoProxy() (*http.Client, error) {

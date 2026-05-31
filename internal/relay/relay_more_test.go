@@ -1918,6 +1918,60 @@ func TestRelayLogJSONContentIsTruncatedPerStringField(t *testing.T) {
 	}
 }
 
+func TestRelayMetricsSavePersistsCacheTokenUsage(t *testing.T) {
+	ctxDB := setupRelayTestDB(t)
+
+	metrics := NewRelayMetrics(1, "gpt-4o", &tmodel.InternalLLMRequest{
+		Model: "gpt-4o",
+		Messages: []tmodel.Message{{
+			Role:    "user",
+			Content: tmodel.MessageContent{Content: strPtr("hello")},
+		}},
+	})
+	metrics.SetInternalResponse(&tmodel.InternalLLMResponse{
+		ID:      "resp_cache_usage",
+		Object:  "chat.completion",
+		Created: time.Now().Unix(),
+		Model:   "gpt-4o",
+		Usage: &tmodel.Usage{
+			PromptTokens:     120,
+			CompletionTokens: 45,
+			TotalTokens:      181,
+			PromptTokensDetails: &tmodel.PromptTokensDetails{
+				CachedTokens: 30,
+			},
+			CacheCreationInputTokens: 16,
+		},
+		Choices: []tmodel.Choice{{
+			Index: 0,
+			Message: &tmodel.Message{
+				Role:    "assistant",
+				Content: tmodel.MessageContent{Content: strPtr("ok")},
+			},
+		}},
+	}, "gpt-4o")
+
+	metrics.saveLog(ctxDB, nil, 10*time.Millisecond, nil, 0, "")
+
+	logs := relayLogsForTest(t)
+	if len(logs) != 1 {
+		t.Fatalf("logs len = %d, want 1", len(logs))
+	}
+	if logs[0].CacheReadTokens != 30 {
+		t.Fatalf("cache read tokens = %d, want 30", logs[0].CacheReadTokens)
+	}
+	if logs[0].CacheWriteTokens != 16 {
+		t.Fatalf("cache write tokens = %d, want 16", logs[0].CacheWriteTokens)
+	}
+	wantCost := metrics.Stats.InputCost + metrics.Stats.OutputCost
+	if logs[0].Cost != wantCost {
+		t.Fatalf("cost = %f, want %f", logs[0].Cost, wantCost)
+	}
+	if !strings.Contains(logs[0].ResponseContent, `"cache_creation_input_tokens":16`) {
+		t.Fatalf("response content = %q, want cache_creation_input_tokens injected", logs[0].ResponseContent)
+	}
+}
+
 func TestRelayMetricsSaveUsesRequestContextForDailyStats(t *testing.T) {
 	setupRelayTestDB(t)
 

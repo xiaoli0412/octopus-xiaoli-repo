@@ -62,7 +62,7 @@ export function Channel() {
     const { data: channelsData } = useChannelList();
     const pageKey = 'channel' as const;
     const searchTerm = useSearchStore((s) => s.getSearchTerm(pageKey));
-    const layout = useToolbarViewOptionsStore((s) => s.getLayout(pageKey));
+    const channelDensity = useToolbarViewOptionsStore((s) => s.channelDensity);
     const sortOrder = useToolbarViewOptionsStore((s) => s.getSortOrder(pageKey));
     const filter = useToolbarViewOptionsStore((s) => s.channelFilter);
     const providerFilter = useToolbarViewOptionsStore((s) => s.channelProviderFilter);
@@ -135,15 +135,15 @@ export function Channel() {
     }, [sortedChannels, searchTerm, filter, providerFilter, modelKeyword, keyKeyword]);
 
     return (
-        <div data-testid="channel-page" data-layout={layout} className="h-full min-h-0">
+        <div data-testid="channel-page" data-layout="grid" data-density={channelDensity} className="h-full min-h-0">
             <VirtualizedGrid
                 items={visibleChannels}
-                layout={layout}
-                columns={{ default: 1, md: 2, lg: 2 }}
-                estimateItemHeight={layout === 'list' ? 176 : 248}
-                gap={12}
+                layout="grid"
+                columns={{ default: 1, md: 2, lg: 3, xl: 3, '2xl': 3 }}
+                estimateItemHeight={channelDensity === 'compact' ? 214 : 248}
+                gap={channelDensity === 'compact' ? 10 : 12}
                 getItemKey={(item) => `channel-${item.raw.id}`}
-                renderItem={(item) => <Card channel={item.raw} stats={item.formatted} layout={layout} />}
+                renderItem={(item) => <Card channel={item.raw} stats={item.formatted} density={channelDensity} />}
             />
         </div>
     );

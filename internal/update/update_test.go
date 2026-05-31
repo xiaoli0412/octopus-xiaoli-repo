@@ -134,14 +134,35 @@ func TestVerifyArchiveChecksumFromManifestRejectsInvalidHex(t *testing.T) {
 }
 
 func TestUpdateCoreRejectsConcurrentExecution(t *testing.T) {
+	originalGOOS := currentRuntimeGOOS
+	currentRuntimeGOOS = "linux"
 	updateInProgress.Store(true)
 	t.Cleanup(func() {
+		currentRuntimeGOOS = originalGOOS
 		updateInProgress.Store(false)
 	})
 
 	err := UpdateCore()
 	if !errors.Is(err, ErrUpdateInProgress) {
 		t.Fatalf("UpdateCore() error = %v, want %v", err, ErrUpdateInProgress)
+	}
+}
+
+func TestUpdateCoreRejectsUnsupportedWindowsSelfUpdate(t *testing.T) {
+	originalGOOS := currentRuntimeGOOS
+	currentRuntimeGOOS = "windows"
+	updateInProgress.Store(false)
+	t.Cleanup(func() {
+		currentRuntimeGOOS = originalGOOS
+		updateInProgress.Store(false)
+	})
+
+	err := UpdateCore()
+	if !errors.Is(err, ErrUpdateUnsupportedPlatform) {
+		t.Fatalf("UpdateCore() error = %v, want %v", err, ErrUpdateUnsupportedPlatform)
+	}
+	if updateInProgress.Load() {
+		t.Fatal("updateInProgress = true, want false after unsupported platform rejection")
 	}
 }
 

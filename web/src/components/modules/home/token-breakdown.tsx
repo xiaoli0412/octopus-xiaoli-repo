@@ -80,17 +80,19 @@ function BreakdownBoard({
 	type,
 	emptyText,
 	badge,
+	testId,
 }: {
 	title: string;
 	items: BreakdownItem[];
 	type: BreakdownType;
 	emptyText: string;
 	badge: string;
+	testId?: string;
 }) {
 	const Icon = type === 'channel' ? Network : type === 'provider' ? Server : type === 'apikey' ? ReceiptText : Layers3;
 
 	return (
-		<div className="rounded-3xl border border-border/60 bg-background/45 p-3.5">
+		<div data-testid={testId} className="rounded-3xl border border-border/60 bg-background/45 p-3.5">
 			<div className="mb-3 flex items-center justify-between gap-3">
 				<div className="flex min-w-0 items-center gap-2">
 					<Icon className="size-4 shrink-0 text-primary" />
@@ -275,12 +277,12 @@ export function TokenBreakdown() {
 				))}
 			</div>
 
-			<div className="mt-4 grid gap-3 xl:grid-cols-2">
-				<BreakdownBoard title={t('byProvider')} items={topProviders} emptyText={t('noData')} type="provider" badge={t('topItems', { count: topProviders.length })} />
-				{dimension === 'channel' ? <BreakdownBoard title={t('byChannel')} items={topChannels} emptyText={t('noData')} type="channel" badge={t('topItems', { count: topChannels.length })} /> : null}
-				{dimension === 'model' ? <BreakdownBoard title={t('byModel')} items={topModels} emptyText={t('noData')} type="model" badge={t('topItems', { count: topModels.length })} /> : null}
-				{dimension === 'api_key' ? <BreakdownBoard title={t('byAPIKey')} items={topAPIKeys} emptyText={t('noData')} type="apikey" badge={t('topItems', { count: topAPIKeys.length })} /> : null}
-				{dimension === 'channel_key' ? <BreakdownBoard title={t('byChannelKey')} items={topChannelKeys} emptyText={t('noData')} type="apikey" badge={t('topItems', { count: topChannelKeys.length })} /> : null}
+			<div data-testid="home-breakdown-lists" className="mt-4 grid gap-3 xl:grid-cols-2">
+				<BreakdownBoard testId="home-breakdown-board-provider" title={t('byProvider')} items={topProviders} emptyText={t('noData')} type="provider" badge={t('topItems', { count: topProviders.length })} />
+				{dimension === 'channel' ? <BreakdownBoard testId="home-breakdown-board-channel" title={t('byChannel')} items={topChannels} emptyText={t('noData')} type="channel" badge={t('topItems', { count: topChannels.length })} /> : null}
+				{dimension === 'model' ? <BreakdownBoard testId="home-breakdown-board-model" title={t('byModel')} items={topModels} emptyText={t('noData')} type="model" badge={t('topItems', { count: topModels.length })} /> : null}
+				{dimension === 'api_key' ? <BreakdownBoard testId="home-breakdown-board-apikey" title={t('byAPIKey')} items={topAPIKeys} emptyText={t('noData')} type="apikey" badge={t('topItems', { count: topAPIKeys.length })} /> : null}
+				{dimension === 'channel_key' ? <BreakdownBoard testId="home-breakdown-board-channel-key" title={t('byChannelKey')} items={topChannelKeys} emptyText={t('noData')} type="apikey" badge={t('topItems', { count: topChannelKeys.length })} /> : null}
 			</div>
 
 			<AnimatePresence initial={false}>
@@ -299,7 +301,7 @@ export function TokenBreakdown() {
 								<HelpHint ariaLabel={t('runtimePanelTitle')}>{t('runtimePanelHint')}</HelpHint>
 							</div>
 							<div className="grid gap-3 xl:grid-cols-3">
-								<div className="rounded-2xl border border-border/60 bg-card/50 p-3.5">
+								<div data-testid="home-runtime-price-card" className="rounded-2xl border border-border/60 bg-card/50 p-3.5">
 									<div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
 										<ReceiptText className="size-4" />
 										<span>{t('estimatedPriceTitle')}</span>
@@ -313,7 +315,7 @@ export function TokenBreakdown() {
 									</div>
 								</div>
 
-								<div className="rounded-2xl border border-border/60 bg-card/50 p-3.5">
+								<div data-testid="home-runtime-circuit-card" className="rounded-2xl border border-border/60 bg-card/50 p-3.5">
 									<div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
 										<Server className="size-4" />
 										<span>{t('circuitSummaryTitle')}</span>
@@ -326,7 +328,7 @@ export function TokenBreakdown() {
 									</div>
 								</div>
 
-								<div className="rounded-2xl border border-border/60 bg-card/50 p-3.5">
+								<div data-testid="home-runtime-probe-card" className="rounded-2xl border border-border/60 bg-card/50 p-3.5">
 									<div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
 										<Network className="size-4" />
 										<span>{t('probeSummaryTitle')}</span>

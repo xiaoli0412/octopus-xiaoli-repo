@@ -2,11 +2,13 @@ package op
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
+	"gorm.io/gorm"
 )
 
 func TestGovernancePlanDetachesStaleItemFromOriginalGroup(t *testing.T) {
@@ -327,6 +329,58 @@ func TestStrategyProfileActivateDoesNotMutateStateWhenTargetMissing(t *testing.T
 	}
 }
 
+func TestStrategyProfileActivateRollsBackWhenActiveSettingRowMissing(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	original := model.StrategyProfile{Name: "original-active", Summary: "baseline", Status: model.StrategyProfileStatusActive}
+	if err := db.GetDB().WithContext(ctx).Create(&original).Error; err != nil {
+		t.Fatalf("create original profile error = %v", err)
+	}
+	target := model.StrategyProfile{Name: "target-ready", Summary: "candidate", Status: model.StrategyProfileStatusReady}
+	if err := db.GetDB().WithContext(ctx).Create(&target).Error; err != nil {
+		t.Fatalf("create target profile error = %v", err)
+	}
+	if err := SettingSetInt(model.SettingKeyActiveStrategyProfileID, original.ID); err != nil {
+		t.Fatalf("SettingSetInt(active profile) error = %v", err)
+	}
+	if err := db.GetDB().WithContext(ctx).Where("key = ?", model.SettingKeyActiveStrategyProfileID).Delete(&model.Setting{}).Error; err != nil {
+		t.Fatalf("delete active strategy profile setting error = %v", err)
+	}
+
+	if _, err := StrategyProfileActivate(target.ID, ctx); err == nil {
+		t.Fatal("StrategyProfileActivate() expected error when active profile setting row is missing")
+	}
+
+	var storedOriginal model.StrategyProfile
+	if err := db.GetDB().WithContext(ctx).First(&storedOriginal, original.ID).Error; err != nil {
+		t.Fatalf("reload original profile error = %v", err)
+	}
+	if storedOriginal.Status != model.StrategyProfileStatusActive {
+		t.Fatalf("original profile status after failed activate = %q, want %q", storedOriginal.Status, model.StrategyProfileStatusActive)
+	}
+
+	var storedTarget model.StrategyProfile
+	if err := db.GetDB().WithContext(ctx).First(&storedTarget, target.ID).Error; err != nil {
+		t.Fatalf("reload target profile error = %v", err)
+	}
+	if storedTarget.Status != model.StrategyProfileStatusReady {
+		t.Fatalf("target profile status after failed activate = %q, want %q", storedTarget.Status, model.StrategyProfileStatusReady)
+	}
+
+	activeID, err := SettingGetInt(model.SettingKeyActiveStrategyProfileID)
+	if err != nil {
+		t.Fatalf("SettingGetInt(active profile) error = %v", err)
+	}
+	if activeID != original.ID {
+		t.Fatalf("cached active strategy profile id after failed activate = %d, want %d", activeID, original.ID)
+	}
+
+	var settingRow model.Setting
+	err = db.GetDB().WithContext(ctx).Where("key = ?", model.SettingKeyActiveStrategyProfileID).First(&settingRow).Error
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("active strategy profile setting row lookup error = %v, want record not found", err)
+	}
+}
 func nowForTest() time.Time {
 	return time.Unix(1, 0).UTC()
 }

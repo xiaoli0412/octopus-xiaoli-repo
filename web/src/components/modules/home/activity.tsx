@@ -96,6 +96,7 @@ export function Activity() {
             >
                 <div className="ml-auto w-fit">
                     <div className="grid gap-1"
+                        data-testid="home-activity-grid"
                         style={{
                             gridTemplateColumns: 'repeat(54, 0.875rem)',
                             gridTemplateRows: 'repeat(7, 0.875rem)',

@@ -333,8 +333,12 @@ func StrategyProfileActivate(id int, ctx context.Context) (model.StrategyProfile
 		if result.RowsAffected == 0 {
 			return fmt.Errorf("strategy profile not found")
 		}
-		if err := tx.Model(&model.Setting{}).Where("key = ?", model.SettingKeyActiveStrategyProfileID).Update("value", fmt.Sprintf("%d", id)).Error; err != nil {
-			return err
+		settingResult := tx.Model(&model.Setting{}).Where("key = ?", model.SettingKeyActiveStrategyProfileID).Update("value", fmt.Sprintf("%d", id))
+		if settingResult.Error != nil {
+			return settingResult.Error
+		}
+		if settingResult.RowsAffected == 0 {
+			return fmt.Errorf("active strategy profile setting not found")
 		}
 		return nil
 	})
