@@ -5,7 +5,7 @@ set -euo pipefail
 DEFAULT_PORT="1088"
 DEFAULT_DATA_DIR="./data"
 DEFAULT_CONTAINER_NAME="octopus"
-DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.6"
+DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.7"
 DEFAULT_REPO_REF="${DEFAULT_IMAGE##*:}"
 
 OCTOPUS_PORT_INPUT="${OCTOPUS_PORT:-${DEFAULT_PORT}}"
@@ -272,6 +272,17 @@ port_in_use() {
     return 1
 }
 
+port_owned_by_container() {
+    local port="$1"
+    local container_name="$2"
+    local host_ports=""
+
+    host_ports="$(docker inspect -f '{{range $containerPort, $bindings := .NetworkSettings.Ports}}{{range $bindings}}{{println .HostPort}}{{end}}{{end}}' "$container_name" 2>/dev/null || true)"
+    [[ -n "$host_ports" ]] || return 1
+
+    printf '%s\n' "$host_ports" | grep -Fxq "$port"
+}
+
 prompt_for_port() {
     local suggested_port="$1"
     local chosen_port=""
@@ -298,9 +309,16 @@ prompt_for_port() {
 
 resolve_external_port() {
     local port="$1"
+    local container_name="$2"
 
     if ! is_valid_port "$port"; then
         fail "Invalid OCTOPUS_PORT: ${port}. Expected an integer between 1 and 65535."
+    fi
+
+    if port_in_use "$port" && port_owned_by_container "$port" "$container_name"; then
+        write_info "Port ${port} is currently owned by existing container ${container_name}; reusing it for reinstall or upgrade."
+        printf '%s' "$port"
+        return 0
     fi
 
     if [[ "$port" != "$DEFAULT_PORT" ]]; then
@@ -351,7 +369,7 @@ if ! docker info >/dev/null 2>&1; then
     fail "Docker daemon is not available. Start Docker and try again."
 fi
 
-EXTERNAL_PORT="$(resolve_external_port "$OCTOPUS_PORT_INPUT")"
+EXTERNAL_PORT="$(resolve_external_port "$OCTOPUS_PORT_INPUT" "$OCTOPUS_CONTAINER_NAME_INPUT")"
 warn_if_raw_download_host_is_unstable
 
 REPO_URL="${OCTOPUS_REPO_URL:-https://github.com/xiaoli0412/octopus-xiaoli-repo.git}"
