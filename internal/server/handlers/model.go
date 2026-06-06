@@ -36,6 +36,10 @@ func init() {
 				Handle(getCapabilityInventory),
 		).
 		AddRoute(
+			router.NewRoute("/upstream-prices", http.MethodGet).
+				Handle(listUpstreamPrices),
+		).
+		AddRoute(
 			router.NewRoute("/update", http.MethodPost).
 				Handle(updateLLM),
 		).
@@ -127,8 +131,23 @@ func listLLM(c *gin.Context) {
 		resp.Error(c, http.StatusInternalServerError, err.Error())
 		return
 	}
+	upstreamSummaries, _ := op.UpstreamPriceSummaries(c.Request.Context())
+	upstreamByModel := make(map[string]model.UpstreamPriceSummary, len(upstreamSummaries))
+	for _, summary := range upstreamSummaries {
+		upstreamByModel[strings.ToLower(strings.TrimSpace(summary.ModelName))] = summary
+	}
 	for i := range models {
 		models[i] = price.EnrichLLMInfo(models[i])
+		if summary, ok := upstreamByModel[strings.ToLower(strings.TrimSpace(models[i].Name))]; ok {
+			models[i].UpstreamPriceCount = len(summary.GatewayPrices)
+			limit := 3
+			if len(summary.GatewayPrices) < limit {
+				limit = len(summary.GatewayPrices)
+			}
+			if limit > 0 {
+				models[i].UpstreamPricePreview = summary.GatewayPrices[:limit]
+			}
+		}
 	}
 	resp.Success(c, models)
 }
@@ -149,6 +168,15 @@ func getCapabilityInventory(c *gin.Context) {
 		return
 	}
 	resp.Success(c, inventory)
+}
+
+func listUpstreamPrices(c *gin.Context) {
+	summaries, err := op.UpstreamPriceSummaries(c.Request.Context())
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	resp.Success(c, summaries)
 }
 
 func createLLM(c *gin.Context) {

@@ -272,6 +272,14 @@ func ChannelUpdate(req *model.ChannelUpdateRequest, ctx context.Context) (*model
 		selectFields = append(selectFields, "match_regex")
 		updates.MatchRegex = req.MatchRegex
 	}
+	if req.UpstreamSiteID != nil {
+		selectFields = append(selectFields, "upstream_site_id")
+		updates.UpstreamSiteID = *req.UpstreamSiteID
+	}
+	if req.UpstreamSource != nil {
+		selectFields = append(selectFields, "upstream_source")
+		updates.UpstreamSource = *req.UpstreamSource
+	}
 
 	if len(selectFields) > 0 {
 		if err := tx.Model(&model.Channel{}).Where("id = ?", req.ID).Select(selectFields).Updates(&updates).Error; err != nil {
@@ -317,6 +325,12 @@ func ChannelUpdate(req *model.ChannelUpdateRequest, ctx context.Context) (*model
 			if ku.RequestCapabilities != nil {
 				updates["request_capabilities"] = model.NormalizeChannelKeyRequestCapabilities(*ku.RequestCapabilities)
 			}
+			if ku.UpstreamSiteID != nil {
+				updates["upstream_site_id"] = *ku.UpstreamSiteID
+			}
+			if ku.UpstreamKeyName != nil {
+				updates["upstream_key_name"] = *ku.UpstreamKeyName
+			}
 			if len(updates) == 0 {
 				continue
 			}
@@ -347,6 +361,8 @@ func ChannelUpdate(req *model.ChannelUpdateRequest, ctx context.Context) (*model
 				Remark:              ka.Remark,
 				AllowedModels:       allowedModels,
 				RequestCapabilities: requestCapabilities,
+				UpstreamSiteID:      ka.UpstreamSiteID,
+				UpstreamKeyName:     ka.UpstreamKeyName,
 			})
 		}
 		if err := tx.Create(&newKeys).Error; err != nil {

@@ -51,6 +51,8 @@ export type ChannelKey = {
     remark: string;
     allowed_models?: string;
     request_capabilities?: string;
+    upstream_site_id?: number;
+    upstream_key_name?: string;
 };
 
 export type KeyManagementMode = 'classified' | 'pooled';
@@ -129,6 +131,8 @@ export type Channel = {
     param_override?: string | null;
     channel_proxy?: string | null;
     match_regex?: string | null;
+    upstream_site_id?: number;
+    upstream_source?: string;
     stats: StatsChannel;
 };
 
@@ -159,6 +163,8 @@ export type CreateChannelRequest = {
     channel_proxy?: string | null;
     param_override?: string | null;
     match_regex?: string | null;
+    upstream_site_id?: number;
+    upstream_source?: string;
 };
 
 /**
@@ -181,9 +187,11 @@ export type UpdateChannelRequest = {
     channel_proxy?: string | null;
     param_override?: string | null;
     match_regex?: string | null;
+    upstream_site_id?: number;
+    upstream_source?: string;
     // keys diff
-    keys_to_add?: Array<Pick<ChannelKey, 'enabled' | 'channel_key' | 'source_type' | 'remark' | 'allowed_models' | 'request_capabilities'>>;
-    keys_to_update?: Array<{ id: number; enabled?: boolean; channel_key?: string; source_type?: string; remark?: string; allowed_models?: string; request_capabilities?: string }>;
+    keys_to_add?: Array<Pick<ChannelKey, 'enabled' | 'channel_key' | 'source_type' | 'remark' | 'allowed_models' | 'request_capabilities' | 'upstream_site_id' | 'upstream_key_name'>>;
+    keys_to_update?: Array<{ id: number; enabled?: boolean; channel_key?: string; source_type?: string; remark?: string; allowed_models?: string; request_capabilities?: string; upstream_site_id?: number; upstream_key_name?: string }>;
     keys_to_delete?: number[];
 };
 
@@ -305,6 +313,7 @@ export type UpstreamInspectResult = {
 export type UpstreamApplyRequest = {
     inspect: UpstreamInspectRequest;
     target_channel_id?: number;
+    upstream_site_id?: number;
     channel_name?: string;
     append_keys?: boolean;
     overwrite_models?: boolean;

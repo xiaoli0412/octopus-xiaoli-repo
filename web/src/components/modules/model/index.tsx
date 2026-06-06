@@ -1,13 +1,14 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useModelList } from '@/api/endpoints/model';
+import { useModelList, useUpstreamPriceSummaries, type UpstreamPriceSummary } from '@/api/endpoints/model';
 import { ModelItem } from './Item';
 import { useSearchStore, useToolbarViewOptionsStore } from '@/components/modules/toolbar';
 import { VirtualizedGrid } from '@/components/common/VirtualizedGrid';
 
 export function Model() {
     const { data: models } = useModelList();
+    const { data: upstreamPrices } = useUpstreamPriceSummaries();
     const pageKey = 'model' as const;
     const searchTerm = useSearchStore((s) => s.getSearchTerm(pageKey));
     const modelDensity = useToolbarViewOptionsStore((s) => s.modelDensity);
@@ -43,6 +44,13 @@ export function Model() {
     }, [sortedModels, searchTerm, filter]);
 
     const estimateItemHeight = modelDensity === 'compact' ? 126 : 156;
+    const upstreamByModel = useMemo(() => {
+        const map = new Map<string, UpstreamPriceSummary>();
+        (upstreamPrices ?? []).forEach((item) => {
+            map.set(item.model_name.toLowerCase(), item);
+        });
+        return map;
+    }, [upstreamPrices]);
 
     return (
         <div data-testid="model-page" data-layout="grid" data-density={modelDensity} className="h-full min-h-0">
@@ -53,7 +61,7 @@ export function Model() {
                 estimateItemHeight={estimateItemHeight}
                 getItemKey={(model) => `model-${model.name}`}
                 gap={modelDensity === 'compact' ? 10 : 12}
-                renderItem={(model, index) => <ModelItem model={model} density={modelDensity} index={index} />}
+                renderItem={(model, index) => <ModelItem model={model} upstreamPrice={upstreamByModel.get(model.name.toLowerCase())} density={modelDensity} index={index} />}
             />
         </div>
     );

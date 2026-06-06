@@ -28,6 +28,8 @@ assert.match(source, /<HelpHint>\{t\('llmPrice\.hint'\)\}<\/HelpHint>/);
 
 assert.match(modelIndexSource, /const modelDensity = useToolbarViewOptionsStore\(\(s\) => s\.modelDensity\);/);
 assert.match(modelIndexSource, /const estimateItemHeight = modelDensity === 'compact' \? 126 : 156/);
+assert.match(modelIndexSource, /useUpstreamPriceSummaries/);
+assert.match(modelIndexSource, /const upstreamByModel = useMemo\(\(\) => \{/);
 assert.match(modelIndexSource, /columns=\{\{ default: 1, md: 2, lg: 3, xl: 3, '2xl': 3 \}\}/);
 assert.match(modelIndexSource, /gap=\{modelDensity === 'compact' \? 10 : 12\}/);
 assert.match(modelIndexSource, /const canonicalName = \(m\.canonical_name \?\? ''\)\.toLowerCase\(\);/);
@@ -57,7 +59,7 @@ assert.match(modelItemSource, /key: 'canonical'[\s\S]*key: 'billing'[\s\S]*key: 
 assert.match(modelIndexSource, /data-testid="model-page"/);
 assert.match(modelIndexSource, /data-layout="grid"/);
 assert.match(modelIndexSource, /data-density=\{modelDensity\}/);
-assert.match(modelIndexSource, /renderItem=\{\(model, index\) => <ModelItem model=\{model\} density=\{modelDensity\} index=\{index\} \/>\}/);
+assert.match(modelIndexSource, /renderItem=\{\(model, index\) => <ModelItem model=\{model\} upstreamPrice=\{upstreamByModel\.get\(model\.name\.toLowerCase\(\)\)\} density=\{modelDensity\} index=\{index\} \/>\}/);
 assert.match(modelItemSource, /data-testid=\{typeof index === 'number' \? `model-card-\$\{index\}` : undefined\}/);
 assert.match(modelItemSource, /data-slot="model-card"/);
 assert.match(modelItemSource, /data-layout="grid"/);

@@ -53,6 +53,8 @@ type Channel struct {
 	CustomHeader      []CustomHeader        `json:"custom_header" gorm:"serializer:json"`
 	ParamOverride     *string               `json:"param_override"`
 	ChannelProxy      *string               `json:"channel_proxy"`
+	UpstreamSiteID    int                   `json:"upstream_site_id,omitempty" gorm:"index"`
+	UpstreamSource    string                `json:"upstream_source,omitempty"`
 	Stats             *StatsChannel         `json:"stats,omitempty" gorm:"foreignKey:ChannelID"`
 	MatchRegex        *string               `json:"match_regex"`
 }
@@ -81,6 +83,8 @@ type ChannelKey struct {
 	// Empty means "all models" (backward compatible).
 	AllowedModels       string `json:"allowed_models"`
 	RequestCapabilities string `json:"request_capabilities"`
+	UpstreamSiteID      int    `json:"upstream_site_id,omitempty" gorm:"index"`
+	UpstreamKeyName     string `json:"upstream_key_name,omitempty"`
 }
 
 const (
@@ -186,6 +190,8 @@ type ChannelUpdateRequest struct {
 	ChannelProxy      *string                `json:"channel_proxy,omitempty"`
 	ParamOverride     *string                `json:"param_override,omitempty"`
 	MatchRegex        *string                `json:"match_regex,omitempty"`
+	UpstreamSiteID    *int                   `json:"upstream_site_id,omitempty"`
+	UpstreamSource    *string                `json:"upstream_source,omitempty"`
 
 	KeysToAdd    []ChannelKeyAddRequest    `json:"keys_to_add,omitempty"`
 	KeysToUpdate []ChannelKeyUpdateRequest `json:"keys_to_update,omitempty"`
@@ -199,6 +205,8 @@ type ChannelKeyAddRequest struct {
 	Remark              string `json:"remark"`
 	AllowedModels       string `json:"allowed_models"`
 	RequestCapabilities string `json:"request_capabilities"`
+	UpstreamSiteID      int    `json:"upstream_site_id,omitempty"`
+	UpstreamKeyName     string `json:"upstream_key_name,omitempty"`
 }
 
 type ChannelKeyUpdateRequest struct {
@@ -209,6 +217,8 @@ type ChannelKeyUpdateRequest struct {
 	Remark              *string `json:"remark,omitempty"`
 	AllowedModels       *string `json:"allowed_models,omitempty"`
 	RequestCapabilities *string `json:"request_capabilities,omitempty"`
+	UpstreamSiteID      *int    `json:"upstream_site_id,omitempty"`
+	UpstreamKeyName     *string `json:"upstream_key_name,omitempty"`
 }
 
 // keyRoundRobin maintains per-channel+model rotation counters.

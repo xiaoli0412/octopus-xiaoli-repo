@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from '
 import { Pencil, Trash2, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslations } from 'next-intl';
-import { useUpdateModel, useDeleteModel, type LLMInfo } from '@/api/endpoints/model';
+import { useUpdateModel, useDeleteModel, type LLMInfo, type UpstreamPriceSummary } from '@/api/endpoints/model';
 import { getModelIcon } from '@/lib/model-icons';
 import { getBillingModeKey } from '@/lib/ui-labels';
 import { toast } from '@/components/common/Toast';
@@ -16,11 +16,12 @@ import type { ModelCardDensity } from '@/components/modules/toolbar/view-options
 
 interface ModelItemProps {
     model: LLMInfo;
+    upstreamPrice?: UpstreamPriceSummary;
     density: ModelCardDensity;
     index: number;
 }
 
-export const ModelItem = memo(function ModelItem({ model, density, index }: ModelItemProps) {
+export const ModelItem = memo(function ModelItem({ model, upstreamPrice, density, index }: ModelItemProps) {
     const t = useTranslations('model');
     const tSetting = useTranslations('setting.llmRouteTarget');
     const isCompact = density === 'compact';
@@ -65,6 +66,7 @@ export const ModelItem = memo(function ModelItem({ model, density, index }: Mode
                 : '-'
         },
     ];
+    const gatewayPrices = upstreamPrice?.gateway_prices ?? [];
 
     const updateOverlayRect = useCallback(() => {
         const card = cardRef.current;
@@ -225,6 +227,19 @@ export const ModelItem = memo(function ModelItem({ model, density, index }: Mode
                         </span>
                     ))}
                 </div>
+
+                {gatewayPrices.length > 0 ? (
+                    <div className={cn('flex flex-wrap gap-1 text-muted-foreground', isCompact ? 'text-[9px]' : 'text-[10px]')}>
+                        {gatewayPrices.slice(0, 2).map((item) => (
+                            <span key={item.id} className="max-w-full truncate rounded-full border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 text-cyan-700 dark:text-cyan-300">
+                                中转 {item.source_label || `#${item.upstream_site_id}`}: {formatPrice(item.input)}/{formatPrice(item.output)}
+                            </span>
+                        ))}
+                        {gatewayPrices.length > 2 ? (
+                            <span className="rounded-full border border-border/60 bg-muted/25 px-1.5 py-0.5">+{gatewayPrices.length - 2}</span>
+                        ) : null}
+                    </div>
+                ) : null}
             </div>
 
             <div

@@ -5,8 +5,8 @@ import { ChannelType, useChannelList } from '@/api/endpoints/channel';
 import { Card } from './Card';
 import { useSearchStore, useToolbarViewOptionsStore } from '@/components/modules/toolbar';
 import { VirtualizedGrid } from '@/components/common/VirtualizedGrid';
-import { UpstreamImport } from './UpstreamImport';
 import { cn } from '@/lib/utils';
+import { useNavStore } from '@/components/modules/navbar/nav-store';
 
 function normalizeKeyword(value: string) {
     return value.trim().toLowerCase();
@@ -62,7 +62,7 @@ function getChannelTypeSearchTokens(type: ChannelType) {
 
 export function Channel() {
     const { data: channelsData } = useChannelList();
-    const [mode, setMode] = useState<'list' | 'upstream'>('list');
+    const setActiveItem = useNavStore((s) => s.setActiveItem);
     const pageKey = 'channel' as const;
     const searchTerm = useSearchStore((s) => s.getSearchTerm(pageKey));
     const channelDensity = useToolbarViewOptionsStore((s) => s.channelDensity);
@@ -140,37 +140,27 @@ export function Channel() {
     return (
         <div data-testid="channel-page" data-layout="grid" data-density={channelDensity} className="flex h-full min-h-0 flex-col gap-3">
             <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-border/60 bg-card/80 p-1.5">
-                {[
-                    { key: 'list' as const, label: '渠道列表' },
-                    { key: 'upstream' as const, label: '上游接入' },
-                ].map((item) => (
-                    <button
-                        key={item.key}
-                        type="button"
-                        onClick={() => setMode(item.key)}
-                        className={cn(
-                            'h-8 rounded-xl px-3 text-xs font-medium transition',
-                            mode === item.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
-                        )}
-                    >
-                        {item.label}
-                    </button>
-                ))}
+                <div className="flex-1 px-2 text-xs font-medium text-muted-foreground">普通渠道列表</div>
+                <button
+                    type="button"
+                    onClick={() => setActiveItem('upstream')}
+                    className={cn(
+                        'h-8 rounded-xl border border-border/60 bg-background/60 px-3 text-xs font-medium text-muted-foreground transition hover:bg-muted/50 hover:text-foreground',
+                    )}
+                >
+                    从上游添加
+                </button>
             </div>
             <div className="min-h-0 flex-1">
-                {mode === 'upstream' ? (
-                    <UpstreamImport />
-                ) : (
-                    <VirtualizedGrid
-                        items={visibleChannels}
-                        layout="grid"
-                        columns={{ default: 1, md: 2, lg: 3, xl: 3, '2xl': 3 }}
-                        estimateItemHeight={channelDensity === 'compact' ? 214 : 248}
-                        gap={channelDensity === 'compact' ? 10 : 12}
-                        getItemKey={(item) => `channel-${item.raw.id}`}
-                        renderItem={(item) => <Card channel={item.raw} stats={item.formatted} density={channelDensity} />}
-                    />
-                )}
+                <VirtualizedGrid
+                    items={visibleChannels}
+                    layout="grid"
+                    columns={{ default: 1, md: 2, lg: 3, xl: 3, '2xl': 3 }}
+                    estimateItemHeight={channelDensity === 'compact' ? 214 : 248}
+                    gap={channelDensity === 'compact' ? 10 : 12}
+                    getItemKey={(item) => `channel-${item.raw.id}`}
+                    renderItem={(item) => <Card channel={item.raw} stats={item.formatted} density={channelDensity} />}
+                />
             </div>
         </div>
     );

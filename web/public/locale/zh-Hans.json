@@ -74,9 +74,10 @@
     }
   },
   "navbar": {
-    "home": "主页",
-    "channel": "渠道",
-    "group": "分组",
+      "home": "主页",
+      "channel": "渠道",
+      "upstream": "上游",
+      "group": "分组",
     "key": "密钥",
     "model": "价格",
     "ops": "运维",

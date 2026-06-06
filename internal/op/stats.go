@@ -444,6 +444,7 @@ func statsTokenBreakdownFromRelayLogs(window string) StatsTokenBreakdown {
 	byModel := map[string]*StatsTokenBreakdownItem{}
 	byAPIKey := map[string]*StatsTokenBreakdownItem{}
 	byChannelKey := map[string]*StatsTokenBreakdownItem{}
+	llmInfoByName, llmInfoByCanonical := statsLLMInfoMaps()
 	channelNames := map[int]string{}
 	for _, channel := range channelCache.Values() {
 		channelNames[channel.ID] = channel.Name
@@ -457,7 +458,23 @@ func statsTokenBreakdownFromRelayLogs(window string) StatsTokenBreakdown {
 		result.TotalOutputToken += int64(item.OutputTokens)
 		totalToken := int64(item.InputTokens + item.OutputTokens)
 		result.TotalToken += totalToken
-		result.EstimatedGatewayTotalCost += item.Cost
+		actualModel := statsFirstNonEmpty(strings.TrimSpace(item.ActualModelName), strings.TrimSpace(item.RequestModelName))
+		if gatewayPrice, ok := ResolveGatewayLLMPrice(actualModel, item.ChannelId); ok {
+			inputCost, outputCost := estimateRelayLogCostWithPrice(item, gatewayPrice)
+			result.EstimatedGatewayInputCost += inputCost
+			result.EstimatedGatewayOutputCost += outputCost
+		} else if info, ok := statsFindLLMInfo(actualModel, llmInfoByName, llmInfoByCanonical); ok {
+			inputCost, outputCost := estimateRelayLogCostWithPrice(item, info.LLMPrice)
+			result.EstimatedGatewayInputCost += inputCost
+			result.EstimatedGatewayOutputCost += outputCost
+		} else {
+			result.EstimatedGatewayTotalCost += item.Cost
+		}
+		if info, ok := statsFindLLMInfo(actualModel, llmInfoByName, llmInfoByCanonical); ok {
+			inputCost, outputCost := estimateRelayLogOfficialCost(item, info.OfficialLLMPrice)
+			result.EstimatedOfficialInputCost += inputCost
+			result.EstimatedOfficialOutputCost += outputCost
+		}
 		addBreakdownItem(byChannel, fmt.Sprintf("channel:%d", item.ChannelId), statsFirstNonEmpty(strings.TrimSpace(item.ChannelName), channelNames[item.ChannelId], fmt.Sprintf("Channel %d", item.ChannelId)), int64(item.InputTokens), int64(item.OutputTokens))
 		addBreakdownItem(byModel, fmt.Sprintf("model:%s", strings.TrimSpace(item.ActualModelName)), statsFirstNonEmpty(strings.TrimSpace(item.ActualModelName), strings.TrimSpace(item.RequestModelName), "unknown-model"), int64(item.InputTokens), int64(item.OutputTokens))
 		if item.APIKeyID > 0 {
@@ -475,6 +492,8 @@ func statsTokenBreakdownFromRelayLogs(window string) StatsTokenBreakdown {
 	result.ByModel = flattenBreakdownItems(byModel)
 	result.ByAPIKey = flattenBreakdownItems(byAPIKey)
 	result.ByChannelKey = flattenBreakdownItems(byChannelKey)
+	result.EstimatedGatewayTotalCost += result.EstimatedGatewayInputCost + result.EstimatedGatewayOutputCost
+	result.EstimatedOfficialTotalCost = result.EstimatedOfficialInputCost + result.EstimatedOfficialOutputCost
 	return result
 }
 
@@ -507,21 +526,58 @@ func statsFirstNonEmpty(values ...string) string {
 	return ""
 }
 
-func StatsTokenBreakdownGet() StatsTokenBreakdown {
-	channelStats := statsChannelCache.GetAll()
-	modelStats := statsModelCache.GetAll()
-	channels := channelCache.GetAll()
+func statsLLMInfoMaps() (map[string]model.LLMInfo, map[string]model.LLMInfo) {
 	llmInfos, _ := LLMList(context.Background())
 	llmInfoByName := make(map[string]model.LLMInfo, len(llmInfos))
 	llmInfoByCanonical := make(map[string]model.LLMInfo, len(llmInfos))
 	for _, info := range llmInfos {
 		normalizedName := strings.ToLower(strings.TrimSpace(info.Name))
-		llmInfoByName[normalizedName] = info
+		if normalizedName != "" {
+			llmInfoByName[normalizedName] = info
+		}
 		canonicalName := strings.ToLower(strings.TrimSpace(info.CanonicalName))
 		if canonicalName != "" {
 			llmInfoByCanonical[canonicalName] = info
 		}
 	}
+	return llmInfoByName, llmInfoByCanonical
+}
+
+func statsFindLLMInfo(modelName string, byName, byCanonical map[string]model.LLMInfo) (model.LLMInfo, bool) {
+	normalizedName := strings.ToLower(strings.TrimSpace(modelName))
+	if info, ok := byName[normalizedName]; ok {
+		return info, true
+	}
+	canonicalName := llmname.CanonicalModelName(normalizedName)
+	info, ok := byCanonical[strings.ToLower(strings.TrimSpace(canonicalName))]
+	return info, ok
+}
+
+func estimateRelayLogCostWithPrice(item model.RelayLog, price model.LLMPrice) (float64, float64) {
+	regularInput := item.InputTokens - item.CacheReadTokens
+	if regularInput < 0 {
+		regularInput = item.InputTokens
+	}
+	inputCost := (float64(regularInput)*price.Input + float64(item.CacheReadTokens)*price.CacheRead + float64(item.CacheWriteTokens)*price.CacheWrite) * 1e-6
+	outputCost := float64(item.OutputTokens) * price.Output * 1e-6
+	return inputCost, outputCost
+}
+
+func estimateRelayLogOfficialCost(item model.RelayLog, price model.OfficialLLMPrice) (float64, float64) {
+	regularInput := item.InputTokens - item.CacheReadTokens
+	if regularInput < 0 {
+		regularInput = item.InputTokens
+	}
+	inputCost := (float64(regularInput)*price.OfficialInput + float64(item.CacheReadTokens)*price.OfficialCacheRead + float64(item.CacheWriteTokens)*price.OfficialCacheWrite) * 1e-6
+	outputCost := float64(item.OutputTokens) * price.OfficialOutput * 1e-6
+	return inputCost, outputCost
+}
+
+func StatsTokenBreakdownGet() StatsTokenBreakdown {
+	channelStats := statsChannelCache.GetAll()
+	modelStats := statsModelCache.GetAll()
+	channels := channelCache.GetAll()
+	llmInfoByName, llmInfoByCanonical := statsLLMInfoMaps()
 
 	result := StatsTokenBreakdown{
 		EstimatedPriceBasis: "model_tokens_only",

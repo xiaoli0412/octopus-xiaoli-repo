@@ -109,11 +109,14 @@ type UpstreamInspectResult struct {
 	Subscriptions       []UpstreamSubscription   `json:"subscriptions,omitempty"`
 	PriceCandidates     []UpstreamPriceCandidate `json:"price_candidates,omitempty"`
 	Warnings            []string                 `json:"warnings,omitempty"`
+	ManagementToken     string                   `json:"-"`
+	GatewayAccessKey    string                   `json:"-"`
 }
 
 type UpstreamApplyRequest struct {
 	Inspect         UpstreamInspectRequest `json:"inspect"`
 	TargetChannelID int                    `json:"target_channel_id,omitempty"`
+	UpstreamSiteID  int                    `json:"upstream_site_id,omitempty"`
 	ChannelName     string                 `json:"channel_name,omitempty"`
 	AppendKeys      *bool                  `json:"append_keys,omitempty"`
 	OverwriteModels *bool                  `json:"overwrite_models,omitempty"`

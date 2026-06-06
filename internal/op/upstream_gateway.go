@@ -119,11 +119,18 @@ func InspectUpstreamGateway(ctx context.Context, req model.UpstreamInspectReques
 		result.Warnings = append(result.Warnings, loginWarnings...)
 		if loginToken != "" {
 			managementToken = loginToken
+			result.ManagementToken = loginToken
 			gatewayKey = ""
 		}
 		if managementUserID == "" {
 			managementUserID = loginUserID
 		}
+	}
+	if managementToken != "" && result.ManagementToken == "" {
+		result.ManagementToken = managementToken
+	}
+	if gatewayKey != "" {
+		result.GatewayAccessKey = gatewayKey
 	}
 
 	if providerType == model.UpstreamProviderSub2API && managementToken != "" {
@@ -523,7 +530,7 @@ func fetchNewAPIGroups(ctx context.Context, httpClient *http.Client, siteBase, t
 
 func fetchSub2APIGroups(ctx context.Context, httpClient *http.Client, siteBase, token string) ([]model.UpstreamGroup, []string) {
 	groups := make([]model.UpstreamGroup, 0)
-	for _, path := range []string{"/api/v1/groups/available", "/api/v1/groups/rates"} {
+	for _, path := range []string{"/api/v1/groups", "/api/v1/groups/available", "/api/v1/groups/rates"} {
 		payload, ok := fetchJSONWithBearer(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token)
 		if !ok {
 			continue
@@ -557,7 +564,7 @@ func fetchUpstreamPriceCandidates(ctx context.Context, httpClient *http.Client, 
 	}
 	paths := []string{"/api/pricing", "/api/ratio_config", "/api/user/pricing", "/api/user/models"}
 	if providerType == model.UpstreamProviderSub2API {
-		paths = []string{"/api/v1/groups/rates", "/api/v1/groups/available"}
+		paths = []string{"/api/v1/pricing", "/api/v1/model/pricing", "/api/v1/models/pricing", "/api/v1/groups/rates", "/api/v1/groups/available"}
 		userID = ""
 	}
 	out := make(map[string]model.UpstreamPriceCandidate)
@@ -662,12 +669,11 @@ func parseUpstreamPriceCandidates(payload []byte, source string) map[string]mode
 						outputRatio = ratio * completion
 					}
 					addUpstreamPriceCandidate(out, modelName, model.UpstreamPriceCandidate{
-						Name:             modelName,
-						LLMPrice:         model.LLMPrice{Input: ratio, Output: outputRatio},
-						OfficialLLMPrice: model.OfficialPriceFromLLMPrice(model.LLMPrice{Input: ratio, Output: outputRatio}),
-						PriceSource:      source + " ratio",
-						PriceMatchedKey:  modelName,
-						Sources:          []string{source},
+						Name:            modelName,
+						LLMPrice:        model.LLMPrice{Input: ratio, Output: outputRatio},
+						PriceSource:     source + " ratio",
+						PriceMatchedKey: modelName,
+						Sources:         []string{source},
 					})
 				}
 			}
@@ -710,12 +716,11 @@ func priceCandidateFromRecord(record map[string]any, source string) (model.Upstr
 	}
 	price := model.LLMPrice{Input: input, Output: output, CacheRead: cacheRead, CacheWrite: cacheWrite}
 	return model.UpstreamPriceCandidate{
-		Name:             name,
-		LLMPrice:         price,
-		OfficialLLMPrice: model.OfficialPriceFromLLMPrice(price),
-		PriceSource:      source,
-		PriceMatchedKey:  name,
-		Sources:          []string{source},
+		Name:            name,
+		LLMPrice:        price,
+		PriceSource:     source,
+		PriceMatchedKey: name,
+		Sources:         []string{source},
 	}, true
 }
 
@@ -727,7 +732,6 @@ func addUpstreamPriceCandidate(target map[string]model.UpstreamPriceCandidate, n
 	key := strings.ToLower(name)
 	if existing, ok := target[key]; ok {
 		candidate.LLMPrice = mergeUpstreamLLMPrice(existing.LLMPrice, candidate.LLMPrice)
-		candidate.OfficialLLMPrice = model.OfficialPriceFromLLMPrice(candidate.LLMPrice)
 		candidate.Sources = compactStrings(append(existing.Sources, candidate.Sources...))
 		if candidate.PriceSource == "" {
 			candidate.PriceSource = existing.PriceSource
@@ -1189,12 +1193,10 @@ func buildUpstreamPriceCandidates(models []string, providerType, sourceLabel str
 		}
 		if upstream, ok := upstreamPrices[strings.ToLower(strings.TrimSpace(modelName))]; ok {
 			candidate.LLMPrice = upstream.LLMPrice
-			candidate.OfficialLLMPrice = upstream.OfficialLLMPrice
 			candidate.PriceSource = upstream.PriceSource
 			candidate.PriceMatchedKey = upstream.PriceMatchedKey
 			candidate.Sources = upstream.Sources
 			info.LLMPrice = upstream.LLMPrice
-			info.OfficialLLMPrice = upstream.OfficialLLMPrice
 			supported, policy, reason = model.InferCacheSupport(info)
 			candidate.CacheSupported = &supported
 			candidate.CachePolicy = string(policy)
@@ -1213,7 +1215,7 @@ func ApplyUpstreamGateway(ctx context.Context, req model.UpstreamApplyRequest) (
 	if inspect.ModelCount == 0 {
 		return model.UpstreamApplyResult{}, fmt.Errorf("upstream has no importable models")
 	}
-	keys := upstreamKeysForApply(inspect, req.Inspect)
+	keys := upstreamKeysForApply(inspect, req.Inspect, req.UpstreamSiteID)
 	if len(keys) == 0 {
 		return model.UpstreamApplyResult{}, fmt.Errorf("upstream has no importable gateway key")
 	}
@@ -1248,6 +1250,11 @@ func ApplyUpstreamGateway(ctx context.Context, req model.UpstreamApplyRequest) (
 		if appendKeys {
 			update.KeysToAdd = keys
 		}
+		if req.UpstreamSiteID > 0 {
+			update.UpstreamSiteID = &req.UpstreamSiteID
+			source := inspect.SourceLabel
+			update.UpstreamSource = &source
+		}
 		channel, err = ChannelUpdate(&update, ctx)
 		if err != nil {
 			return model.UpstreamApplyResult{}, err
@@ -1267,6 +1274,8 @@ func ApplyUpstreamGateway(ctx context.Context, req model.UpstreamApplyRequest) (
 			Keys:              channelKeysFromAddRequests(keys),
 			CustomModel:       modelList,
 			AutoSync:          true,
+			UpstreamSiteID:    req.UpstreamSiteID,
+			UpstreamSource:    inspect.SourceLabel,
 		}
 		if err := ChannelCreate(&newChannel, ctx); err != nil {
 			return model.UpstreamApplyResult{}, err
@@ -1292,7 +1301,7 @@ func appliedChannelSummary(channel model.Channel) model.UpstreamAppliedChannel {
 	}
 }
 
-func upstreamKeysForApply(inspect model.UpstreamInspectResult, req model.UpstreamInspectRequest) []model.ChannelKeyAddRequest {
+func upstreamKeysForApply(inspect model.UpstreamInspectResult, req model.UpstreamInspectRequest, upstreamSiteID int) []model.ChannelKeyAddRequest {
 	out := make([]model.ChannelKeyAddRequest, 0)
 	modelList := strings.Join(inspect.Models, ",")
 	capabilities := strings.Join(inspect.RequestCapabilities, ",")
@@ -1313,6 +1322,8 @@ func upstreamKeysForApply(inspect model.UpstreamInspectResult, req model.Upstrea
 			Remark:              upstreamKeyRemark(key, inspect.ProviderType),
 			AllowedModels:       allowedModels,
 			RequestCapabilities: requestCapabilities,
+			UpstreamSiteID:      upstreamSiteID,
+			UpstreamKeyName:     key.Name,
 		})
 	}
 	if len(out) > 0 {
@@ -1329,6 +1340,8 @@ func upstreamKeysForApply(inspect model.UpstreamInspectResult, req model.Upstrea
 		Remark:              inspect.ProviderType,
 		AllowedModels:       modelList,
 		RequestCapabilities: capabilities,
+		UpstreamSiteID:      upstreamSiteID,
+		UpstreamKeyName:     inspect.ProviderType,
 	}}
 }
 
@@ -1363,6 +1376,8 @@ func channelKeysFromAddRequests(keys []model.ChannelKeyAddRequest) []model.Chann
 			Remark:              key.Remark,
 			AllowedModels:       key.AllowedModels,
 			RequestCapabilities: key.RequestCapabilities,
+			UpstreamSiteID:      key.UpstreamSiteID,
+			UpstreamKeyName:     key.UpstreamKeyName,
 		})
 	}
 	return out
@@ -1375,7 +1390,6 @@ func upstreamLLMInfos(inspect model.UpstreamInspectResult) []model.LLMInfo {
 			Name:                 candidate.Name,
 			CanonicalName:        candidate.CanonicalName,
 			LLMPrice:             candidate.LLMPrice,
-			OfficialLLMPrice:     candidate.OfficialLLMPrice,
 			CachePolicy:          model.CachePolicy(candidate.CachePolicy),
 			CacheReason:          candidate.CacheReason,
 			UpstreamProviderType: inspect.ProviderType,
@@ -1401,9 +1415,6 @@ func upsertUpstreamLLMInfos(infos []model.LLMInfo, ctx context.Context) error {
 		}
 		if existing.LLMPrice.IsZero() && !info.LLMPrice.IsZero() {
 			existing.LLMPrice = info.LLMPrice
-		}
-		if existing.OfficialLLMPrice.IsZero() && !info.OfficialLLMPrice.IsZero() {
-			existing.OfficialLLMPrice = info.OfficialLLMPrice
 		}
 		existing.UpstreamProviderType = info.UpstreamProviderType
 		existing.UpstreamSource = info.UpstreamSource

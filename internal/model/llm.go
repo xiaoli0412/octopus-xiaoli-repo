@@ -150,21 +150,23 @@ type LLMInfo struct {
 	Name string `json:"name" gorm:"primaryKey;not null"`
 	LLMPrice
 	OfficialLLMPrice
-	CanonicalName         string      `json:"canonical_name"`
-	BillingMode           BillingMode `json:"billing_mode"`
-	ProbePolicy           ProbePolicy `json:"probe_policy"`
-	ProbeIntervalSeconds  int         `json:"probe_interval_seconds"`
-	ProbeConcurrencyLimit int         `json:"probe_concurrency_limit"`
-	CachePolicy           CachePolicy `json:"cache_policy"`
-	CacheReason           string      `json:"cache_reason"`
-	UpstreamProviderType  string      `json:"upstream_provider_type"`
-	UpstreamSource        string      `json:"upstream_source"`
-	CacheSupported        *bool       `json:"cache_supported,omitempty" gorm:"-"`
-	ParsedVendor          string      `json:"parsed_vendor,omitempty" gorm:"-"`
-	ParsedVersion         string      `json:"parsed_version,omitempty" gorm:"-"`
-	ParsedSuffix          string      `json:"parsed_suffix,omitempty" gorm:"-"`
-	PriceSource           string      `json:"price_source,omitempty" gorm:"-"`
-	PriceMatchedKey       string      `json:"price_matched_key,omitempty" gorm:"-"`
+	CanonicalName         string               `json:"canonical_name"`
+	BillingMode           BillingMode          `json:"billing_mode"`
+	ProbePolicy           ProbePolicy          `json:"probe_policy"`
+	ProbeIntervalSeconds  int                  `json:"probe_interval_seconds"`
+	ProbeConcurrencyLimit int                  `json:"probe_concurrency_limit"`
+	CachePolicy           CachePolicy          `json:"cache_policy"`
+	CacheReason           string               `json:"cache_reason"`
+	UpstreamProviderType  string               `json:"upstream_provider_type"`
+	UpstreamSource        string               `json:"upstream_source"`
+	CacheSupported        *bool                `json:"cache_supported,omitempty" gorm:"-"`
+	ParsedVendor          string               `json:"parsed_vendor,omitempty" gorm:"-"`
+	ParsedVersion         string               `json:"parsed_version,omitempty" gorm:"-"`
+	ParsedSuffix          string               `json:"parsed_suffix,omitempty" gorm:"-"`
+	PriceSource           string               `json:"price_source,omitempty" gorm:"-"`
+	PriceMatchedKey       string               `json:"price_matched_key,omitempty" gorm:"-"`
+	UpstreamPriceCount    int                  `json:"upstream_price_count,omitempty" gorm:"-"`
+	UpstreamPricePreview  []UpstreamModelPrice `json:"upstream_price_preview,omitempty" gorm:"-"`
 }
 
 type LLMChannel struct {

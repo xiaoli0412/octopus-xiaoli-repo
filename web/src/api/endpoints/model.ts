@@ -41,6 +41,30 @@ export interface LLMInfo extends LLMPrice, OfficialLLMPrice {
     cache_supported?: boolean;
     upstream_provider_type?: string;
     upstream_source?: string;
+    upstream_price_count?: number;
+    upstream_price_preview?: UpstreamModelPrice[];
+}
+
+export interface UpstreamModelPrice extends LLMPrice, OfficialLLMPrice {
+    id: number;
+    upstream_site_id: number;
+    channel_id?: number;
+    model_name: string;
+    canonical_name?: string;
+    price_source?: string;
+    price_matched_key?: string;
+    source_label?: string;
+    cache_policy?: CachePolicy;
+    cache_reason?: string;
+    cache_supported?: boolean;
+    updated_at?: string;
+}
+
+export interface UpstreamPriceSummary {
+    model_name: string;
+    official_price: OfficialLLMPrice;
+    gateway_prices: UpstreamModelPrice[];
+    effective_gateway?: UpstreamModelPrice;
 }
 
 /**
@@ -136,6 +160,17 @@ export function useCapabilityInventory() {
         queryKey: ['models', 'capability-inventory'],
         queryFn: async () => {
             return apiClient.get<CapabilityInventory>('/api/v1/model/capability-inventory');
+        },
+        refetchInterval: 30000,
+        refetchOnMount: 'always',
+    });
+}
+
+export function useUpstreamPriceSummaries() {
+    return useQuery({
+        queryKey: ['models', 'upstream-prices'],
+        queryFn: async () => {
+            return apiClient.get<UpstreamPriceSummary[]>('/api/v1/model/upstream-prices');
         },
         refetchInterval: 30000,
         refetchOnMount: 'always',

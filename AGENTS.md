@@ -390,7 +390,7 @@ docker compose up -d
 docker run -d \
   -v /path/to/data:/app/data \
   -p 1088:1088 \
-  ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.3
+  ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.4
 
 # Linux 服务器可直接使用仓库内安装脚本
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash

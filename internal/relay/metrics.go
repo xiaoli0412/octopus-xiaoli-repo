@@ -95,6 +95,8 @@ func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMRes
 
 func (m *RelayMetrics) Save(ctx context.Context, success bool, err error, attempts []model.ChannelAttempt) {
 	duration := time.Since(m.StartTime)
+	channelID, channelName := finalChannel(attempts)
+	m.recalculateCostsForChannel(channelID)
 
 	globalStats := model.StatsMetrics{
 		WaitTime:    duration.Milliseconds(),
@@ -109,7 +111,6 @@ func (m *RelayMetrics) Save(ctx context.Context, success bool, err error, attemp
 		globalStats.RequestFailed = 1
 	}
 
-	channelID, channelName := finalChannel(attempts)
 	op.StatsTotalUpdate(globalStats)
 	op.StatsHourlyUpdate(globalStats)
 	relayStatsDailyUpdate(ctx, globalStats)
@@ -139,6 +140,34 @@ func (m *RelayMetrics) Save(ctx context.Context, success bool, err error, attemp
 		len(attempts))
 
 	m.saveLog(ctx, err, duration, attempts, channelID, channelName)
+}
+
+func (m *RelayMetrics) recalculateCostsForChannel(channelID int) {
+	if m == nil || m.InternalResponse == nil || m.InternalResponse.Usage == nil {
+		return
+	}
+	actualModel := m.ActualModel
+	if strings.TrimSpace(actualModel) == "" {
+		actualModel = m.RequestModel
+	}
+	modelPrice, ok := op.ResolveGatewayLLMPrice(actualModel, channelID)
+	if !ok {
+		return
+	}
+	usage := m.InternalResponse.Usage
+	if usage.PromptTokensDetails == nil {
+		usage.PromptTokensDetails = &transformerModel.PromptTokensDetails{CachedTokens: 0}
+	}
+	m.CacheReadTokens = int64(usage.PromptTokensDetails.CachedTokens)
+	m.CacheWriteTokens = int64(usage.CacheCreationInputTokens)
+	if usage.AnthropicUsage {
+		m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead +
+			float64(usage.PromptTokens)*modelPrice.Input +
+			float64(usage.CacheCreationInputTokens)*modelPrice.CacheWrite) * 1e-6
+	} else {
+		m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead + float64(usage.PromptTokens-usage.PromptTokensDetails.CachedTokens)*modelPrice.Input) * 1e-6
+	}
+	m.Stats.OutputCost = float64(usage.CompletionTokens) * modelPrice.Output * 1e-6
 }
 
 func finalChannel(attempts []model.ChannelAttempt) (int, string) {

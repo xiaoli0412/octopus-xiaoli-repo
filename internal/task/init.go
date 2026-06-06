@@ -18,6 +18,7 @@ const (
 	TaskBaseUrlDelay              = "base_url_delay"
 	TaskDynamicRoutingSummaryScan = "dynamic_routing_summary_scan"
 	TaskOpsCleanup                = "ops_cleanup"
+	TaskUpstreamRefresh           = "upstream_refresh"
 )
 
 func Init() {
@@ -53,6 +54,7 @@ func initTasks(getInt func(model.SettingKey) (int, error)) {
 			log.Warnf("ops cleanup task failed: %v", err)
 		}
 	})
+	Register(TaskUpstreamRefresh, 1*time.Hour, false, UpstreamRefreshTask)
 
 	// 注册LLM同步任务
 	if syncLLMIntervalHours, err := getInt(model.SettingKeySyncLLMInterval); err != nil {

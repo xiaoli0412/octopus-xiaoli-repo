@@ -117,6 +117,11 @@ export function Card({ channel, stats, density = 'normal' }: { channel: Channel;
                         <Badge variant="outline" className={cn('rounded-full font-medium', isCompact ? 'h-6 px-2.5 text-[10px]' : 'h-7 px-3 text-[11px]')}>
                             {t('keyCountBadge', { count: keyCount })}
                         </Badge>
+                        {channel.upstream_site_id ? (
+                            <Badge variant="outline" className={cn('rounded-full border-cyan-500/25 bg-cyan-500/10 font-medium text-cyan-700 dark:text-cyan-300', isCompact ? 'h-6 px-2.5 text-[10px]' : 'h-7 px-3 text-[11px]')}>
+                                上游：{channel.upstream_source || `#${channel.upstream_site_id}`}
+                            </Badge>
+                        ) : null}
                     </div>
 
                     <dl data-testid={`channel-card-metrics-${channel.id}`} className={cn('relative mt-auto grid grid-cols-1', isCompact ? 'gap-1.5' : 'gap-2')}>

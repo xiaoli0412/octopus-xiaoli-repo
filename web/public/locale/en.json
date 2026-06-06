@@ -74,9 +74,10 @@
     }
   },
   "navbar": {
-    "home": "Home",
-    "channel": "Channel",
-    "group": "Group",
+      "home": "Home",
+      "channel": "Channel",
+      "upstream": "Upstream",
+      "group": "Group",
     "key": "Key",
     "model": "Price",
     "ops": "Ops",
