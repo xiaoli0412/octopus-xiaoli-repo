@@ -188,6 +188,30 @@ html.dark,
     isolation: isolate;
   }
 
+  select {
+    color: var(--foreground);
+    color-scheme: light dark;
+  }
+
+  html.dark select,
+  .dark select {
+    color-scheme: dark;
+  }
+
+  select option {
+    background: var(--popover);
+    color: var(--popover-foreground);
+  }
+
+  select option:checked {
+    background: color-mix(in oklab, var(--primary) 22%, var(--popover));
+    color: var(--popover-foreground);
+  }
+
+  select option:disabled {
+    color: color-mix(in oklab, var(--muted-foreground) 42%, transparent);
+  }
+
   body::before,
   body::after {
     content: '';

@@ -13,6 +13,7 @@ import {
 } from '@/api/endpoints/channel';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/components/common/Toast';
 import { cn } from '@/lib/utils';
 
@@ -23,8 +24,8 @@ const PROVIDER_OPTIONS: Array<{ key: UpstreamProviderType; label: string }> = [
 ];
 
 const AUTH_MODE_OPTIONS: Array<{ key: UpstreamAuthMode; label: string }> = [
-    { key: 'token', label: '管理 Token' },
-    { key: 'access_key', label: 'Access Key' },
+    { key: 'token', label: '管理令牌' },
+    { key: 'access_key', label: '网关密钥' },
     { key: 'account_password', label: '账号密码' },
 ];
 
@@ -214,16 +215,24 @@ export function UpstreamImport() {
                             placeholder={provider === 'sub2api' ? 'https://sub2api.org' : 'https://newapi.example.com'}
                             className="h-10 rounded-xl"
                         />
-                        <select
+                        <Select
                             value={authMode}
-                            onChange={(event) => {
-                                setAuthMode(event.target.value as UpstreamAuthMode);
+                            onValueChange={(value) => {
+                                setAuthMode(value as UpstreamAuthMode);
                                 setResult(null);
                             }}
-                            className="h-10 rounded-xl border border-input bg-transparent px-3 text-sm text-card-foreground outline-none focus-visible:border-ring"
                         >
-                            {AUTH_MODE_OPTIONS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
-                        </select>
+                            <SelectTrigger className="h-10 w-full rounded-xl border-input bg-background/45 text-card-foreground">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-72 rounded-xl border-border bg-popover text-popover-foreground shadow-xl">
+                                {AUTH_MODE_OPTIONS.map((item) => (
+                                    <SelectItem key={item.key} value={item.key} className="rounded-lg">
+                                        {item.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                         {authMode === 'account_password' ? (
                             <div className={cn('grid gap-2 sm:grid-cols-2', showNewAPIUser ? 'xl:grid-cols-3' : 'xl:grid-cols-2')}>
                                 <Input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="账号 / 邮箱" className="h-10 rounded-xl" />
@@ -231,10 +240,10 @@ export function UpstreamImport() {
                                 {showNewAPIUser ? <Input value={userID} onChange={(event) => setUserID(event.target.value)} placeholder="User ID（可选）" className="h-10 rounded-xl" /> : null}
                             </div>
                         ) : authMode === 'access_key' ? (
-                            <Input value={accessKey} onChange={(event) => setAccessKey(event.target.value)} placeholder="Gateway Access Key" type="password" className="h-10 rounded-xl" />
+                            <Input value={accessKey} onChange={(event) => setAccessKey(event.target.value)} placeholder="网关密钥" type="password" className="h-10 rounded-xl" />
                         ) : (
                             <div className={cn('grid gap-2', showNewAPIUser ? 'sm:grid-cols-2' : '')}>
-                                <Input value={token} onChange={(event) => setToken(event.target.value)} placeholder="管理 Token（模型、余额、Key）" type="password" className="h-10 rounded-xl" />
+                                <Input value={token} onChange={(event) => setToken(event.target.value)} placeholder="管理令牌（模型、余额、密钥）" type="password" className="h-10 rounded-xl" />
                                 {showNewAPIUser ? <Input value={userID} onChange={(event) => setUserID(event.target.value)} placeholder="User ID（可选）" className="h-10 rounded-xl" /> : null}
                             </div>
                         )}
@@ -276,16 +285,22 @@ export function UpstreamImport() {
                         </div>
 
                         <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_1fr_auto]">
-                            <select
+                            <Select
                                 value={targetChannelID}
-                                onChange={(event) => setTargetChannelID(event.target.value)}
-                                className="h-10 rounded-xl border border-input bg-transparent px-3 text-sm text-card-foreground outline-none focus-visible:border-ring"
+                                onValueChange={setTargetChannelID}
                             >
-                                <option value="new">新建普通渠道</option>
+                                <SelectTrigger className="h-10 w-full rounded-xl border-input bg-background/45 text-card-foreground">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-80 rounded-xl border-border bg-popover text-popover-foreground shadow-xl">
+                                    <SelectItem value="new" className="rounded-lg">新建普通渠道</SelectItem>
                                 {(channels.data ?? []).map((item) => (
-                                    <option key={item.raw.id} value={String(item.raw.id)}>追加到：{item.raw.name}</option>
+                                        <SelectItem key={item.raw.id} value={String(item.raw.id)} className="rounded-lg">
+                                            追加到：{item.raw.name}
+                                        </SelectItem>
                                 ))}
-                            </select>
+                                </SelectContent>
+                            </Select>
                             <Input
                                 value={channelName}
                                 onChange={(event) => setChannelName(event.target.value)}

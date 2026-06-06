@@ -14,6 +14,7 @@ import {
 import { useChannelList, type UpstreamAuthMode, type UpstreamInspectRequest, type UpstreamProviderType } from '@/api/endpoints/channel';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/components/common/Toast';
 import { cn } from '@/lib/utils';
 
@@ -261,9 +262,18 @@ export function Upstream() {
                     <div className="mt-4 grid gap-2 xl:grid-cols-[0.8fr_1fr_0.75fr_1.3fr_auto_auto]">
                         <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="名称（可选）" className="h-10 rounded-xl" />
                         <Input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder={provider === 'sub2api' ? 'https://sub2api.org' : 'https://newapi.example.com'} className="h-10 rounded-xl" />
-                        <select value={authMode} onChange={(event) => setAuthMode(event.target.value as UpstreamAuthMode)} className="h-10 rounded-xl border border-input bg-transparent px-3 text-sm outline-none">
-                            {AUTH_MODES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                        </select>
+                        <Select value={authMode} onValueChange={(value) => setAuthMode(value as UpstreamAuthMode)}>
+                            <SelectTrigger className="h-10 w-full rounded-xl border-input bg-background/45 text-card-foreground">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-72 rounded-xl border-border bg-popover text-popover-foreground shadow-xl">
+                                {AUTH_MODES.map((item) => (
+                                    <SelectItem key={item.value} value={item.value} className="rounded-lg">
+                                        {item.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                         {authMode === 'account_password' ? (
                             <div className="grid gap-2 md:grid-cols-3">
                                 <Input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="账号 / 邮箱" className="h-10 rounded-xl" />
@@ -293,10 +303,21 @@ export function Upstream() {
                             <input type="checkbox" checked={syncToChannel} onChange={(event) => setSyncToChannel(event.target.checked)} />
                             保存后同步到渠道
                         </label>
-                        <select value={targetChannelID} onChange={(event) => setTargetChannelID(event.target.value)} className="h-9 rounded-xl border border-input bg-transparent px-3 text-xs outline-none">
-                            <option value="new">新建渠道</option>
-                            {(channels.data ?? []).map((item) => <option key={item.raw.id} value={item.raw.id}>追加到：{item.raw.name}</option>)}
-                        </select>
+                        <div className="min-w-[14rem] max-w-full">
+                            <Select value={targetChannelID} onValueChange={setTargetChannelID}>
+                                <SelectTrigger className="h-9 w-full rounded-xl border-input bg-background/45 text-xs text-card-foreground">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-80 rounded-xl border-border bg-popover text-popover-foreground shadow-xl">
+                                    <SelectItem value="new" className="rounded-lg">新建渠道</SelectItem>
+                                    {(channels.data ?? []).map((item) => (
+                                        <SelectItem key={item.raw.id} value={String(item.raw.id)} className="rounded-lg">
+                                            追加到：{item.raw.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                         {preview ? (
                             <div className="flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
                                 <span className="rounded-full border border-border/70 px-2 py-1">模型 {preview.model_count}</span>
