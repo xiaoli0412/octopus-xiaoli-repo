@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -15,42 +16,45 @@ const maxSettingDurationNanos int64 = 1<<63 - 1
 type SettingKey string
 
 const (
-	SettingKeyAuthTokenSecret               SettingKey = "auth_token_secret"
-	SettingKeyProxyURL                      SettingKey = "proxy_url"
-	SettingKeyAPIBaseURL                    SettingKey = "api_base_url"                   // 绯荤粺 API 鍦板潃锛堢敤浜庢枃妗ｅ睍绀猴級
-	SettingKeyStatsSaveInterval             SettingKey = "stats_save_interval"            // 灏嗙粺璁′俊鎭啓鍏ユ暟鎹簱鐨勫懆鏈?鍒嗛挓)
-	SettingKeyModelInfoUpdateInterval       SettingKey = "model_info_update_interval"     // 妯″瀷淇℃伅鏇存柊闂撮殧(灏忔椂)
-	SettingKeySyncLLMInterval               SettingKey = "sync_llm_interval"              // LLM 鍚屾闂撮殧(灏忔椂)
-	SettingKeyRelayLogKeepPeriod            SettingKey = "relay_log_keep_period"          // 鏃ュ織淇濆瓨鏃堕棿鑼冨洿(澶?
-	SettingKeyRelayLogKeepEnabled           SettingKey = "relay_log_keep_enabled"         // 鏄惁淇濈暀鍘嗗彶鏃ュ織
-	SettingKeyCORSAllowOrigins              SettingKey = "cors_allow_origins"             // 璺ㄥ煙鐧藉悕鍗?閫楀彿鍒嗛殧, 濡?"example.com,example2.com"). 涓虹┖涓嶅厑璁歌法鍩? "*"鍏佽鎵€鏈?
-	SettingKeyCircuitBreakerThreshold       SettingKey = "circuit_breaker_threshold"      // 鐔旀柇瑙﹀彂闃堝€硷紙杩炵画澶辫触娆℃暟锛?
-	SettingKeyCircuitBreakerCooldown        SettingKey = "circuit_breaker_cooldown"       // 鐔旀柇鍩虹鍐峰嵈鏃堕棿锛堢锛?
-	SettingKeyCircuitBreakerMaxCooldown     SettingKey = "circuit_breaker_max_cooldown"   // 鐔旀柇鏈€澶у喎鍗存椂闂达紙绉掞級锛屾寚鏁伴€€閬夸笂闄?
-	SettingKeyDynamicRoutingMode            SettingKey = "dynamic_routing_mode"           // 鍔ㄦ€佽矾鐢辫繍琛屾ā寮?
-	SettingKeyDynamicRoutingHealthEnabled   SettingKey = "dynamic_routing_health_enabled" // 鏄惁鍚敤鍔ㄦ€佸仴搴疯皟鑺?
-	SettingKeyDynamicRoutingLearningEnabled SettingKey = "dynamic_routing_learning_enabled"
-	SettingKeyRaceGlobalBudget              SettingKey = "race_global_budget"  // 骞跺彂绔為€熷叏灞€棰勭畻
-	SettingKeyRaceGroupBudget               SettingKey = "race_group_budget"   // 骞跺彂绔為€熷垎缁勯绠?
-	SettingKeyRaceChannelBudget             SettingKey = "race_channel_budget" // 骞跺彂绔為€熸笭閬撻绠?
-	SettingKeyRaceKeyBudget                 SettingKey = "race_key_budget"     // 骞跺彂绔為€?key 棰勭畻
-	SettingKeyRaceProbeBudget               SettingKey = "race_probe_budget"   // 骞跺彂绔為€?probe 棰勭畻
-	SettingKeyAIAutomationEnabled           SettingKey = "ai_automation_enabled"
-	SettingKeyAIAutomationBaseURL           SettingKey = "ai_automation_base_url"
-	SettingKeyAIAutomationAPIKey            SettingKey = "ai_automation_api_key"
-	SettingKeyAIAutomationChannelType       SettingKey = "ai_automation_channel_type"
-	SettingKeyAIAutomationModel             SettingKey = "ai_automation_model"
-	SettingKeyAIAutomationUseLocalDefault   SettingKey = "ai_automation_use_local_default"
-	SettingKeyConfigSourceMode              SettingKey = "config_source_mode"
-	SettingKeyActiveAIProfileID             SettingKey = "active_ai_profile_id"
-	SettingKeyAIGovernanceManagedGroupName  SettingKey = "ai_governance_managed_group_name"
-	SettingKeyActiveStrategyProfileID       SettingKey = "active_strategy_profile_id"
-	SettingKeyAIRuntimeStrategy             SettingKey = "ai_runtime_strategy"
-	SettingKeyAIRuntimeDispatchMode         SettingKey = "ai_runtime_dispatch_mode"
-	SettingKeyAIRuntimeMaxParallelRuns      SettingKey = "ai_runtime_max_parallel_runs"
-	SettingKeyAIRuntimeDoubleReviewEnabled  SettingKey = "ai_runtime_double_review_enabled"
+	SettingKeyAuthTokenSecret                SettingKey = "auth_token_secret"
+	SettingKeyProxyURL                       SettingKey = "proxy_url"
+	SettingKeyAPIBaseURL                     SettingKey = "api_base_url" // 绯荤粺 API 鍦板潃锛堢敤浜庢枃妗ｅ睍绀猴級
+	SettingKeyAPIAlternateBaseURLs           SettingKey = "api_alternate_base_urls"
+	SettingKeyTrustedProxyCIDRs              SettingKey = "trusted_proxy_cidrs"
+	SettingKeyOpsIPDisplayMode               SettingKey = "ops_ip_display_mode"
+	SettingKeyStatsSaveInterval              SettingKey = "stats_save_interval"            // 灏嗙粺璁′俊鎭啓鍏ユ暟鎹簱鐨勫懆鏈?鍒嗛挓)
+	SettingKeyModelInfoUpdateInterval        SettingKey = "model_info_update_interval"     // 妯″瀷淇℃伅鏇存柊闂撮殧(灏忔椂)
+	SettingKeySyncLLMInterval                SettingKey = "sync_llm_interval"              // LLM 鍚屾闂撮殧(灏忔椂)
+	SettingKeyRelayLogKeepPeriod             SettingKey = "relay_log_keep_period"          // 鏃ュ織淇濆瓨鏃堕棿鑼冨洿(澶?
+	SettingKeyRelayLogKeepEnabled            SettingKey = "relay_log_keep_enabled"         // 鏄惁淇濈暀鍘嗗彶鏃ュ織
+	SettingKeyCORSAllowOrigins               SettingKey = "cors_allow_origins"             // 璺ㄥ煙鐧藉悕鍗?閫楀彿鍒嗛殧, 濡?"example.com,example2.com"). 涓虹┖涓嶅厑璁歌法鍩? "*"鍏佽鎵€鏈?
+	SettingKeyCircuitBreakerThreshold        SettingKey = "circuit_breaker_threshold"      // 鐔旀柇瑙﹀彂闃堝€硷紙杩炵画澶辫触娆℃暟锛?
+	SettingKeyCircuitBreakerCooldown         SettingKey = "circuit_breaker_cooldown"       // 鐔旀柇鍩虹鍐峰嵈鏃堕棿锛堢锛?
+	SettingKeyCircuitBreakerMaxCooldown      SettingKey = "circuit_breaker_max_cooldown"   // 鐔旀柇鏈€澶у喎鍗存椂闂达紙绉掞級锛屾寚鏁伴€€閬夸笂闄?
+	SettingKeyDynamicRoutingMode             SettingKey = "dynamic_routing_mode"           // 鍔ㄦ€佽矾鐢辫繍琛屾ā寮?
+	SettingKeyDynamicRoutingHealthEnabled    SettingKey = "dynamic_routing_health_enabled" // 鏄惁鍚敤鍔ㄦ€佸仴搴疯皟鑺?
+	SettingKeyDynamicRoutingLearningEnabled  SettingKey = "dynamic_routing_learning_enabled"
+	SettingKeyRaceGlobalBudget               SettingKey = "race_global_budget"  // 骞跺彂绔為€熷叏灞€棰勭畻
+	SettingKeyRaceGroupBudget                SettingKey = "race_group_budget"   // 骞跺彂绔為€熷垎缁勯绠?
+	SettingKeyRaceChannelBudget              SettingKey = "race_channel_budget" // 骞跺彂绔為€熸笭閬撻绠?
+	SettingKeyRaceKeyBudget                  SettingKey = "race_key_budget"     // 骞跺彂绔為€?key 棰勭畻
+	SettingKeyRaceProbeBudget                SettingKey = "race_probe_budget"   // 骞跺彂绔為€?probe 棰勭畻
+	SettingKeyAIAutomationEnabled            SettingKey = "ai_automation_enabled"
+	SettingKeyAIAutomationBaseURL            SettingKey = "ai_automation_base_url"
+	SettingKeyAIAutomationAPIKey             SettingKey = "ai_automation_api_key"
+	SettingKeyAIAutomationChannelType        SettingKey = "ai_automation_channel_type"
+	SettingKeyAIAutomationModel              SettingKey = "ai_automation_model"
+	SettingKeyAIAutomationUseLocalDefault    SettingKey = "ai_automation_use_local_default"
+	SettingKeyConfigSourceMode               SettingKey = "config_source_mode"
+	SettingKeyActiveAIProfileID              SettingKey = "active_ai_profile_id"
+	SettingKeyAIGovernanceManagedGroupName   SettingKey = "ai_governance_managed_group_name"
+	SettingKeyActiveStrategyProfileID        SettingKey = "active_strategy_profile_id"
+	SettingKeyAIRuntimeStrategy              SettingKey = "ai_runtime_strategy"
+	SettingKeyAIRuntimeDispatchMode          SettingKey = "ai_runtime_dispatch_mode"
+	SettingKeyAIRuntimeMaxParallelRuns       SettingKey = "ai_runtime_max_parallel_runs"
+	SettingKeyAIRuntimeDoubleReviewEnabled   SettingKey = "ai_runtime_double_review_enabled"
 	SettingKeyAIRuntimeFallbackDeterministic SettingKey = "ai_runtime_fallback_to_deterministic"
-	SettingKeyForcePasswordChange           SettingKey = "force_password_change"
+	SettingKeyForcePasswordChange            SettingKey = "force_password_change"
 )
 
 const (
@@ -63,9 +67,24 @@ const (
 	DefaultAIAutomationChannelType = "openai-compatible"
 )
 
+const (
+	OpsIPDisplayModeMasked = "masked"
+	OpsIPDisplayModeFull   = "full"
+)
+
 type Setting struct {
 	Key   SettingKey `json:"key" gorm:"primaryKey"`
 	Value string     `json:"value" gorm:"not null"`
+}
+
+type PublicAccessInfo struct {
+	PrimaryBaseURL     string   `json:"primary_base_url"`
+	AlternateBaseURLs  []string `json:"alternate_base_urls"`
+	CurrentBaseURL     string   `json:"current_base_url"`
+	TrustedProxyCIDRs  []string `json:"trusted_proxy_cidrs"`
+	OpsIPDisplayMode   string   `json:"ops_ip_display_mode"`
+	CurrentClientIP    string   `json:"current_client_ip"`
+	CurrentClientLabel string   `json:"current_client_label"`
 }
 
 func DefaultSettings() []Setting {
@@ -73,6 +92,9 @@ func DefaultSettings() []Setting {
 		{Key: SettingKeyProxyURL, Value: ""},
 		{Key: SettingKeyAuthTokenSecret, Value: ""},
 		{Key: SettingKeyAPIBaseURL, Value: "http://localhost:1088"}, // 榛樿绯荤粺 API 鍦板潃
+		{Key: SettingKeyAPIAlternateBaseURLs, Value: ""},
+		{Key: SettingKeyTrustedProxyCIDRs, Value: ""},
+		{Key: SettingKeyOpsIPDisplayMode, Value: OpsIPDisplayModeMasked},
 		{Key: SettingKeyStatsSaveInterval, Value: "10"},             // 榛樿10鍒嗛挓淇濆瓨涓€娆＄粺璁′俊鎭?
 		{Key: SettingKeyCORSAllowOrigins, Value: ""},                // CORS 榛樿涓嶅厑璁歌法鍩燂紝璁剧疆涓?"*" 鎵嶅厑璁告墍鏈夋潵婧?
 		{Key: SettingKeyModelInfoUpdateInterval, Value: "24"},       // 榛樿24灏忔椂鏇存柊涓€娆℃ā鍨嬩俊鎭?
@@ -205,6 +227,40 @@ func (s *Setting) Validate() error {
 			return fmt.Errorf("api base URL must not include credentials")
 		}
 		return nil
+	case SettingKeyAPIAlternateBaseURLs:
+		for _, value := range splitSettingList(s.Value) {
+			if err := xurl.ValidateAbsoluteHTTPURL(value, "alternate api base URL"); err != nil {
+				return err
+			}
+			parsedURL, err := url.Parse(value)
+			if err != nil {
+				return fmt.Errorf("alternate api base URL is invalid: %w", err)
+			}
+			if parsedURL.User != nil {
+				return fmt.Errorf("alternate api base URL must not include credentials")
+			}
+		}
+		return nil
+	case SettingKeyTrustedProxyCIDRs:
+		for _, value := range splitSettingList(s.Value) {
+			if strings.Contains(value, "/") {
+				if _, _, err := net.ParseCIDR(value); err != nil {
+					return fmt.Errorf("trusted proxy CIDR is invalid: %w", err)
+				}
+				continue
+			}
+			if ip := net.ParseIP(value); ip == nil {
+				return fmt.Errorf("trusted proxy CIDR must be an IP or CIDR")
+			}
+		}
+		return nil
+	case SettingKeyOpsIPDisplayMode:
+		switch strings.ToLower(strings.TrimSpace(s.Value)) {
+		case OpsIPDisplayModeMasked, OpsIPDisplayModeFull:
+			return nil
+		default:
+			return fmt.Errorf("setting value must be masked or full")
+		}
 	case SettingKeyAIAutomationChannelType:
 		switch s.Value {
 		case "", "openai-compatible", "openai", "anthropic", "gemini":
@@ -227,6 +283,20 @@ func (s *Setting) Validate() error {
 	}
 
 	return nil
+}
+
+func splitSettingList(value string) []string {
+	normalized := strings.ReplaceAll(value, "\n", ",")
+	normalized = strings.ReplaceAll(normalized, ";", ",")
+	parts := strings.Split(normalized, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func validateSettingNonNegativeInt(value string) (int, error) {

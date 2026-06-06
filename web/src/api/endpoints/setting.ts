@@ -39,7 +39,20 @@ export const SettingKey = {
     ConfigSourceMode: 'config_source_mode',
     ActiveAIProfileID: 'active_ai_profile_id',
     ApiBaseUrl: 'api_base_url',
+    ApiAlternateBaseUrls: 'api_alternate_base_urls',
+    TrustedProxyCIDRs: 'trusted_proxy_cidrs',
+    OpsIPDisplayMode: 'ops_ip_display_mode',
 } as const;
+
+export interface PublicAccessInfo {
+    primary_base_url: string;
+    alternate_base_urls: string[];
+    current_base_url: string;
+    trusted_proxy_cidrs: string[];
+    ops_ip_display_mode: 'masked' | 'full';
+    current_client_ip: string;
+    current_client_label: string;
+}
 
 /**
  * 閼惧嘲褰?Setting 閸掓銆?Hook
@@ -58,6 +71,15 @@ export function useSettingList() {
         queryFn: async () => {
             return apiClient.get<Setting[]>('/api/v1/setting/list');
         },
+        refetchInterval: 30000,
+        refetchOnMount: 'always',
+    });
+}
+
+export function usePublicAccess() {
+    return useQuery({
+        queryKey: ['settings', 'public-access'],
+        queryFn: async () => apiClient.get<PublicAccessInfo>('/api/v1/setting/public-access'),
         refetchInterval: 30000,
         refetchOnMount: 'always',
     });
@@ -84,6 +106,7 @@ export function useSetSetting() {
         onSuccess: (data) => {
             logger.log('Setting 鐠佸墽鐤嗛幋鎰:', data);
             queryClient.invalidateQueries({ queryKey: ['settings', 'list'] });
+            queryClient.invalidateQueries({ queryKey: ['settings', 'public-access'] });
         },
         onError: (error) => {
             logger.error('Setting 鐠佸墽鐤嗘径杈Е:', error);

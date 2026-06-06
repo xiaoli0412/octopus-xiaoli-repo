@@ -21,7 +21,7 @@ export function CreateDialogContent() {
         custom_header: [],
         channel_proxy: '',
         param_override: '',
-        keys: [{ enabled: true, channel_key: '', source_type: 'unknown', remark: '', allowed_models: '' }],
+        keys: [{ enabled: true, channel_key: '', source_type: 'unknown', remark: '', allowed_models: '', request_capabilities: '' }],
         model: '',
         custom_model: '',
         auto_sync: false,
@@ -46,6 +46,7 @@ export function CreateDialogContent() {
                 source_type: (k.source_type ?? '').trim(),
                 remark: k.remark ?? '',
                 allowed_models: (k.allowed_models ?? '').trim(),
+                request_capabilities: (k.request_capabilities ?? '').trim(),
             }));
         const normalizedHeaders = (formData.custom_header ?? [])
             .map((h) => ({ header_key: h.header_key.trim(), header_value: h.header_value }))
@@ -83,7 +84,7 @@ export function CreateDialogContent() {
                         custom_header: [],
                         channel_proxy: '',
                         param_override: '',
-                        keys: [{ enabled: true, channel_key: '', source_type: 'unknown', remark: '', allowed_models: '' }],
+                        keys: [{ enabled: true, channel_key: '', source_type: 'unknown', remark: '', allowed_models: '', request_capabilities: '' }],
                         model: '',
                         custom_model: '',
                         auto_sync: false,

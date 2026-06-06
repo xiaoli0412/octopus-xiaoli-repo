@@ -8,8 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useGroupList } from '@/api/endpoints/group';
+import { useCapabilityInventory } from '@/api/endpoints/model';
 import { useAPIKeyList } from '@/api/endpoints/apikey';
-import { useSettingList, SettingKey } from '@/api/endpoints/setting';
+import { usePublicAccess, useSettingList, SettingKey } from '@/api/endpoints/setting';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { HelpHint } from '@/components/common/HelpHint';
@@ -22,6 +23,12 @@ const API_PATHS: Record<ApiType, string> = {
     'openai-chat': '/v1/chat/completions',
     'openai-responses': '/v1/responses',
     'anthropic': '/v1/messages',
+};
+
+const API_TYPE_CAPABILITY: Record<ApiType, string> = {
+    'openai-chat': 'openai_chat',
+    'openai-responses': 'openai_responses',
+    'anthropic': 'anthropic_messages',
 };
 
 function generateCurl(baseUrl: string, apiKey: string, model: string, apiType: ApiType): string {
@@ -90,6 +97,18 @@ function buildCCSwitchUrl(baseUrl: string, apiKey: string, form: CCSwitchForm): 
     return `ccswitch://v1/import?${params.toString()}`;
 }
 
+function splitModelCSV(value?: string): string[] {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const item of (value ?? '').split(',')) {
+        const model = item.trim();
+        if (!model || seen.has(model)) continue;
+        seen.add(model);
+        out.push(model);
+    }
+    return out;
+}
+
 interface DocModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -102,6 +121,7 @@ export function DocModal({ isOpen, onClose, onGoSetting }: DocModalProps) {
     const [apiType, setApiType] = useState<ApiType>('openai-chat');
     const [selectedApiKey, setSelectedApiKey] = useState<string>('');
     const [selectedModel, setSelectedModel] = useState<string>('');
+    const [selectedBaseUrl, setSelectedBaseUrl] = useState<string>('');
     const [copied, setCopied] = useState(false);
     const [nameEdited, setNameEdited] = useState(false);
     const [ccswitchForm, setCcswitchForm] = useState<CCSwitchForm>({
@@ -114,13 +134,41 @@ export function DocModal({ isOpen, onClose, onGoSetting }: DocModalProps) {
     });
 
     const { data: groups } = useGroupList();
+    const { data: capabilityInventory } = useCapabilityInventory();
     const { data: apiKeys } = useAPIKeyList();
     const { data: settings } = useSettingList();
+    const { data: publicAccess } = usePublicAccess();
 
-    const baseUrl = useMemo(() => {
+    const settingBaseUrl = useMemo(() => {
         const setting = settings?.find(s => s.key === SettingKey.ApiBaseUrl);
         return setting?.value?.trim() || 'http://127.0.0.1:1088';
     }, [settings]);
+
+    const baseUrlOptions = useMemo(() => {
+        const options: Array<{ value: string; label: string }> = [];
+        const seen = new Set<string>();
+        const add = (value: string | undefined, label: string) => {
+            const normalized = (value ?? '').trim().replace(/\/+$/, '');
+            if (!normalized || seen.has(normalized)) return;
+            seen.add(normalized);
+            options.push({ value: normalized, label });
+        };
+        add(publicAccess?.primary_base_url || settingBaseUrl, '主地址');
+        for (const [index, value] of (publicAccess?.alternate_base_urls ?? []).entries()) {
+            add(value, `备用 ${index + 1}`);
+        }
+        add(publicAccess?.current_base_url, '当前访问');
+        return options.length ? options : [{ value: 'http://127.0.0.1:1088', label: '默认' }];
+    }, [publicAccess, settingBaseUrl]);
+
+    useEffect(() => {
+        if (!baseUrlOptions.length) return;
+        if (!selectedBaseUrl || !baseUrlOptions.some((item) => item.value === selectedBaseUrl)) {
+            setSelectedBaseUrl(baseUrlOptions[0].value);
+        }
+    }, [baseUrlOptions, selectedBaseUrl]);
+
+    const baseUrl = selectedBaseUrl || baseUrlOptions[0]?.value || settingBaseUrl;
 
     const curlCode = useMemo(
         () => generateCurl(baseUrl, selectedApiKey, selectedModel, apiType),
@@ -140,18 +188,28 @@ export function DocModal({ isOpen, onClose, onGoSetting }: DocModalProps) {
     const allowedGroupsByKey = useMemo(() => {
         const raw = selectedApiKeyRecord?.supported_models?.trim();
         if (!raw) return null;
-        return new Set(raw.split(',').map((m) => m.trim()).filter(Boolean));
+        return new Set(splitModelCSV(raw));
     }, [selectedApiKeyRecord]);
 
+    const requiredCapability = contentTab === 'curl' ? API_TYPE_CAPABILITY[apiType] : 'openai_chat';
+
     const groupOptions = useMemo(() => {
-        const all = Array.from(new Set((groups ?? []).map((g) => g.name).filter(Boolean)));
+        const routable = capabilityInventory?.routable_models ?? [];
+        const supportsCapability = (capabilities?: string[]) => !requiredCapability || !capabilities?.length || capabilities.includes(requiredCapability);
+        const names = routable.length
+            ? routable.filter((item) => item.enabled_channel_count > 0 && supportsCapability(item.request_capabilities)).map((item) => item.name)
+            : [
+                ...(groups ?? []).map((g) => g.name).filter(Boolean),
+                ...(capabilityInventory?.selectable_models ?? []).filter((item) => supportsCapability(item.request_capabilities)).map((item) => item.name).filter(Boolean),
+            ];
+        const all = Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
         if (!allowedGroupsByKey) {
             return all.map((name) => ({ value: name, label: name }));
         }
         return all
             .filter((name) => allowedGroupsByKey.has(name))
             .map((name) => ({ value: name, label: name }));
-    }, [groups, allowedGroupsByKey]);
+    }, [groups, capabilityInventory?.routable_models, capabilityInventory?.selectable_models, allowedGroupsByKey, requiredCapability]);
 
     const hasGroupOption = useMemo(() => new Set(groupOptions.map((o) => o.value)), [groupOptions]);
 
@@ -327,7 +385,19 @@ export function DocModal({ isOpen, onClose, onGoSetting }: DocModalProps) {
                                                     {t('baseUrlTip')}
                                                 </button>
                                             </div>
-                                            <div className="font-mono text-sm bg-muted/30 rounded-xl px-3 py-2 text-card-foreground break-all truncate">{baseUrl}</div>
+                                            <Select value={baseUrl} onValueChange={setSelectedBaseUrl}>
+                                                <SelectTrigger className="rounded-xl">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent className="rounded-xl">
+                                                    {baseUrlOptions.map((opt) => (
+                                                        <SelectItem key={opt.value} className="rounded-xl" value={opt.value}>
+                                                            {opt.label} · {opt.value}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <div className="font-mono text-[11px] text-muted-foreground break-all">{baseUrl}</div>
                                         </div>
                                         <div className="space-y-2">
                                             <label className="text-sm font-medium text-card-foreground">{t('apiType')}</label>
@@ -424,6 +494,23 @@ export function DocModal({ isOpen, onClose, onGoSetting }: DocModalProps) {
                                 <>
                                     <div data-testid="ccswitch-panel" className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-3 text-xs leading-5 text-muted-foreground">
                                         {t('ccswitchIntro')}
+                                    </div>
+
+                                    <div data-testid="ccswitch-base-url-section" className="space-y-2">
+                                        <div className="text-sm font-medium text-card-foreground">{t('baseUrl')}</div>
+                                        <Select value={baseUrl} onValueChange={setSelectedBaseUrl}>
+                                            <SelectTrigger className="rounded-xl w-full">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-xl">
+                                                {baseUrlOptions.map((opt) => (
+                                                    <SelectItem key={opt.value} className="rounded-xl" value={opt.value}>
+                                                        {opt.label} · {opt.value}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <div className="font-mono text-[11px] text-muted-foreground break-all">{baseUrl}</div>
                                     </div>
 
                                     <div data-testid="ccswitch-progress-card" className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-3 space-y-3">

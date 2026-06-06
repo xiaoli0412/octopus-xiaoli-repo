@@ -434,7 +434,7 @@ func applyImportDump(tx *gorm.DB, dump *model.DBDump, mode model.DBImportMode, o
 	}
 	res.RowsAffected["route_target_overrides"] = n
 
-	remappedGroupItems, itemWarnings := remapGroupItemsForImport(dump.GroupItems, dump.Groups, dump.Channels, groupIDMap, channelIDMap, state, mode)
+	remappedGroupItems, itemWarnings := remapGroupItemsForImport(dump.GroupItems, dump.Groups, dump.Channels, filteredChannelKeys, groupIDMap, channelIDMap, state, mode)
 	res.Warnings = append(res.Warnings, itemWarnings...)
 	*postImportHealthTargets = buildImportedHealthCheckTargets(dump.Groups, groupIDMap, remappedGroupItems)
 	if n, err = importGroupItems(tx, remappedGroupItems, mode); err != nil {

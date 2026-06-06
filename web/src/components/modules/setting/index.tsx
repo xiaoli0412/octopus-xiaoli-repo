@@ -1,7 +1,6 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { type ReactNode } from 'react';
 import { PageWrapper } from '@/components/common/PageWrapper';
 import { SettingAppearance } from './Appearance';
 import { SettingSystem } from './System';
@@ -18,27 +17,29 @@ const LazySettingCircuitBreaker = dynamic(() => import('./CircuitBreaker').then(
 const LazySettingDynamicRouting = dynamic(() => import('./DynamicRouting').then((mod) => ({ default: mod.SettingDynamicRouting })));
 const LazySettingBackup = dynamic(() => import('./Backup').then((mod) => ({ default: mod.SettingBackup })));
 
-function SettingMasonryItem({ children }: { children: ReactNode }) {
-    return <div className="mb-4 break-inside-avoid">{children}</div>;
-}
-
 export function Setting() {
     return (
         <div className="h-full min-h-0 overflow-y-auto overscroll-contain rounded-t-3xl">
-            <PageWrapper className="columns-1 gap-4 pb-24 md:columns-2 md:pb-4">
-                <SettingMasonryItem><SettingInfo key="setting-info" /></SettingMasonryItem>
-                <SettingMasonryItem><SettingAppearance key="setting-appearance" /></SettingMasonryItem>
-                <SettingMasonryItem><SettingAccount key="setting-account" /></SettingMasonryItem>
-                <SettingMasonryItem><SettingSystem key="setting-system" /></SettingMasonryItem>
-                <SettingMasonryItem><SettingLog key="setting-log" /></SettingMasonryItem>
-                <SettingMasonryItem><SettingAPIKey key="setting-apikey" /></SettingMasonryItem>
-                <SettingMasonryItem><LazySettingLLMPrice key="setting-llmprice" /></SettingMasonryItem>
-                <SettingMasonryItem><SettingAIAutomationSource key="setting-ai-automation-source" /></SettingMasonryItem>
-                <SettingMasonryItem><LazySettingModelProbe key="setting-model-probe" /></SettingMasonryItem>
-                <SettingMasonryItem><SettingLLMSync key="setting-llmsync" /></SettingMasonryItem>
-                <SettingMasonryItem><LazySettingCircuitBreaker key="setting-circuit-breaker" /></SettingMasonryItem>
-                <SettingMasonryItem><LazySettingDynamicRouting key="setting-dynamic-routing" /></SettingMasonryItem>
-                <SettingMasonryItem><LazySettingBackup key="setting-backup" /></SettingMasonryItem>
+            <PageWrapper className="pb-24 md:pb-4">
+                <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+                    <div className="min-w-0 space-y-4">
+                        <SettingSystem key="setting-system" />
+                        <SettingLog key="setting-log" />
+                        <SettingAPIKey key="setting-apikey" />
+                        <SettingAIAutomationSource key="setting-ai-automation-source" />
+                        <LazySettingModelProbe key="setting-model-probe" />
+                        <LazySettingBackup key="setting-backup" />
+                    </div>
+                    <div className="min-w-0 space-y-4">
+                        <SettingInfo key="setting-info" />
+                        <SettingAppearance key="setting-appearance" />
+                        <SettingAccount key="setting-account" />
+                        <LazySettingLLMPrice key="setting-llmprice" />
+                        <SettingLLMSync key="setting-llmsync" />
+                        <LazySettingCircuitBreaker key="setting-circuit-breaker" />
+                        <LazySettingDynamicRouting key="setting-dynamic-routing" />
+                    </div>
+                </div>
             </PageWrapper>
         </div>
     );

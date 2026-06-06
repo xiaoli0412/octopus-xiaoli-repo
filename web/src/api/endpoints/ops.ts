@@ -7,6 +7,7 @@ export interface OpsEntitySummary {
     scope: OpsScope;
     entity_key: string;
     entity_label: string;
+    entity_display_label?: string;
     success_count: number;
     failure_count: number;
     skipped_count: number;
@@ -17,9 +18,14 @@ export interface OpsEntitySummary {
     cache_write_token: number;
     cache_hit_count: number;
     cache_write_count: number;
+    cache_create_count: number;
     cache_success_count: number;
+    cache_eligible_count: number;
+    cache_ineligible_count: number;
+    cache_supported: boolean;
     success_rate: number;
     cache_hit_rate: number;
+    cache_create_rate: number;
     cache_rate: number;
     avg_latency_ms: number;
 }
@@ -37,9 +43,14 @@ export interface OpsSeriesPoint {
     cache_write_token: number;
     cache_hit_count: number;
     cache_write_count: number;
+    cache_create_count: number;
     cache_success_count: number;
+    cache_eligible_count: number;
+    cache_ineligible_count: number;
+    cache_supported: boolean;
     success_rate: number;
     cache_hit_rate: number;
+    cache_create_rate: number;
     cache_rate: number;
     avg_latency_ms: number;
 }
@@ -58,6 +69,7 @@ export interface OpsRecentDetail {
     id: number;
     time: number;
     client_ip: string;
+    client_ip_label?: string;
     request_model_name: string;
     actual_model_name: string;
     api_key_id: number;
@@ -68,6 +80,7 @@ export interface OpsRecentDetail {
     output_tokens: number;
     cache_read_tokens: number;
     cache_write_tokens: number;
+    cache_supported: boolean;
     use_time: number;
     success: boolean;
     status_code: number;

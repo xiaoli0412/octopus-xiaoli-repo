@@ -5,6 +5,7 @@ import (
 
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound"
 )
 
 func TestChannelUpdateRefreshesCacheAndNormalizesKeys(t *testing.T) {
@@ -183,8 +184,8 @@ func TestChannelBaseUrlUpdateCopiesInputAndChannelKeySaveDBPersistsCacheUpdates(
 	if storedKey.Remark != "after" {
 		t.Fatalf("stored key remark = %q, want %q", storedKey.Remark, "after")
 	}
-	if storedKey.AllowedModels != "gpt-4o,claude-3-5-sonnet" {
-		t.Fatalf("stored key allowed_models = %q, want updated value", storedKey.AllowedModels)
+	if storedKey.AllowedModels != "claude-3-5-sonnet,gpt-4o" {
+		t.Fatalf("stored key allowed_models = %q, want normalized updated value", storedKey.AllowedModels)
 	}
 
 	refreshed, err := ChannelGet(channel.ID, ctx)
@@ -668,5 +669,137 @@ func TestChannelUpdateKeepsGroupItemsWhenAnotherKeyStillServesModel(t *testing.T
 	}
 	if len(refreshedGroup.Items) != 1 {
 		t.Fatalf("group items len = %d, want 1", len(refreshedGroup.Items))
+	}
+}
+
+func TestChannelLLMListUsesKeyLimitedCapabilityInventory(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	channel := &model.Channel{
+		Name:    "channel-key-inventory",
+		Enabled: true,
+		Type:    outbound.OutboundTypeOpenAIChat,
+		Keys: []model.ChannelKey{
+			{Enabled: true, ChannelKey: "key-gpt", AllowedModels: "gpt-4o", RequestCapabilities: "openai_chat"},
+			{Enabled: true, ChannelKey: "key-claude", AllowedModels: "claude-3-5-sonnet", RequestCapabilities: "openai_chat"},
+			{Enabled: true, ChannelKey: "key-gemini-wrong-protocol", AllowedModels: "gemini-2.5-pro", RequestCapabilities: "gemini_contents"},
+		},
+	}
+	if err := ChannelCreate(channel, ctx); err != nil {
+		t.Fatalf("ChannelCreate() error = %v", err)
+	}
+
+	items, err := ChannelLLMList(ctx)
+	if err != nil {
+		t.Fatalf("ChannelLLMList() error = %v", err)
+	}
+	byName := make(map[string]model.LLMChannel, len(items))
+	for _, item := range items {
+		if item.ChannelID == channel.ID {
+			byName[item.Name] = item
+		}
+	}
+
+	if got := byName["gpt-4o"]; got.KeyCount != 1 || got.InventorySource != "channel_key_allowed" {
+		t.Fatalf("gpt-4o inventory = %#v, want key_count=1 source=channel_key_allowed", got)
+	}
+	if got := byName["claude-3-5-sonnet"]; got.KeyCount != 1 {
+		t.Fatalf("claude inventory = %#v, want key_count=1", got)
+	}
+	if _, ok := byName["gemini-2.5-pro"]; ok {
+		t.Fatalf("gemini-2.5-pro should be hidden because request capability mismatches OpenAI chat channel")
+	}
+}
+
+func TestCapabilityInventoryDoesNotPromoteStaleAPIKeyBindings(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	channel := &model.Channel{
+		Name:    "capability-inventory-serviceable",
+		Enabled: true,
+		Type:    outbound.OutboundTypeOpenAIChat,
+		Keys: []model.ChannelKey{{
+			Enabled:       true,
+			ChannelKey:    "key-gpt",
+			AllowedModels: "gpt-4o",
+		}},
+	}
+	if err := ChannelCreate(channel, ctx); err != nil {
+		t.Fatalf("ChannelCreate() error = %v", err)
+	}
+	apiKey := &model.APIKey{
+		Name:            "client-stale-supported-model",
+		APIKey:          "sk-client-stale-supported-model",
+		Enabled:         true,
+		SupportedModels: "gpt-4o,stale-only-model",
+	}
+	if err := APIKeyCreate(apiKey, ctx); err != nil {
+		t.Fatalf("APIKeyCreate() error = %v", err)
+	}
+
+	inventory, err := CapabilityInventory(ctx)
+	if err != nil {
+		t.Fatalf("CapabilityInventory() error = %v", err)
+	}
+	selectable := make(map[string]model.SelectableGroupModelInventoryItem, len(inventory.SelectableModels))
+	for _, item := range inventory.SelectableModels {
+		selectable[item.Name] = item
+	}
+	if _, ok := selectable["gpt-4o"]; !ok {
+		t.Fatalf("selectable models = %#v, want serviceable gpt-4o", inventory.SelectableModels)
+	}
+	if stale, ok := selectable["stale-only-model"]; ok {
+		t.Fatalf("stale API key binding leaked into selectable inventory: %#v", stale)
+	}
+}
+
+func TestGroupItemAddAllowsUndeclaredKeyLimitedModel(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	channel := &model.Channel{
+		Name:    "channel-undeclared-key-model",
+		Enabled: true,
+		Type:    outbound.OutboundTypeOpenAIChat,
+		Keys: []model.ChannelKey{{
+			Enabled:       true,
+			ChannelKey:    "key-gpt",
+			AllowedModels: "gpt-4o",
+		}},
+	}
+	if err := ChannelCreate(channel, ctx); err != nil {
+		t.Fatalf("ChannelCreate() error = %v", err)
+	}
+	group := &model.Group{Name: "group-undeclared-key-model", Mode: model.GroupModeRoundRobin}
+	if err := GroupCreate(group, ctx); err != nil {
+		t.Fatalf("GroupCreate() error = %v", err)
+	}
+	if err := GroupItemAdd(&model.GroupItem{GroupID: group.ID, ChannelID: channel.ID, ModelName: "gpt-4o", Priority: 1, Weight: 1}, ctx); err != nil {
+		t.Fatalf("GroupItemAdd() should allow key-limited undeclared model: %v", err)
+	}
+}
+
+func TestGroupItemAddRejectsProtocolMismatchedKey(t *testing.T) {
+	ctx := setupOpTestDB(t)
+
+	channel := &model.Channel{
+		Name:    "channel-protocol-mismatch",
+		Enabled: true,
+		Type:    outbound.OutboundTypeOpenAIChat,
+		Keys: []model.ChannelKey{{
+			Enabled:             true,
+			ChannelKey:          "key-gemini-only",
+			AllowedModels:       "gpt-4o",
+			RequestCapabilities: "gemini_contents",
+		}},
+	}
+	if err := ChannelCreate(channel, ctx); err != nil {
+		t.Fatalf("ChannelCreate() error = %v", err)
+	}
+	group := &model.Group{Name: "group-protocol-mismatch", Mode: model.GroupModeRoundRobin}
+	if err := GroupCreate(group, ctx); err != nil {
+		t.Fatalf("GroupCreate() error = %v", err)
+	}
+	if err := GroupItemAdd(&model.GroupItem{GroupID: group.ID, ChannelID: channel.ID, ModelName: "gpt-4o", Priority: 1, Weight: 1}, ctx); err == nil {
+		t.Fatalf("GroupItemAdd() expected protocol mismatch error")
 	}
 }

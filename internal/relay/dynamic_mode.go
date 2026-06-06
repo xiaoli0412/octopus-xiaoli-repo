@@ -86,7 +86,7 @@ func baseDynamicCandidates(group dbmodel.Group) []dbmodel.GroupItem {
 	return balancer.GetBalancer(group.Mode).Candidates(group.Items)
 }
 
-func initAIDynamicModeState(group dbmodel.Group, requestModel string) *dynamicRoutingModeState {
+func initAIDynamicModeState(group dbmodel.Group, requestModel string, requestCapability string) *dynamicRoutingModeState {
 	state := &dynamicRoutingModeState{
 		Mode:          "ai-dynamic",
 		EffectiveMode: "ai-dynamic",
@@ -101,7 +101,7 @@ func initAIDynamicModeState(group dbmodel.Group, requestModel string) *dynamicRo
 		state.HealthEnabled = healthEnabled
 	}
 
-	base := sortByDynamicScore(baseDynamicCandidates(group), requestModel)
+	base := sortByDynamicScore(baseDynamicCandidates(group), requestModel, requestCapability)
 	state.Recommended = append(state.Recommended, base...)
 	if len(base) == 0 {
 		state.Decision = dynamicRoutingDecisionDeterministic
@@ -111,15 +111,15 @@ func initAIDynamicModeState(group dbmodel.Group, requestModel string) *dynamicRo
 	}
 
 	confidenceSum := 0.0
-	for _, score := range scoreDynamicCandidates(base, requestModel) {
+	for _, score := range scoreDynamicCandidates(base, requestModel, requestCapability) {
 		confidenceSum += score.Confidence
 	}
 	state.Confidence = confidenceSum / float64(len(base))
 	return state
 }
 
-func sortByDynamicScore(items []dbmodel.GroupItem, requestModel string) []dbmodel.GroupItem {
-	scored := scoreDynamicCandidates(items, requestModel)
+func sortByDynamicScore(items []dbmodel.GroupItem, requestModel string, requestCapability string) []dbmodel.GroupItem {
+	scored := scoreDynamicCandidates(items, requestModel, requestCapability)
 	ordered := make([]dbmodel.GroupItem, 0, len(scored))
 	for _, item := range scored {
 		ordered = append(ordered, item.Item)
@@ -127,9 +127,9 @@ func sortByDynamicScore(items []dbmodel.GroupItem, requestModel string) []dbmode
 	return ordered
 }
 
-func initDynamicRoutingModeState(group dbmodel.Group, requestModel string) *dynamicRoutingModeState {
+func initDynamicRoutingModeState(group dbmodel.Group, requestModel string, requestCapability string) *dynamicRoutingModeState {
 	if group.Mode == dbmodel.GroupModeAIDynamic {
-		return initAIDynamicModeState(group, requestModel)
+		return initAIDynamicModeState(group, requestModel, requestCapability)
 	}
 
 	mode := dynamicRoutingMode()
@@ -188,7 +188,7 @@ func initDynamicRoutingModeState(group dbmodel.Group, requestModel string) *dyna
 		return state
 	}
 
-	scored := scoreDynamicCandidates(base, requestModel)
+	scored := scoreDynamicCandidates(base, requestModel, requestCapability)
 	state.Recommended = make([]dbmodel.GroupItem, 0, len(scored))
 	recommendedLabels := make([]string, 0, len(scored))
 	confidenceSum := 0.0
@@ -227,7 +227,7 @@ func initDynamicRoutingModeState(group dbmodel.Group, requestModel string) *dyna
 	return state
 }
 
-func scoreDynamicCandidates(items []dbmodel.GroupItem, requestModel string) []dynamicRoutingCandidateScore {
+func scoreDynamicCandidates(items []dbmodel.GroupItem, requestModel string, requestCapability string) []dynamicRoutingCandidateScore {
 	scores := make([]dynamicRoutingCandidateScore, 0, len(items))
 	for idx, item := range items {
 		targetModel := strings.TrimSpace(item.ModelName)
@@ -249,14 +249,15 @@ func scoreDynamicCandidates(items []dbmodel.GroupItem, requestModel string) []dy
 			scores = append(scores, score)
 			continue
 		}
-		if !channel.SupportsModel(targetModel) || !channel.HasConfiguredKeyForModel(targetModel) {
+		targetCapability := resolveRequestCapability(channel, targetModel, requestCapability)
+		if !op.ChannelCanServeRequest(channel.ID, targetModel, targetCapability) {
 			score.Score = -9997
 			score.Reasons = append(score.Reasons, "stale_route_target")
 			scores = append(scores, score)
 			continue
 		}
 
-		key := dynamicRoutingScoreKey(channel, targetModel)
+		key := dynamicRoutingScoreKey(channel, targetModel, targetCapability)
 		if strings.TrimSpace(key.ChannelKey) == "" {
 			score.Score = -9996
 			score.Reasons = append(score.Reasons, "no_eligible_key")
@@ -351,11 +352,11 @@ func dynamicRoutingLearningBias(channelID, keyID int, modelName string) (dbmodel
 	return op.DynamicRouteLearningGet(channelID, keyID, modelName)
 }
 
-func dynamicRoutingScoreKey(channel *dbmodel.Channel, modelName string) dbmodel.ChannelKey {
+func dynamicRoutingScoreKey(channel *dbmodel.Channel, modelName string, requestCapability string) dbmodel.ChannelKey {
 	if channel == nil {
 		return dbmodel.ChannelKey{}
 	}
-	eligible := channel.EligibleChannelKeysForModel(modelName)
+	eligible := channel.EligibleChannelKeysForRequest(modelName, requestCapability)
 	if len(eligible) == 0 {
 		return dbmodel.ChannelKey{}
 	}

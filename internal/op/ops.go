@@ -36,17 +36,19 @@ type OpsRelayEvent struct {
 }
 
 type opsBucketDelta struct {
-	SuccessCount      int64
-	FailureCount      int64
-	SkippedCount      int64
-	WaitTime          int64
-	InputToken        int64
-	OutputToken       int64
-	CacheReadToken    int64
-	CacheWriteToken   int64
-	CacheHitCount     int64
-	CacheWriteCount   int64
-	CacheSuccessCount int64
+	SuccessCount         int64
+	FailureCount         int64
+	SkippedCount         int64
+	WaitTime             int64
+	InputToken           int64
+	OutputToken          int64
+	CacheReadToken       int64
+	CacheWriteToken      int64
+	CacheHitCount        int64
+	CacheWriteCount      int64
+	CacheSuccessCount    int64
+	CacheEligibleCount   int64
+	CacheIneligibleCount int64
 }
 
 func entityKeyFromInt(value int) string {
@@ -92,6 +94,11 @@ func opsRequestDelta(event OpsRelayEvent) opsBucketDelta {
 	}
 	if event.Success {
 		delta.SuccessCount = 1
+		if opsEventCacheSupported(event) {
+			delta.CacheEligibleCount = 1
+		} else {
+			delta.CacheIneligibleCount = 1
+		}
 	} else {
 		delta.FailureCount = 1
 	}
@@ -105,6 +112,27 @@ func opsRequestDelta(event OpsRelayEvent) opsBucketDelta {
 		delta.CacheSuccessCount = 1
 	}
 	return delta
+}
+
+func opsEventCacheSupported(event OpsRelayEvent) bool {
+	modelName := strings.TrimSpace(event.ActualModel)
+	if modelName == "" {
+		modelName = strings.TrimSpace(event.RequestModel)
+	}
+	if modelName == "" {
+		return true
+	}
+	if info, err := LLMGet(strings.ToLower(modelName)); err == nil {
+		supported, _, _ := model.InferCacheSupport(info)
+		return supported
+	}
+	canonical := llmname.CanonicalModelName(modelName)
+	if info, err := LLMGetByCanonical(canonical); err == nil {
+		supported, _, _ := model.InferCacheSupport(info)
+		return supported
+	}
+	supported, _, _ := model.InferCacheSupport(model.LLMInfo{Name: modelName, CanonicalName: canonical})
+	return supported
 }
 
 func opsAttemptDelta(attempt model.ChannelAttempt) opsBucketDelta {
@@ -127,6 +155,15 @@ func opsApplyCacheToAttemptDelta(delta opsBucketDelta, event OpsRelayEvent) opsB
 	delta.OutputToken = event.OutputTokens
 	delta.CacheReadToken = event.CacheReadTokens
 	delta.CacheWriteToken = event.CacheWriteTokens
+	delta.CacheEligibleCount = 0
+	delta.CacheIneligibleCount = 0
+	if event.Success {
+		if opsEventCacheSupported(event) {
+			delta.CacheEligibleCount = 1
+		} else {
+			delta.CacheIneligibleCount = 1
+		}
+	}
 	if event.CacheReadTokens > 0 {
 		delta.CacheHitCount = 1
 	}
@@ -157,6 +194,13 @@ func opsBucketEntityLabel(scope, entityKey, fallback string) string {
 	}
 }
 
+func opsBucketEntityDisplayLabel(scope, entityLabel string) string {
+	if scope == model.OpsScopeIP {
+		return IPDisplayLabel(entityLabel)
+	}
+	return entityLabel
+}
+
 func OpsRecordRelay(ctx context.Context, event OpsRelayEvent) error {
 	if event.Time.IsZero() {
 		event.Time = time.Now()
@@ -180,8 +224,9 @@ func OpsRecordRelay(ctx context.Context, event OpsRelayEvent) error {
 				return err
 			}
 		}
-		if strings.TrimSpace(event.ClientIP) != "" {
-			if err := upsertOpsBucket(tx, model.OpsScopeIP, strings.TrimSpace(event.ClientIP), strings.TrimSpace(event.ClientIP), bucketStart, requestDelta); err != nil {
+		clientIP := normalizeIP(event.ClientIP)
+		if clientIP != "" {
+			if err := upsertOpsBucket(tx, model.OpsScopeIP, clientIP, clientIP, bucketStart, requestDelta); err != nil {
 				return err
 			}
 		}
@@ -224,37 +269,41 @@ func upsertOpsBucket(tx *gorm.DB, scope, entityKey, entityLabel string, bucketSt
 		return nil
 	}
 	row := model.OpsMetricBucket{
-		Scope:             scope,
-		EntityKey:         strings.TrimSpace(entityKey),
-		EntityLabel:       opsBucketEntityLabel(scope, entityKey, entityLabel),
-		BucketStart:       bucketStart,
-		SuccessCount:      delta.SuccessCount,
-		FailureCount:      delta.FailureCount,
-		SkippedCount:      delta.SkippedCount,
-		WaitTime:          delta.WaitTime,
-		InputToken:        delta.InputToken,
-		OutputToken:       delta.OutputToken,
-		CacheReadToken:    delta.CacheReadToken,
-		CacheWriteToken:   delta.CacheWriteToken,
-		CacheHitCount:     delta.CacheHitCount,
-		CacheWriteCount:   delta.CacheWriteCount,
-		CacheSuccessCount: delta.CacheSuccessCount,
+		Scope:                scope,
+		EntityKey:            strings.TrimSpace(entityKey),
+		EntityLabel:          opsBucketEntityLabel(scope, entityKey, entityLabel),
+		BucketStart:          bucketStart,
+		SuccessCount:         delta.SuccessCount,
+		FailureCount:         delta.FailureCount,
+		SkippedCount:         delta.SkippedCount,
+		WaitTime:             delta.WaitTime,
+		InputToken:           delta.InputToken,
+		OutputToken:          delta.OutputToken,
+		CacheReadToken:       delta.CacheReadToken,
+		CacheWriteToken:      delta.CacheWriteToken,
+		CacheHitCount:        delta.CacheHitCount,
+		CacheWriteCount:      delta.CacheWriteCount,
+		CacheSuccessCount:    delta.CacheSuccessCount,
+		CacheEligibleCount:   delta.CacheEligibleCount,
+		CacheIneligibleCount: delta.CacheIneligibleCount,
 	}
 	return tx.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "scope"}, {Name: "entity_key"}, {Name: "bucket_start"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{
-			"entity_label":        row.EntityLabel,
-			"success_count":       gorm.Expr("success_count + ?", row.SuccessCount),
-			"failure_count":       gorm.Expr("failure_count + ?", row.FailureCount),
-			"skipped_count":       gorm.Expr("skipped_count + ?", row.SkippedCount),
-			"wait_time":           gorm.Expr("wait_time + ?", row.WaitTime),
-			"input_token":         gorm.Expr("input_token + ?", row.InputToken),
-			"output_token":        gorm.Expr("output_token + ?", row.OutputToken),
-			"cache_read_token":    gorm.Expr("cache_read_token + ?", row.CacheReadToken),
-			"cache_write_token":   gorm.Expr("cache_write_token + ?", row.CacheWriteToken),
-			"cache_hit_count":     gorm.Expr("cache_hit_count + ?", row.CacheHitCount),
-			"cache_write_count":   gorm.Expr("cache_write_count + ?", row.CacheWriteCount),
-			"cache_success_count": gorm.Expr("cache_success_count + ?", row.CacheSuccessCount),
+			"entity_label":           row.EntityLabel,
+			"success_count":          gorm.Expr("success_count + ?", row.SuccessCount),
+			"failure_count":          gorm.Expr("failure_count + ?", row.FailureCount),
+			"skipped_count":          gorm.Expr("skipped_count + ?", row.SkippedCount),
+			"wait_time":              gorm.Expr("wait_time + ?", row.WaitTime),
+			"input_token":            gorm.Expr("input_token + ?", row.InputToken),
+			"output_token":           gorm.Expr("output_token + ?", row.OutputToken),
+			"cache_read_token":       gorm.Expr("cache_read_token + ?", row.CacheReadToken),
+			"cache_write_token":      gorm.Expr("cache_write_token + ?", row.CacheWriteToken),
+			"cache_hit_count":        gorm.Expr("cache_hit_count + ?", row.CacheHitCount),
+			"cache_write_count":      gorm.Expr("cache_write_count + ?", row.CacheWriteCount),
+			"cache_success_count":    gorm.Expr("cache_success_count + ?", row.CacheSuccessCount),
+			"cache_eligible_count":   gorm.Expr("cache_eligible_count + ?", row.CacheEligibleCount),
+			"cache_ineligible_count": gorm.Expr("cache_ineligible_count + ?", row.CacheIneligibleCount),
 		}),
 	}).Create(&row).Error
 }
@@ -295,40 +344,60 @@ func opsBucketSince() int64 {
 }
 
 func opsEntitySummaryFromBucket(row model.OpsMetricBucket) model.OpsEntitySummary {
-	return opsEntitySummaryFromRaw(row.Scope, row.EntityKey, row.EntityLabel, row.SuccessCount, row.FailureCount, row.SkippedCount, row.WaitTime, row.InputToken, row.OutputToken, row.CacheReadToken, row.CacheWriteToken, row.CacheHitCount, row.CacheWriteCount, row.CacheSuccessCount)
+	return opsEntitySummaryFromRaw(row.Scope, row.EntityKey, row.EntityLabel, row.SuccessCount, row.FailureCount, row.SkippedCount, row.WaitTime, row.InputToken, row.OutputToken, row.CacheReadToken, row.CacheWriteToken, row.CacheHitCount, row.CacheWriteCount, row.CacheSuccessCount, row.CacheEligibleCount, row.CacheIneligibleCount)
 }
 
-func opsEntitySummaryFromRaw(scope, entityKey, entityLabel string, successCount, failureCount, skippedCount, waitTime, inputToken, outputToken, cacheReadToken, cacheWriteToken, cacheHitCount, cacheWriteCount, cacheSuccessCount int64) model.OpsEntitySummary {
+func opsEntitySummaryFromRaw(scope, entityKey, entityLabel string, successCount, failureCount, skippedCount, waitTime, inputToken, outputToken, cacheReadToken, cacheWriteToken, cacheHitCount, cacheWriteCount, cacheSuccessCount, cacheEligibleCount, cacheIneligibleCount int64) model.OpsEntitySummary {
 	total := successCount + failureCount
+	cacheDenominator := cacheEligibleCount
+	cacheSupported := cacheEligibleCount > 0
+	if cacheEligibleCount == 0 && cacheIneligibleCount == 0 {
+		cacheDenominator = successCount
+		cacheSupported = successCount > 0
+	}
+	if cacheDenominator <= 0 {
+		cacheDenominator = 0
+	}
 	successRate := 0.0
 	cacheHitRate := 0.0
+	cacheCreateRate := 0.0
 	cacheRate := 0.0
 	avgLatency := 0.0
 	if total > 0 {
 		successRate = float64(successCount) / float64(total)
-		cacheHitRate = float64(cacheHitCount) / float64(total)
-		cacheRate = float64(cacheSuccessCount) / float64(total)
 		avgLatency = float64(waitTime) / float64(total)
 	}
+	if cacheDenominator > 0 {
+		cacheHitRate = float64(cacheHitCount) / float64(cacheDenominator)
+		cacheCreateRate = float64(cacheWriteCount) / float64(cacheDenominator)
+		cacheRate = float64(cacheSuccessCount) / float64(cacheDenominator)
+	}
+	displayLabel := opsBucketEntityDisplayLabel(scope, entityLabel)
 	return model.OpsEntitySummary{
-		Scope:             scope,
-		EntityKey:         entityKey,
-		EntityLabel:       entityLabel,
-		SuccessCount:      successCount,
-		FailureCount:      failureCount,
-		SkippedCount:      skippedCount,
-		WaitTime:          waitTime,
-		InputToken:        inputToken,
-		OutputToken:       outputToken,
-		CacheReadToken:    cacheReadToken,
-		CacheWriteToken:   cacheWriteToken,
-		CacheHitCount:     cacheHitCount,
-		CacheWriteCount:   cacheWriteCount,
-		CacheSuccessCount: cacheSuccessCount,
-		SuccessRate:       successRate,
-		CacheHitRate:      cacheHitRate,
-		CacheRate:         cacheRate,
-		AvgLatencyMS:      avgLatency,
+		Scope:                scope,
+		EntityKey:            entityKey,
+		EntityLabel:          entityLabel,
+		EntityDisplayLabel:   displayLabel,
+		SuccessCount:         successCount,
+		FailureCount:         failureCount,
+		SkippedCount:         skippedCount,
+		WaitTime:             waitTime,
+		InputToken:           inputToken,
+		OutputToken:          outputToken,
+		CacheReadToken:       cacheReadToken,
+		CacheWriteToken:      cacheWriteToken,
+		CacheHitCount:        cacheHitCount,
+		CacheWriteCount:      cacheWriteCount,
+		CacheCreateCount:     cacheWriteCount,
+		CacheSuccessCount:    cacheSuccessCount,
+		CacheEligibleCount:   cacheEligibleCount,
+		CacheIneligibleCount: cacheIneligibleCount,
+		CacheSupported:       cacheSupported,
+		SuccessRate:          successRate,
+		CacheHitRate:         cacheHitRate,
+		CacheCreateRate:      cacheCreateRate,
+		CacheRate:            cacheRate,
+		AvgLatencyMS:         avgLatency,
 	}
 }
 
@@ -370,27 +439,29 @@ func OpsOverviewGet(ctx context.Context) (model.OpsOverview, error) {
 
 func opsOverallSummary(ctx context.Context) (model.OpsEntitySummary, error) {
 	var row struct {
-		SuccessCount      int64
-		FailureCount      int64
-		SkippedCount      int64
-		WaitTime          int64
-		InputToken        int64
-		OutputToken       int64
-		CacheReadToken    int64
-		CacheWriteToken   int64
-		CacheHitCount     int64
-		CacheWriteCount   int64
-		CacheSuccessCount int64
+		SuccessCount         int64
+		FailureCount         int64
+		SkippedCount         int64
+		WaitTime             int64
+		InputToken           int64
+		OutputToken          int64
+		CacheReadToken       int64
+		CacheWriteToken      int64
+		CacheHitCount        int64
+		CacheWriteCount      int64
+		CacheSuccessCount    int64
+		CacheEligibleCount   int64
+		CacheIneligibleCount int64
 	}
 	err := db.GetDB().WithContext(ctx).
 		Model(&model.OpsMetricBucket{}).
-		Select("COALESCE(SUM(success_count), 0) AS success_count, COALESCE(SUM(failure_count), 0) AS failure_count, COALESCE(SUM(skipped_count), 0) AS skipped_count, COALESCE(SUM(wait_time), 0) AS wait_time, COALESCE(SUM(input_token), 0) AS input_token, COALESCE(SUM(output_token), 0) AS output_token, COALESCE(SUM(cache_read_token), 0) AS cache_read_token, COALESCE(SUM(cache_write_token), 0) AS cache_write_token, COALESCE(SUM(cache_hit_count), 0) AS cache_hit_count, COALESCE(SUM(cache_write_count), 0) AS cache_write_count, COALESCE(SUM(cache_success_count), 0) AS cache_success_count").
+		Select("COALESCE(SUM(success_count), 0) AS success_count, COALESCE(SUM(failure_count), 0) AS failure_count, COALESCE(SUM(skipped_count), 0) AS skipped_count, COALESCE(SUM(wait_time), 0) AS wait_time, COALESCE(SUM(input_token), 0) AS input_token, COALESCE(SUM(output_token), 0) AS output_token, COALESCE(SUM(cache_read_token), 0) AS cache_read_token, COALESCE(SUM(cache_write_token), 0) AS cache_write_token, COALESCE(SUM(cache_hit_count), 0) AS cache_hit_count, COALESCE(SUM(cache_write_count), 0) AS cache_write_count, COALESCE(SUM(cache_success_count), 0) AS cache_success_count, COALESCE(SUM(cache_eligible_count), 0) AS cache_eligible_count, COALESCE(SUM(cache_ineligible_count), 0) AS cache_ineligible_count").
 		Where("scope = ? AND entity_key = ? AND bucket_start >= ?", model.OpsScopeOverall, model.OpsEntityOverall, opsBucketSince()).
 		Scan(&row).Error
 	if err != nil {
 		return model.OpsEntitySummary{}, err
 	}
-	return opsEntitySummaryFromRaw(model.OpsScopeOverall, model.OpsEntityOverall, "Overall", row.SuccessCount, row.FailureCount, row.SkippedCount, row.WaitTime, row.InputToken, row.OutputToken, row.CacheReadToken, row.CacheWriteToken, row.CacheHitCount, row.CacheWriteCount, row.CacheSuccessCount), nil
+	return opsEntitySummaryFromRaw(model.OpsScopeOverall, model.OpsEntityOverall, "Overall", row.SuccessCount, row.FailureCount, row.SkippedCount, row.WaitTime, row.InputToken, row.OutputToken, row.CacheReadToken, row.CacheWriteToken, row.CacheHitCount, row.CacheWriteCount, row.CacheSuccessCount, row.CacheEligibleCount, row.CacheIneligibleCount), nil
 }
 
 func OpsEntityList(ctx context.Context, scope string, limit int) ([]model.OpsEntitySummary, error) {
@@ -398,23 +469,25 @@ func OpsEntityList(ctx context.Context, scope string, limit int) ([]model.OpsEnt
 		limit = 20
 	}
 	var rows []struct {
-		EntityKey         string
-		EntityLabel       string
-		SuccessCount      int64
-		FailureCount      int64
-		SkippedCount      int64
-		WaitTime          int64
-		InputToken        int64
-		OutputToken       int64
-		CacheReadToken    int64
-		CacheWriteToken   int64
-		CacheHitCount     int64
-		CacheWriteCount   int64
-		CacheSuccessCount int64
+		EntityKey            string
+		EntityLabel          string
+		SuccessCount         int64
+		FailureCount         int64
+		SkippedCount         int64
+		WaitTime             int64
+		InputToken           int64
+		OutputToken          int64
+		CacheReadToken       int64
+		CacheWriteToken      int64
+		CacheHitCount        int64
+		CacheWriteCount      int64
+		CacheSuccessCount    int64
+		CacheEligibleCount   int64
+		CacheIneligibleCount int64
 	}
 	err := db.GetDB().WithContext(ctx).
 		Model(&model.OpsMetricBucket{}).
-		Select("entity_key, MAX(entity_label) AS entity_label, COALESCE(SUM(success_count), 0) AS success_count, COALESCE(SUM(failure_count), 0) AS failure_count, COALESCE(SUM(skipped_count), 0) AS skipped_count, COALESCE(SUM(wait_time), 0) AS wait_time, COALESCE(SUM(input_token), 0) AS input_token, COALESCE(SUM(output_token), 0) AS output_token, COALESCE(SUM(cache_read_token), 0) AS cache_read_token, COALESCE(SUM(cache_write_token), 0) AS cache_write_token, COALESCE(SUM(cache_hit_count), 0) AS cache_hit_count, COALESCE(SUM(cache_write_count), 0) AS cache_write_count, COALESCE(SUM(cache_success_count), 0) AS cache_success_count").
+		Select("entity_key, MAX(entity_label) AS entity_label, COALESCE(SUM(success_count), 0) AS success_count, COALESCE(SUM(failure_count), 0) AS failure_count, COALESCE(SUM(skipped_count), 0) AS skipped_count, COALESCE(SUM(wait_time), 0) AS wait_time, COALESCE(SUM(input_token), 0) AS input_token, COALESCE(SUM(output_token), 0) AS output_token, COALESCE(SUM(cache_read_token), 0) AS cache_read_token, COALESCE(SUM(cache_write_token), 0) AS cache_write_token, COALESCE(SUM(cache_hit_count), 0) AS cache_hit_count, COALESCE(SUM(cache_write_count), 0) AS cache_write_count, COALESCE(SUM(cache_success_count), 0) AS cache_success_count, COALESCE(SUM(cache_eligible_count), 0) AS cache_eligible_count, COALESCE(SUM(cache_ineligible_count), 0) AS cache_ineligible_count").
 		Where("scope = ? AND bucket_start >= ?", scope, opsBucketSince()).
 		Group("entity_key").
 		Order("(COALESCE(SUM(success_count), 0) + COALESCE(SUM(failure_count), 0)) DESC").
@@ -425,7 +498,7 @@ func OpsEntityList(ctx context.Context, scope string, limit int) ([]model.OpsEnt
 	}
 	items := make([]model.OpsEntitySummary, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, opsEntitySummaryFromRaw(scope, row.EntityKey, row.EntityLabel, row.SuccessCount, row.FailureCount, row.SkippedCount, row.WaitTime, row.InputToken, row.OutputToken, row.CacheReadToken, row.CacheWriteToken, row.CacheHitCount, row.CacheWriteCount, row.CacheSuccessCount))
+		items = append(items, opsEntitySummaryFromRaw(scope, row.EntityKey, row.EntityLabel, row.SuccessCount, row.FailureCount, row.SkippedCount, row.WaitTime, row.InputToken, row.OutputToken, row.CacheReadToken, row.CacheWriteToken, row.CacheHitCount, row.CacheWriteCount, row.CacheSuccessCount, row.CacheEligibleCount, row.CacheIneligibleCount))
 	}
 	return items, nil
 }
@@ -459,23 +532,28 @@ func OpsEntitySeries(ctx context.Context, scope, entityKey string) ([]model.OpsS
 		}
 		summary := opsEntitySummaryFromBucket(row)
 		points = append(points, model.OpsSeriesPoint{
-			BucketStart:       bucket,
-			Label:             time.Unix(bucket, 0).Format("15:04"),
-			SuccessCount:      summary.SuccessCount,
-			FailureCount:      summary.FailureCount,
-			SkippedCount:      summary.SkippedCount,
-			WaitTime:          summary.WaitTime,
-			InputToken:        summary.InputToken,
-			OutputToken:       summary.OutputToken,
-			CacheReadToken:    summary.CacheReadToken,
-			CacheWriteToken:   summary.CacheWriteToken,
-			CacheHitCount:     summary.CacheHitCount,
-			CacheWriteCount:   summary.CacheWriteCount,
-			CacheSuccessCount: summary.CacheSuccessCount,
-			SuccessRate:       summary.SuccessRate,
-			CacheHitRate:      summary.CacheHitRate,
-			CacheRate:         summary.CacheRate,
-			AvgLatencyMS:      summary.AvgLatencyMS,
+			BucketStart:          bucket,
+			Label:                time.Unix(bucket, 0).Format("15:04"),
+			SuccessCount:         summary.SuccessCount,
+			FailureCount:         summary.FailureCount,
+			SkippedCount:         summary.SkippedCount,
+			WaitTime:             summary.WaitTime,
+			InputToken:           summary.InputToken,
+			OutputToken:          summary.OutputToken,
+			CacheReadToken:       summary.CacheReadToken,
+			CacheWriteToken:      summary.CacheWriteToken,
+			CacheHitCount:        summary.CacheHitCount,
+			CacheWriteCount:      summary.CacheWriteCount,
+			CacheCreateCount:     summary.CacheCreateCount,
+			CacheSuccessCount:    summary.CacheSuccessCount,
+			CacheEligibleCount:   summary.CacheEligibleCount,
+			CacheIneligibleCount: summary.CacheIneligibleCount,
+			CacheSupported:       summary.CacheSupported,
+			SuccessRate:          summary.SuccessRate,
+			CacheHitRate:         summary.CacheHitRate,
+			CacheCreateRate:      summary.CacheCreateRate,
+			CacheRate:            summary.CacheRate,
+			AvgLatencyMS:         summary.AvgLatencyMS,
 		})
 	}
 	return points, nil
@@ -561,6 +639,7 @@ func opsRecentDetailFromRelayLog(item model.RelayLog) model.OpsRecentDetail {
 		ID:               item.ID,
 		Time:             item.Time,
 		ClientIP:         item.ClientIP,
+		ClientIPLabel:    IPDisplayLabel(item.ClientIP),
 		RequestModelName: item.RequestModelName,
 		ActualModelName:  item.ActualModelName,
 		APIKeyID:         item.APIKeyID,
@@ -571,12 +650,21 @@ func opsRecentDetailFromRelayLog(item model.RelayLog) model.OpsRecentDetail {
 		OutputTokens:     item.OutputTokens,
 		CacheReadTokens:  item.CacheReadTokens,
 		CacheWriteTokens: item.CacheWriteTokens,
+		CacheSupported:   opsRelayLogCacheSupported(item),
 		UseTime:          item.UseTime,
 		Success:          success,
 		StatusCode:       statusCode,
 		Error:            item.Error,
 		AttemptCount:     item.TotalAttempts,
 	}
+}
+
+func opsRelayLogCacheSupported(item model.RelayLog) bool {
+	return opsEventCacheSupported(OpsRelayEvent{
+		RequestModel: item.RequestModelName,
+		ActualModel:  item.ActualModelName,
+		Success:      true,
+	})
 }
 
 func OpsCleanup(ctx context.Context) error {

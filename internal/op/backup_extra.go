@@ -39,14 +39,17 @@ type legacyExportChannel struct {
 }
 
 type legacyExportChannelKey struct {
-	ID               int     `json:"id"`
-	ChannelID        int     `json:"channel_id"`
-	Enabled          bool    `json:"enabled"`
-	ChannelKey       string  `json:"channel_key"`
-	StatusCode       int     `json:"status_code"`
-	LastUseTimeStamp int64   `json:"last_use_time_stamp"`
-	TotalCost        float64 `json:"total_cost"`
-	Remark           string  `json:"remark"`
+	ID                  int     `json:"id"`
+	ChannelID           int     `json:"channel_id"`
+	Enabled             bool    `json:"enabled"`
+	ChannelKey          string  `json:"channel_key"`
+	SourceType          string  `json:"source_type,omitempty"`
+	AllowedModels       string  `json:"allowed_models,omitempty"`
+	RequestCapabilities string  `json:"request_capabilities,omitempty"`
+	StatusCode          int     `json:"status_code"`
+	LastUseTimeStamp    int64   `json:"last_use_time_stamp"`
+	TotalCost           float64 `json:"total_cost"`
+	Remark              string  `json:"remark"`
 }
 
 type legacyExportGroup struct {
@@ -65,12 +68,13 @@ type legacyExportLLMInfo struct {
 }
 
 type legacyExportAPIKey struct {
-	ID       int     `json:"id"`
-	Name     string  `json:"name"`
-	APIKey   string  `json:"api_key"`
-	Enabled  bool    `json:"enabled"`
-	ExpireAt int64   `json:"expire_at,omitempty"`
-	MaxCost  float64 `json:"max_cost,omitempty"`
+	ID              int     `json:"id"`
+	Name            string  `json:"name"`
+	APIKey          string  `json:"api_key"`
+	Enabled         bool    `json:"enabled"`
+	ExpireAt        int64   `json:"expire_at,omitempty"`
+	MaxCost         float64 `json:"max_cost,omitempty"`
+	SupportedModels string  `json:"supported_models,omitempty"`
 }
 
 type legacyExportDump struct {
@@ -159,7 +163,10 @@ func inferLegacyHintsFromDump(dump *model.DBDump) {
 		if strings.TrimSpace(row.AllowedModels) == "" {
 			hint.MissingAllowedModels = true
 		}
-		if hint.MissingSourceType || hint.MissingAllowedModels {
+		if strings.TrimSpace(row.RequestCapabilities) == "" {
+			hint.MissingRequestCapabilities = true
+		}
+		if hint.MissingSourceType || hint.MissingAllowedModels || hint.MissingRequestCapabilities {
 			legacyLike = true
 		}
 		hints.ChannelKeysBySnapshotID[row.ID] = hint
@@ -279,6 +286,9 @@ func NormalizeLegacyDump(dump *model.DBDump) {
 		if hint.MissingAllowedModels {
 			dump.ChannelKeys[i].AllowedModels = ""
 		}
+		if hint.MissingRequestCapabilities {
+			dump.ChannelKeys[i].RequestCapabilities = ""
+		}
 	}
 	for i := range dump.LLMInfos {
 		name := normalizeModelRef(dump.LLMInfos[i].Name)
@@ -354,14 +364,17 @@ func ExportDumpLegacyView(dump *model.DBDump) *legacyExportDump {
 	}
 	for _, row := range dump.ChannelKeys {
 		view.ChannelKeys = append(view.ChannelKeys, legacyExportChannelKey{
-			ID:               row.ID,
-			ChannelID:        row.ChannelID,
-			Enabled:          row.Enabled,
-			ChannelKey:       row.ChannelKey,
-			StatusCode:       row.StatusCode,
-			LastUseTimeStamp: row.LastUseTimeStamp,
-			TotalCost:        row.TotalCost,
-			Remark:           row.Remark,
+			ID:                  row.ID,
+			ChannelID:           row.ChannelID,
+			Enabled:             row.Enabled,
+			ChannelKey:          row.ChannelKey,
+			SourceType:          row.SourceType,
+			AllowedModels:       row.AllowedModels,
+			RequestCapabilities: row.RequestCapabilities,
+			StatusCode:          row.StatusCode,
+			LastUseTimeStamp:    row.LastUseTimeStamp,
+			TotalCost:           row.TotalCost,
+			Remark:              row.Remark,
 		})
 	}
 	for _, row := range dump.Groups {
@@ -383,12 +396,13 @@ func ExportDumpLegacyView(dump *model.DBDump) *legacyExportDump {
 	}
 	for _, row := range dump.APIKeys {
 		view.APIKeys = append(view.APIKeys, legacyExportAPIKey{
-			ID:       row.ID,
-			Name:     row.Name,
-			APIKey:   row.APIKey,
-			Enabled:  row.Enabled,
-			ExpireAt: row.ExpireAt,
-			MaxCost:  row.MaxCost,
+			ID:              row.ID,
+			Name:            row.Name,
+			APIKey:          row.APIKey,
+			Enabled:         row.Enabled,
+			ExpireAt:        row.ExpireAt,
+			MaxCost:         row.MaxCost,
+			SupportedModels: row.SupportedModels,
 		})
 	}
 	return view
@@ -1050,6 +1064,7 @@ func filterImportableChannelKeys(rows []model.ChannelKey) ([]model.ChannelKey, i
 		}
 		row.SourceType = model.NormalizeChannelKeySourceType(row.SourceType)
 		row.AllowedModels = model.NormalizeChannelKeyAllowedModels(row.AllowedModels)
+		row.RequestCapabilities = model.NormalizeChannelKeyRequestCapabilities(row.RequestCapabilities)
 		out = append(out, row)
 	}
 	return out, skipped
@@ -1371,6 +1386,9 @@ func prepareChannelKeysForImport(tx *gorm.DB, rows []model.ChannelKey, dumpChann
 						if hint.MissingAllowedModels {
 							row.AllowedModels = existingKey.AllowedModels
 						}
+						if hint.MissingRequestCapabilities {
+							row.RequestCapabilities = existingKey.RequestCapabilities
+						}
 						break
 					}
 				}
@@ -1380,6 +1398,7 @@ func prepareChannelKeysForImport(tx *gorm.DB, rows []model.ChannelKey, dumpChann
 		row.ChannelID = localChannelID
 		row.SourceType = model.NormalizeChannelKeySourceType(row.SourceType)
 		row.AllowedModels = model.NormalizeChannelKeyAllowedModels(row.AllowedModels)
+		row.RequestCapabilities = model.NormalizeChannelKeyRequestCapabilities(row.RequestCapabilities)
 		prepared = append(prepared, preparedChannelKeyImport{SnapshotID: snapshotID, Row: row})
 	}
 	return prepared, warnings, nil
@@ -1403,19 +1422,20 @@ func importPreparedChannelKeys(tx *gorm.DB, rows []preparedChannelKeyImport, mod
 		switch {
 		case err == nil:
 			updates := model.ChannelKey{
-				Enabled:       row.Enabled,
-				SourceType:    row.SourceType,
-				Remark:        row.Remark,
-				AllowedModels: row.AllowedModels,
+				Enabled:             row.Enabled,
+				SourceType:          row.SourceType,
+				Remark:              row.Remark,
+				AllowedModels:       row.AllowedModels,
+				RequestCapabilities: row.RequestCapabilities,
 			}
-			if err := tx.Model(&model.ChannelKey{}).Where("id = ?", existing.ID).Select("Enabled", "SourceType", "Remark", "AllowedModels").Updates(&updates).Error; err != nil {
+			if err := tx.Model(&model.ChannelKey{}).Where("id = ?", existing.ID).Select("Enabled", "SourceType", "Remark", "AllowedModels", "RequestCapabilities").Updates(&updates).Error; err != nil {
 				return 0, nil, err
 			}
 			idMap[prepared.SnapshotID] = existing.ID
 			affected++
 		case err == gorm.ErrRecordNotFound:
 			enabled := row.Enabled
-			if err := tx.Select("Enabled", "ChannelKey", "SourceType", "Remark", "AllowedModels", "ChannelID").Create(&row).Error; err != nil {
+			if err := tx.Select("Enabled", "ChannelKey", "SourceType", "Remark", "AllowedModels", "RequestCapabilities", "ChannelID").Create(&row).Error; err != nil {
 				return 0, nil, err
 			}
 			if err := tx.Model(&model.ChannelKey{}).Where("id = ?", row.ID).Update("enabled", enabled).Error; err != nil {
@@ -1499,7 +1519,27 @@ func importPreparedRouteTargetOverrides(tx *gorm.DB, rows []preparedRouteTargetO
 	return affected, nil
 }
 
-func remapGroupItemsForImport(rows []model.GroupItem, dumpGroups []model.Group, dumpChannels []model.Channel, groupIDMap map[int]int, channelIDMap map[int]int, state *currentImportState, mode model.DBImportMode) ([]model.GroupItem, []string) {
+func channelRouteModelInScope(channel model.Channel, modelName string) bool {
+	modelName = normalizeModelRef(modelName)
+	if modelName == "" {
+		return false
+	}
+	if channel.SupportsModel(modelName) {
+		return true
+	}
+	requestCapability := channel.RequestCapabilityForModel(modelName)
+	for _, key := range channel.Keys {
+		if !key.Enabled {
+			continue
+		}
+		if channel.KeyCanServeRequest(key, modelName, requestCapability) {
+			return true
+		}
+	}
+	return false
+}
+
+func remapGroupItemsForImport(rows []model.GroupItem, dumpGroups []model.Group, dumpChannels []model.Channel, dumpChannelKeys []model.ChannelKey, groupIDMap map[int]int, channelIDMap map[int]int, state *currentImportState, mode model.DBImportMode) ([]model.GroupItem, []string) {
 	if len(rows) == 0 {
 		return nil, nil
 	}
@@ -1509,7 +1549,21 @@ func remapGroupItemsForImport(rows []model.GroupItem, dumpGroups []model.Group, 
 	}
 	channelsBySnapshotID := make(map[int]model.Channel, len(dumpChannels))
 	for _, row := range dumpChannels {
-		channelsBySnapshotID[row.ID] = row
+		channel := row
+		channel.Keys = nil
+		for _, key := range dumpChannelKeys {
+			if key.ChannelID == row.ID && strings.TrimSpace(key.ChannelKey) != "" {
+				key.AllowedModels = model.NormalizeChannelKeyAllowedModels(key.AllowedModels)
+				key.RequestCapabilities = model.NormalizeChannelKeyRequestCapabilities(key.RequestCapabilities)
+				channel.Keys = append(channel.Keys, key)
+			}
+		}
+		if state != nil {
+			if existing, ok := state.channelsByName[strings.TrimSpace(row.Name)]; ok && len(channel.Keys) == 0 {
+				channel.Keys = existing.Keys
+			}
+		}
+		channelsBySnapshotID[row.ID] = channel
 	}
 	out := make([]model.GroupItem, 0, len(rows))
 	warnings := make([]string, 0)
@@ -1530,14 +1584,15 @@ func remapGroupItemsForImport(rows []model.GroupItem, dumpGroups []model.Group, 
 			continue
 		}
 		channel := channelsBySnapshotID[row.ChannelID]
-		if !channel.SupportsModel(row.ModelName) {
+		normalizedModelName := normalizeModelRef(row.ModelName)
+		if !channelRouteModelInScope(channel, normalizedModelName) {
 			warnings = append(warnings, fmt.Sprintf("skipped group_item:%d because channel:%s does not declare model:%s", row.ID, channel.Name, row.ModelName))
 			continue
 		}
 		row.ID = 0
 		row.GroupID = localGroupID
 		row.ChannelID = localChannelID
-		row.ModelName = normalizeModelRef(row.ModelName)
+		row.ModelName = normalizedModelName
 		out = append(out, row)
 	}
 	return out, warnings
@@ -3072,10 +3127,17 @@ func buildRoutePreviewCandidate(channel model.Channel, item model.GroupItem, llm
 	} else {
 		reasonParts = append(reasonParts, "missing_model")
 	}
-	declared := channel.SupportsModel(resolvedModel)
-	key := channel.GetChannelKeyForModel(resolvedModel)
-	if key.ID == 0 && resolvedModel != originalModel {
-		key = channel.GetChannelKeyForModel(originalModel)
+	declared := channelRouteModelInScope(channel, resolvedModel)
+	requestCapability := channel.RequestCapabilityForModel(resolvedModel)
+	key := channel.GetChannelKeyForRequest(resolvedModel, requestCapability)
+	if (key.ID == 0 || !declared) && resolvedModel != originalModel {
+		originalCapability := channel.RequestCapabilityForModel(originalModel)
+		if channelRouteModelInScope(channel, originalModel) {
+			declared = true
+		}
+		if key.ID == 0 {
+			key = channel.GetChannelKeyForRequest(originalModel, originalCapability)
+		}
 	}
 	candidate := model.DBImportRoutePreviewCandidate{
 		ChannelName:   channel.Name,
@@ -3201,7 +3263,8 @@ func buildPostImportValidationReport(ctx context.Context, dump *model.DBDump) (*
 		for _, item := range group.Items {
 			report.Summary.CandidatesScanned++
 			channel, ok := channelByID[item.ChannelID]
-			if !ok || !channel.SupportsModel(item.ModelName) {
+			requestCapability := channel.RequestCapabilityForModel(item.ModelName)
+			if !ok || !channelRouteModelInScope(channel, item.ModelName) {
 				if err := db.GetDB().WithContext(ctx).Delete(&model.GroupItem{}, item.ID).Error; err != nil {
 					return nil, cleanedCount, nil, err
 				}
@@ -3218,7 +3281,7 @@ func buildPostImportValidationReport(ctx context.Context, dump *model.DBDump) (*
 				}
 				continue
 			}
-			if strings.TrimSpace(channel.GetChannelKeyForModel(item.ModelName).ChannelKey) == "" {
+			if strings.TrimSpace(channel.GetChannelKeyForRequest(item.ModelName, requestCapability).ChannelKey) == "" {
 				degraded = true
 				if _, ok := seenNoKeyChannels[channel.Name]; !ok {
 					seenNoKeyChannels[channel.Name] = struct{}{}

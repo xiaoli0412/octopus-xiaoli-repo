@@ -253,6 +253,14 @@ func EnrichLLMInfo(info model.LLMInfo) model.LLMInfo {
 	info.ParsedSuffix = parsed.Suffix
 	resolvedPrice, resolution, ok := ResolveLLMPrice(info.Name)
 	if !ok {
+		supported, policy, reason := model.InferCacheSupport(info)
+		info.CacheSupported = &supported
+		if info.CachePolicy == "" {
+			info.CachePolicy = policy
+		}
+		if info.CacheReason == "" {
+			info.CacheReason = reason
+		}
 		return info
 	}
 	if info.LLMPrice.IsZero() {
@@ -263,6 +271,14 @@ func EnrichLLMInfo(info model.LLMInfo) model.LLMInfo {
 	}
 	info.PriceSource = resolution.PrimarySource
 	info.PriceMatchedKey = resolution.MatchedKey
+	supported, policy, reason := model.InferCacheSupport(info)
+	info.CacheSupported = &supported
+	if info.CachePolicy == "" {
+		info.CachePolicy = policy
+	}
+	if info.CacheReason == "" {
+		info.CacheReason = reason
+	}
 	return info
 }
 

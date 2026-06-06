@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/conf"
 	dbmodel "github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/relay/balancer"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/model"
-	"github.com/gin-gonic/gin"
 )
 
 // maxSSEEventSize 定义 SSE 事件的最大大小。
@@ -71,6 +71,47 @@ type relayRequest struct {
 	requestModel    string
 	iter            *balancer.Iterator
 	dynamicMode     *dynamicRoutingModeState
+}
+
+func requestCapabilityForAPIFormat(format model.APIFormat) string {
+	switch format {
+	case model.APIFormatOpenAIChatCompletion, model.APIFormatAiSDKText, model.APIFormatAiSDKDataStream:
+		return dbmodel.RequestCapabilityOpenAIChat
+	case model.APIFormatOpenAIResponse, model.APIFormatOpenAIImageGeneration:
+		return dbmodel.RequestCapabilityOpenAIResponses
+	case model.APIFormatOpenAIEmbedding:
+		return dbmodel.RequestCapabilityOpenAIEmbeddings
+	case model.APIFormatAnthropicMessage:
+		return dbmodel.RequestCapabilityAnthropicMessages
+	case model.APIFormatGeminiContents:
+		return dbmodel.RequestCapabilityGeminiContents
+	default:
+		return ""
+	}
+}
+
+func requestCapabilityForInternalRequest(req *model.InternalLLMRequest) string {
+	if req == nil {
+		return ""
+	}
+	return requestCapabilityForAPIFormat(req.RawAPIFormat)
+}
+
+func resolveRequestCapability(channel *dbmodel.Channel, targetModel string, rawRequestCapability string) string {
+	if rawRequestCapability != "" {
+		return rawRequestCapability
+	}
+	if channel == nil {
+		return ""
+	}
+	return channel.RequestCapabilityForModel(targetModel)
+}
+
+func (req *relayRequest) requestCapabilityFor(channel *dbmodel.Channel, targetModel string) string {
+	if req == nil {
+		return resolveRequestCapability(channel, targetModel, "")
+	}
+	return resolveRequestCapability(channel, targetModel, requestCapabilityForInternalRequest(req.internalRequest))
 }
 
 // relayAttempt 尝试级上下文

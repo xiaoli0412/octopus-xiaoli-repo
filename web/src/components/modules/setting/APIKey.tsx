@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { KeyRound, Plus, Loader, Trash2, Check, X, Info, CalendarDays, Pencil, Maximize2 } from 'lucide-react';
+import { KeyRound, Plus, Loader, Trash2, Check, X, Info, CalendarDays, Pencil, Maximize2, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Input } from '@/components/ui/input';
 import { Calendar } from '@/components/ui/calendar';
@@ -23,7 +23,7 @@ import {
     useDeleteAPIKey,
     type APIKey,
 } from '@/api/endpoints/apikey';
-import { useGroupList } from '@/api/endpoints/group';
+import { useCapabilityInventory } from '@/api/endpoints/model';
 import { useStatsAPIKey } from '@/api/endpoints/stats';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/common/Toast';
@@ -59,16 +59,33 @@ function normalizeMoneyInput(input: string): string {
     return rest.length > 0 ? `${intPart}.${rest.join('').slice(0, 6)}` : intPart;
 }
 
+function parseSupportedModels(value?: string): string[] {
+    const seen = new Set<string>();
+    const models: string[] = [];
+    for (const item of (value ?? '').split(',')) {
+        const model = item.trim();
+        if (!model || seen.has(model)) continue;
+        seen.add(model);
+        models.push(model);
+    }
+    return models;
+}
+
+function normalizeSupportedModels(value?: string): string | undefined {
+    const models = parseSupportedModels(value).sort((a, b) => a.localeCompare(b));
+    return models.length ? models.join(',') : undefined;
+}
+
 function toggleModel(current: string | undefined, model: string): string | undefined {
-    const models = current ? current.split(',').filter(Boolean) : [];
+    const models = parseSupportedModels(current);
     const next = models.includes(model)
         ? models.filter((m) => m !== model)
         : [...models, model];
-    return next.length ? next.join(',') : undefined;
+    return normalizeSupportedModels(next.join(','));
 }
 
 function hasModel(supported: string | undefined, model: string): boolean {
-    return supported ? supported.split(',').includes(model) : false;
+    return parseSupportedModels(supported).includes(model);
 }
 
 interface APIKeyFormProps {
@@ -81,7 +98,7 @@ interface APIKeyFormProps {
 
 function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKeyFormProps) {
     const t = useTranslations('setting');
-    const { data: groups = [] } = useGroupList();
+    const { data: capabilityInventory } = useCapabilityInventory();
 
     const [form, setForm] = useState<Omit<APIKey, 'id' | 'api_key'>>(() => ({
         name: apiKey?.name ?? '',
@@ -103,11 +120,25 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
         return '00:00';
     });
     const [expireOpen, setExpireOpen] = useState(false);
+    const [modelSearch, setModelSearch] = useState('');
 
     const availableModels = useMemo(() => {
-        const names = groups.map((g) => g.name).filter(Boolean);
+        const names = (capabilityInventory?.routable_models?.length
+            ? capabilityInventory.routable_models.map((item) => item.name)
+            : capabilityInventory?.selectable_models.map((item) => item.name))?.filter(Boolean) ?? [];
         return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
-    }, [groups]);
+    }, [capabilityInventory?.routable_models, capabilityInventory?.selectable_models]);
+
+    const savedModels = useMemo(() => parseSupportedModels(form.supported_models), [form.supported_models]);
+    const savedMissingModels = useMemo(() => {
+        const available = new Set(availableModels);
+        return savedModels.filter((model) => !available.has(model));
+    }, [availableModels, savedModels]);
+    const filteredAvailableModels = useMemo(() => {
+        const keyword = modelSearch.trim().toLowerCase();
+        if (!keyword) return availableModels;
+        return availableModels.filter((model) => model.toLowerCase().includes(keyword));
+    }, [availableModels, modelSearch]);
 
     const expireDate = parseExpireDate(form.expire_at);
     const neverExpire = !form.expire_at;
@@ -163,7 +194,7 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
     const handleSubmit = useCallback((e: React.FormEvent) => {
         e.preventDefault();
         if (!form.name.trim()) return;
-        onSubmit(form);
+        onSubmit({ ...form, supported_models: normalizeSupportedModels(form.supported_models) });
     }, [form, onSubmit]);
 
     return (
@@ -276,15 +307,53 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
             </div>
 
             <div className="grid gap-1">
-                <div className="text-xs text-muted-foreground">{t('apiKey.form.supportedModels')}</div>
+                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>{t('apiKey.form.supportedModels')}</span>
+                    <span className="shrink-0 tabular-nums">{savedModels.length ? t('apiKey.form.selectedModelsCount', { count: savedModels.length }) : t('apiKey.form.modelsHint')}</span>
+                </div>
+                <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                        type="text"
+                        value={modelSearch}
+                        onChange={(e) => setModelSearch(e.target.value)}
+                        placeholder={t('apiKey.form.modelSearchPlaceholder')}
+                        className="h-8 rounded-xl pl-8 text-xs"
+                        disabled={isPending}
+                    />
+                </div>
+                {savedMissingModels.length > 0 && (
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-2">
+                        <div className="mb-1 text-[11px] text-amber-700 dark:text-amber-300">{t('apiKey.form.savedMissingModels')}</div>
+                        <div className="flex max-h-16 flex-wrap gap-1.5 overflow-auto">
+                            {savedMissingModels.map((m) => (
+                                <button
+                                    key={m}
+                                    type="button"
+                                    disabled={isPending}
+                                    onClick={() => updateForm({ supported_models: toggleModel(form.supported_models, m) })}
+                                    className="text-left disabled:opacity-50"
+                                >
+                                    <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                                        {m}
+                                    </Badge>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
                 <div className="max-h-40 overflow-auto rounded-xl p-2">
                     {availableModels.length === 0 ? (
                         <div className="text-xs text-muted-foreground py-2 text-center">
                             {t('apiKey.form.noModels')}
                         </div>
+                    ) : filteredAvailableModels.length === 0 ? (
+                        <div className="text-xs text-muted-foreground py-2 text-center">
+                            {t('apiKey.form.noMatchedModels')}
+                        </div>
                     ) : (
                         <div className="flex flex-wrap gap-2">
-                            {availableModels.map((m) => {
+                            {filteredAvailableModels.map((m) => {
                                 const checked = hasModel(form.supported_models, m);
                                 return (
                                     <button
@@ -309,7 +378,7 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
                         </div>
                     )}
                 </div>
-                <div className="text-[11px] text-muted-foreground/80">{t('apiKey.form.modelsHint')}</div>
+                <div className="text-[11px] text-muted-foreground/80">{t('apiKey.form.inventoryHint')}</div>
             </div>
 
             <div className="flex items-center justify-between pt-1">

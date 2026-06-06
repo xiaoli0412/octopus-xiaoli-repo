@@ -3,12 +3,12 @@ package handlers
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"net"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 )
 
 const (
@@ -63,15 +63,10 @@ func loginThrottleUsernameComponent(username string) string {
 }
 
 func loginThrottleClientIP(c *gin.Context) string {
-	remoteAddr := strings.TrimSpace(c.Request.RemoteAddr)
-	if remoteAddr == "" {
+	if c == nil || c.Request == nil {
 		return ""
 	}
-	host, _, err := net.SplitHostPort(remoteAddr)
-	if err == nil {
-		return strings.TrimSpace(host)
-	}
-	return remoteAddr
+	return op.ClientIPFromRequest(c.Request)
 }
 
 func loginThrottleBlocked(key string) (time.Duration, bool) {

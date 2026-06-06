@@ -103,6 +103,18 @@ func init() {
 		AddRoute(
 			router.NewRoute("/fetch-model", http.MethodPost).
 				Handle(fetchModel),
+		).
+		AddRoute(
+			router.NewRoute("/newapi/inspect", http.MethodPost).
+				Handle(inspectNewAPI),
+		).
+		AddRoute(
+			router.NewRoute("/upstream/inspect", http.MethodPost).
+				Handle(inspectUpstreamGateway),
+		).
+		AddRoute(
+			router.NewRoute("/upstream/apply", http.MethodPost).
+				Handle(applyUpstreamGateway),
 		)
 	router.NewGroupRouter("/api/v1/channel").
 		Use(middleware.Auth()).
@@ -249,6 +261,49 @@ func fetchModel(c *gin.Context) {
 	resp.Success(c, models)
 }
 
+func inspectNewAPI(c *gin.Context) {
+	var request model.NewAPIInspectRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
+		return
+	}
+	result, err := op.InspectNewAPI(c.Request.Context(), request)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	resp.Success(c, result)
+}
+
+func inspectUpstreamGateway(c *gin.Context) {
+	var request model.UpstreamInspectRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
+		return
+	}
+	result, err := op.InspectUpstreamGateway(c.Request.Context(), request)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	resp.Success(c, result)
+}
+
+func applyUpstreamGateway(c *gin.Context) {
+	var request model.UpstreamApplyRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
+		return
+	}
+	result, err := op.ApplyUpstreamGateway(c.Request.Context(), request)
+	if err != nil {
+		respondChannelOpError(c, err)
+		return
+	}
+	scheduleChannelPostSaveTask(&result.Channel)
+	resp.Success(c, result)
+}
+
 func syncChannel(c *gin.Context) {
 	task.SyncModelsTask()
 	resp.Success(c, nil)
@@ -297,10 +352,11 @@ func testChannelModelsByConfig(c *gin.Context) {
 		Enabled  *bool                            `json:"enabled"`
 		BaseUrls []model.BaseUrl                  `json:"base_urls"`
 		Keys     []struct {
-			Enabled       bool   `json:"enabled"`
-			ChannelKey    string `json:"channel_key"`
-			SourceType    string `json:"source_type"`
-			AllowedModels string `json:"allowed_models"`
+			Enabled             bool   `json:"enabled"`
+			ChannelKey          string `json:"channel_key"`
+			SourceType          string `json:"source_type"`
+			AllowedModels       string `json:"allowed_models"`
+			RequestCapabilities string `json:"request_capabilities"`
 		} `json:"keys"`
 		Proxy             bool                    `json:"proxy"`
 		ChannelProxy      *string                 `json:"channel_proxy"`
@@ -344,10 +400,11 @@ func testChannelModelsByConfig(c *gin.Context) {
 	}
 	for _, k := range req.Keys {
 		channel.Keys = append(channel.Keys, model.ChannelKey{
-			Enabled:       k.Enabled,
-			ChannelKey:    k.ChannelKey,
-			SourceType:    k.SourceType,
-			AllowedModels: k.AllowedModels,
+			Enabled:             k.Enabled,
+			ChannelKey:          k.ChannelKey,
+			SourceType:          k.SourceType,
+			AllowedModels:       model.NormalizeChannelKeyAllowedModels(k.AllowedModels),
+			RequestCapabilities: model.NormalizeChannelKeyRequestCapabilities(k.RequestCapabilities),
 		})
 	}
 

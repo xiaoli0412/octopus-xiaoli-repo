@@ -23,6 +23,10 @@ func normalizeLLMPolicyFields(info model.LLMInfo) (model.LLMInfo, error) {
 	if !model.IsValidProbePolicy(info.ProbePolicy) {
 		return info, fmt.Errorf("invalid probe policy: %q", info.ProbePolicy)
 	}
+	info.CachePolicy = model.NormalizeCachePolicy(info.CachePolicy)
+	if !model.IsValidCachePolicy(info.CachePolicy) {
+		return info, fmt.Errorf("invalid cache policy: %q", info.CachePolicy)
+	}
 	if info.ProbeIntervalSeconds <= 0 {
 		info.ProbeIntervalSeconds = 3600
 	}
@@ -144,6 +148,11 @@ func LLMBatchCreate(llmInfos []model.LLMInfo, ctx context.Context) error {
 		llmInfo.CanonicalName = strings.ToLower(strings.TrimSpace(llmInfo.CanonicalName))
 		if llmInfo.CanonicalName == "" {
 			llmInfo.CanonicalName = llmname.CanonicalModelName(llmInfo.Name)
+		}
+		var err error
+		llmInfo, err = normalizeLLMPolicyFields(llmInfo)
+		if err != nil {
+			return err
 		}
 		if _, ok := seen[llmInfo.Name]; ok {
 			continue

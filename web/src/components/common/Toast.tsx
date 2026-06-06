@@ -4,6 +4,7 @@ import { CircleCheck, CircleX, AlertTriangle, Info, Loader2 } from 'lucide-react
 type ToastOptions = {
     description?: string;
     duration?: number;
+    silent?: boolean;
 };
 
 const icons = {
@@ -16,10 +17,14 @@ const icons = {
 
 export const toast = {
     success: (message: string, options?: ToastOptions) => {
+        if (options?.silent) return;
+        const toastOptions = { ...options };
+        delete toastOptions.silent;
         sonnerToast(message, {
             icon: icons.success,
+            duration: toastOptions.duration ?? 1200,
             position: 'top-left',
-            ...options,
+            ...toastOptions,
         });
     },
     error: (message: string, options?: ToastOptions) => {

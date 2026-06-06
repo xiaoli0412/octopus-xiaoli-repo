@@ -27,6 +27,7 @@ import {
 	type GovernanceSessionSummary,
 } from '@/api/endpoints/ai-automation';
 import { useAPIKeyList } from '@/api/endpoints/apikey';
+import { useCapabilityInventory } from '@/api/endpoints/model';
 import { PageWrapper } from '@/components/common/PageWrapper';
 import { toast } from '@/components/common/Toast';
 import { AnimatedNumber } from '@/components/common/AnimatedNumber';
@@ -73,7 +74,9 @@ const AI_AUTOMATION_TEXT: Record<string, string> = {
 	'settings.requestApiKey': '请求密钥',
 	'settings.requestApiKeyDesc': '默认使用第一个可用分发密钥；如需指定其它密钥，可在这里切换。',
 	'settings.savedApiKey': '已保存密钥',
+	'settings.savedApiKeyHint': '当前已保存',
 	'settings.noApiKey': '暂无可用密钥',
+	'settings.firstAvailableApiKeyHint': '第 1 个可用密钥',
 	'settings.requestModel': '请求模型',
 	'settings.requestModelDesc': '默认优先选动态学习里成功率最高的模型，也支持手动改成其它模型。',
 	'settings.localDefaultKey': '本机默认',
@@ -396,28 +399,28 @@ function panelText(key: string) {
 function statusTone(status?: string) {
 	switch (status) {
 		case 'ready':
-			return 'border-primary/30 bg-primary/10 text-primary';
+			return 'border-primary/25 bg-primary/5 text-primary';
 		case 'applied':
-			return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
+			return 'border-emerald-500/25 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300';
 		case 'stale':
-			return 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300';
+			return 'border-amber-500/25 bg-amber-500/5 text-amber-700 dark:text-amber-300';
 		case 'failed':
-			return 'border-destructive/30 bg-destructive/10 text-destructive';
+			return 'border-destructive/25 bg-destructive/5 text-destructive';
 		case 'applying':
-			return 'border-accent/30 bg-accent/10 text-accent-foreground';
+			return 'border-accent/25 bg-accent/5 text-accent-foreground';
 		default:
-			return 'border-card-border bg-muted/40 text-muted-foreground';
+			return 'border-card-border bg-background/60 text-muted-foreground';
 	}
 }
 
 function WorkspacePanel({ title, description, children, testId }: { title: string; description?: string; children: React.ReactNode; testId?: string }) {
 	return (
 		<section data-testid={testId} className="octo-panel min-h-0 overflow-hidden">
-			<div className="border-b border-card-border px-4 py-3.5 sm:px-5">
+			<div className="flex flex-wrap items-center justify-between gap-2 border-b border-card-border px-4 py-3 sm:px-5">
 				<div className="text-sm font-semibold text-card-foreground">{title}</div>
-				{description ? <div className="mt-1 text-xs leading-5 text-muted-foreground">{description}</div> : null}
+				{description ? <div className="text-xs text-muted-foreground">{description}</div> : null}
 			</div>
-			<div className="min-h-0 overflow-y-auto px-4 py-4 sm:px-5">{children}</div>
+			<div className="min-h-0 overflow-y-auto px-4 py-3.5 sm:px-5">{children}</div>
 		</section>
 	);
 }
@@ -448,7 +451,7 @@ function MutationRow({ mutation }: { mutation: GovernanceMutation }) {
 
 function DomainCard({ domain }: { domain: GovernanceDomainPlanView }) {
 	return (
-		<div className="rounded-3xl border border-card-border bg-card p-4 shadow-sm">
+		<div className="rounded-2xl border border-card-border bg-background/55 p-3.5">
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div className="min-w-0 flex-1">
 					<div className="truncate text-sm font-semibold text-card-foreground">{localizeDomainTitle(domain.key, domain.title)}</div>
@@ -456,7 +459,7 @@ function DomainCard({ domain }: { domain: GovernanceDomainPlanView }) {
 				</div>
 				<div className={cn('shrink-0 rounded-full border px-2.5 py-1 text-[11px]', statusTone(domain.status))}>{localizeDomainStatus(domain.status)}</div>
 			</div>
-			<div className="mt-4 grid grid-cols-2 gap-2.5">
+			<div className="mt-3 grid grid-cols-2 gap-2.5">
 				<div className="rounded-xl border border-card-border/60 bg-muted/20 px-3 py-2">
 					<div className="text-[11px] text-muted-foreground">发现问题</div>
 					<div className="mt-1 text-[1.1rem] font-semibold text-foreground"><AnimatedNumber value={domain.finding_count} /></div>
@@ -472,7 +475,7 @@ function DomainCard({ domain }: { domain: GovernanceDomainPlanView }) {
 
 function StatMiniCard({ title, value, tone = 'default' }: { title: string; value: React.ReactNode; tone?: 'default' | 'emphasis' }) {
 	return (
-		<div className={cn('rounded-2xl border p-3', tone === 'emphasis' ? 'border-primary/20 bg-primary/8' : 'border-card-border/70 bg-muted/20')}>
+		<div className={cn('rounded-2xl border p-3', tone === 'emphasis' ? 'border-primary/20 bg-primary/5' : 'border-card-border/70 bg-background/55')}>
 			<div className="text-[11px] text-muted-foreground">{title}</div>
 			<div className="mt-1 break-all text-sm font-semibold text-card-foreground">{value}</div>
 		</div>
@@ -656,6 +659,7 @@ export function AIAutomation() {
 	const presetsQuery = useExpertPresets();
 	const profilesQuery = useStrategyProfiles();
 	const apiKeysQuery = useAPIKeyList();
+	const capabilityInventoryQuery = useCapabilityInventory();
 	const learningSummaryQuery = useAIGovernanceLearningSummary();
 	const runtimePolicyQuery = useGovernanceRuntimePolicy();
 	const createSession = useCreateGovernanceSession();
@@ -685,6 +689,7 @@ export function AIAutomation() {
 	const presets = presetsQuery.data ?? [];
 	const strategyProfiles = profilesQuery.data ?? [];
 	const apiKeys = apiKeysQuery.data ?? [];
+	const capabilityInventory = capabilityInventoryQuery.data;
 	const settings = useSettingList().data ?? [];
 	const settingMap = useMemo(() => new Map(settings.map((item) => [item.key, item.value])), [settings]);
 	const learningSummary = learningSummaryQuery.data ?? overview.data?.learning;
@@ -743,19 +748,23 @@ export function AIAutomation() {
 			if (mutation.route_target_override_delete?.model_name) values.add(mutation.route_target_override_delete.model_name);
 			if (mutation.llm_price_upsert?.name) values.add(mutation.llm_price_upsert.name);
 		});
+		(capabilityInventory?.selectable_models ?? []).forEach((item) => {
+			if (item.name) values.add(item.name);
+		});
+		if (currentSavedModel) values.add(currentSavedModel);
 		if (values.size === 0) values.add('gpt-4o');
-		return Array.from(values);
-	}, [overview.data?.execution_source.model, rankedModel, selectedSession?.plan.mutations]);
+		return Array.from(values).sort((a, b) => a.localeCompare(b));
+	}, [capabilityInventory?.selectable_models, currentSavedModel, overview.data?.execution_source.model, rankedModel, selectedSession?.plan.mutations]);
 	const apiKeyOptions = useMemo(() => {
 		const items = apiKeys
 			.filter((row) => row.enabled)
 			.map((item, index) => ({
 				value: item.api_key,
 				label: item.name,
-				hint: index === 0 ? '第 1 个可用密钥' : undefined,
+				hint: index === 0 ? tx('settings.firstAvailableApiKeyHint') : undefined,
 			}));
 		if (currentSavedAPIKey && !items.some((item) => item.value === currentSavedAPIKey)) {
-			items.unshift({ value: currentSavedAPIKey, label: tx('settings.savedApiKey'), hint: '当前已保存' });
+			items.unshift({ value: currentSavedAPIKey, label: tx('settings.savedApiKey'), hint: tx('settings.savedApiKeyHint') });
 		}
 		if (items.length === 0) {
 			items.push({ value: NO_API_KEY_VALUE, label: tx('settings.noApiKey'), hint: undefined });
@@ -790,7 +799,6 @@ export function AIAutomation() {
 		if (!selectedSessionFromList?.id) return;
 		try {
 			await replanSession.mutateAsync(selectedSessionFromList.id);
-			toast.success(tx('toast.replanSuccess'));
 		} catch (error) {
 			toast.error(tx('toast.replanFailed'), { description: error instanceof Error ? error.message : undefined });
 		}
@@ -800,7 +808,6 @@ export function AIAutomation() {
 		if (!selectedSessionFromList?.id) return;
 		try {
 			await applySession.mutateAsync(selectedSessionFromList.id);
-			toast.success(tx('toast.applySuccess'));
 		} catch (error) {
 			toast.error(tx('toast.applyFailed'), { description: error instanceof Error ? error.message : undefined });
 		}
@@ -810,7 +817,6 @@ export function AIAutomation() {
 		if (!selectedSessionFromList?.id) return;
 		try {
 			await rollbackSession.mutateAsync({ id: selectedSessionFromList.id, rollback_point_id: point.id });
-			toast.success(tx('toast.rollbackSuccess'));
 		} catch (error) {
 			toast.error(tx('toast.rollbackFailed'), { description: error instanceof Error ? error.message : undefined });
 		}
@@ -827,7 +833,6 @@ export function AIAutomation() {
 		}
 		try {
 			await createProfile.mutateAsync({ session_id: selectedSessionFromList.id, name: newProfileName.trim() });
-			toast.success(tx('toast.profileCreated'));
 		} catch (error) {
 			toast.error(tx('toast.profileCreateFailed'), { description: error instanceof Error ? error.message : undefined });
 		}
@@ -836,7 +841,6 @@ export function AIAutomation() {
 	const handleActivateProfile = async (id: number) => {
 		try {
 			await activateProfile.mutateAsync(id);
-			toast.success(tx('toast.profileActivated'));
 		} catch (error) {
 			toast.error(tx('toast.profileActivateFailed'), { description: error instanceof Error ? error.message : undefined });
 		}
@@ -861,7 +865,6 @@ export function AIAutomation() {
 			await setSetting.mutateAsync({ key: SettingKey.AIAutomationBaseUrl, value: useLocalDefault ? DEFAULT_LOCAL_BASE_URL : (baseURL.trim() || currentBaseURL || DEFAULT_LOCAL_BASE_URL) });
 			await setSetting.mutateAsync({ key: SettingKey.AIAutomationAPIKey, value: apiKeySelection === NO_API_KEY_VALUE ? '' : apiKeySelection.trim() });
 			await setSetting.mutateAsync({ key: SettingKey.AIAutomationModel, value: model.trim() || selectedModelValue });
-			toast.success(tx('toast.runtimePolicySaved'));
 			setSettingsOpen(false);
 		} catch (error) {
 			toast.error(tx('toast.runtimePolicySaveFailed'), { description: error instanceof Error ? error.message : undefined });
@@ -871,31 +874,32 @@ export function AIAutomation() {
 	return (
 		<div className="h-full min-h-0 overflow-y-auto overscroll-contain rounded-t-3xl">
 			<PageWrapper className="space-y-5 pb-24 md:pb-4" data-testid="ai-automation-page">
-				<section className="rounded-3xl border border-card-border bg-card p-5 sm:p-6">
-					<div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-						<div className="max-w-4xl">
-							<div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] text-primary">
-								<Workflow className="size-3.5" />
-								{tx('hero.badge')}
+				<section className="rounded-3xl border border-card-border bg-card p-4 sm:p-5">
+					<div className="flex flex-wrap items-center justify-between gap-3">
+						<div className="flex flex-wrap items-center gap-3">
+							<div className="flex items-center gap-2 text-xl font-semibold tracking-tight text-card-foreground">
+								<Workflow className="size-5 text-primary" />
+								{tx('hero.title')}
 							</div>
-							<div className="mt-3 text-2xl font-semibold tracking-tight text-card-foreground sm:text-[2rem]">{tx('hero.title')}</div>
-							<div className="mt-2 text-sm leading-6 text-muted-foreground">{tx('hero.desc')}</div>
+							<div className="rounded-full border border-card-border bg-background/55 px-3 py-1 text-xs text-muted-foreground">{tx('hero.badge')}</div>
 						</div>
-						<Button type="button" variant="outline" className="rounded-xl" onClick={() => setSettingsOpen(true)}>
+						<Button type="button" variant="outline" className="h-9 rounded-xl" onClick={() => setSettingsOpen(true)}>
 							<Settings2 className="size-4" />
 							{tx('settings.open')}
 						</Button>
 					</div>
 
-					<div className="mt-5 space-y-4">
+					<div className="mt-4 space-y-4">
 						<div className="space-y-4">
-							<div className="rounded-3xl border border-card-border bg-muted/20 p-4">
-								<div className="text-sm font-semibold text-card-foreground">{tx('main.goalTitle')}</div>
-								<div className="mt-1 text-xs text-muted-foreground">{tx('main.goalDesc')}</div>
-								<Input data-testid="ai-governance-goal-input" className="mt-4 h-12 rounded-xl" placeholder={tx('main.goalPlaceholder')} value={goal} onChange={(event) => setGoal(event.target.value)} />
+							<div className="rounded-3xl border border-card-border bg-background/55 p-4">
+								<div className="flex flex-wrap items-center justify-between gap-2">
+									<div className="text-sm font-semibold text-card-foreground">{tx('main.goalTitle')}</div>
+									<div className="text-xs text-muted-foreground">{tx('main.goalDesc')}</div>
+								</div>
+								<Input data-testid="ai-governance-goal-input" className="mt-3 h-11 rounded-xl" placeholder={tx('main.goalPlaceholder')} value={goal} onChange={(event) => setGoal(event.target.value)} />
 								<div className="mt-3 flex flex-wrap gap-2">
 									{QUICK_GOALS.map((item) => (
-										<button key={item.key} type="button" className="rounded-full border border-card-border bg-background px-3 py-2 text-xs text-muted-foreground transition hover:border-primary/30 hover:text-card-foreground" onClick={() => setGoal(item.value)}>
+										<button key={item.key} type="button" className="rounded-full border border-card-border bg-background px-3 py-1.5 text-xs text-muted-foreground transition hover:border-primary/30 hover:text-card-foreground" onClick={() => setGoal(item.value)}>
 											{tx(item.label)}
 										</button>
 									))}

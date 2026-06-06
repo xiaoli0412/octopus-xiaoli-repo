@@ -102,9 +102,9 @@ func cloneInternalRequestForRace(req *transformerModel.InternalLLMRequest, model
 	if req == nil {
 		return &transformerModel.InternalLLMRequest{Model: modelName}
 	}
-	cloned := *req
+	cloned := req.DeepClone()
 	cloned.Model = modelName
-	return &cloned
+	return cloned
 }
 
 func runRaceProbe(ctx context.Context, req *relayRequest, channel *dbmodel.Channel, usedKey dbmodel.ChannelKey, outAdapter transformerModel.Outbound, internalReq *transformerModel.InternalLLMRequest) attemptResult {
@@ -323,16 +323,13 @@ func buildRaceCandidateBatch(req *relayRequest, iter *balancer.Iterator, startId
 		if targetModel == "" {
 			targetModel = req.requestModel
 		}
-		if !channel.SupportsModel(targetModel) {
-			iter.Skip(channel.ID, 0, channel.Name, fmt.Sprintf("race candidate stale route item: channel does not declare model %s", targetModel))
-			continue
-		}
-		if !channel.HasConfiguredKeyForModel(targetModel) {
-			iter.Skip(channel.ID, 0, channel.Name, fmt.Sprintf("race candidate stale route item: channel has no configured key for model %s", targetModel))
+		requestFormat := req.requestCapabilityFor(channel, targetModel)
+		if !channel.HasConfiguredKeyForRequest(targetModel, requestFormat) {
+			iter.Skip(channel.ID, 0, channel.Name, fmt.Sprintf("race candidate stale route item: channel does not declare model or has no configured key for model %s and request format %s", targetModel, requestFormat))
 			continue
 		}
 
-		usedKey := channel.GetChannelKeyForModel(targetModel)
+		usedKey := channel.GetChannelKeyForRequest(targetModel, requestFormat)
 		if strings.TrimSpace(usedKey.ChannelKey) == "" {
 			iter.Skip(channel.ID, 0, channel.Name, "race candidate has no available key")
 			continue

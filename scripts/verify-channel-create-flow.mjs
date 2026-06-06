@@ -51,12 +51,29 @@ assert.match(formSource, /data-testid=\{`\$\{idPrefix\}-model-select-confirm`\}/
 const createSource = fs.readFileSync(path.join(repoRoot, 'web/src/components/modules/channel/Create.tsx'), 'utf8');
 assert.match(createSource, /key_management_mode: 'pooled',/);
 assert.match(createSource, /key_routing_policy: 'round_robin',/);
-assert.match(createSource, /keys: \[\{ enabled: true, channel_key: '', source_type: 'unknown', remark: '', allowed_models: '' \}\],/);
+assert.match(createSource, /keys: \[\{ enabled: true, channel_key: '', source_type: 'unknown', remark: '', allowed_models: '', request_capabilities: '' \}\],/);
 assert.match(createSource, /<ChannelForm[\s\S]*idPrefix="new-channel"/);
 assert.match(createSource, /key_management_mode: formData\.key_management_mode,/);
 assert.match(createSource, /key_routing_policy: formData\.key_routing_policy,/);
 assert.match(createSource, /source_type: \(k\.source_type \?\? ''\)\.trim\(\),/);
 assert.match(createSource, /allowed_models: \(k\.allowed_models \?\? ''\)\.trim\(\),/);
+assert.match(createSource, /request_capabilities: \(k\.request_capabilities \?\? ''\)\.trim\(\),/);
+
+const cardContentSource = fs.readFileSync(path.join(repoRoot, 'web/src/components/modules/channel/CardContent.tsx'), 'utf8');
+assert.match(cardContentSource, /request_capabilities: \(k\.request_capabilities \?\? ''\)\.trim\(\)/);
+assert.match(cardContentSource, /u\.request_capabilities = \(k\.request_capabilities \?\? ''\)\.trim\(\);/);
+assert.match(cardContentSource, /request_capabilities: key\.request_capabilities \?\? '',/);
+
+const apiKeySource = fs.readFileSync(path.join(repoRoot, 'web/src/components/modules/setting/APIKey.tsx'), 'utf8');
+assert.match(apiKeySource, /useCapabilityInventory/);
+assert.match(apiKeySource, /savedMissingModels/);
+assert.match(apiKeySource, /modelSearch/);
+assert.match(apiKeySource, /normalizeSupportedModels\(form\.supported_models\)/);
+
+const docModalSource = fs.readFileSync(path.join(repoRoot, 'web/src/components/modules/navbar/DocModal.tsx'), 'utf8');
+assert.match(docModalSource, /useCapabilityInventory/);
+assert.match(docModalSource, /allowedGroupsByKey/);
+assert.match(docModalSource, /capabilityInventory\?\.selectable_models/);
 
 const toolbarSource = fs.readFileSync(path.join(repoRoot, 'web/src/components/modules/toolbar/index.tsx'), 'utf8');
 assert.match(toolbarSource, /data-testid=\{`toolbar-create-trigger-\$\{toolbarItem\}`\}/);
@@ -141,6 +158,12 @@ for (const localeName of ['zh-Hans', 'zh-Hant', 'en', 'ja']) {
     assert.match(localeSource, /"keyAdvancedSectionTitle":/);
     assert.match(localeSource, /"keyAdvancedSectionDesc":/);
     assert.match(localeSource, /"keyAdvancedOptionalBadge":/);
+    assert.match(localeSource, /"requestCapabilitiesLabel":/);
+    assert.match(localeSource, /"requestCapabilitiesPlaceholder":/);
+    assert.match(localeSource, /"requestCapabilitiesCompactPlaceholder":/);
+    assert.match(localeSource, /"requestCapabilitiesHelp":/);
+    assert.match(localeSource, /"requestCapabilitiesCount":/);
+    assert.match(localeSource, /"requestCapabilitiesUnlimited":/);
     assert.match(localeSource, /"modelNoSelectedHint":/);
     assert.match(localeSource, /"autoGroupHint":/);
     assert.match(localeSource, /"keyValueLeadHint":/);
@@ -151,6 +174,11 @@ for (const localeName of ['zh-Hans', 'zh-Hant', 'en', 'ja']) {
     assert.match(localeSource, /"modelSectionTitle":/);
     assert.match(localeSource, /"advancedSectionTitle":/);
     assert.match(localeSource, /"baseUrlsDesc":/);
+    assert.match(localeSource, /"selectedModelsCount":/);
+    assert.match(localeSource, /"modelSearchPlaceholder":/);
+    assert.match(localeSource, /"savedMissingModels":/);
+    assert.match(localeSource, /"noMatchedModels":/);
+    assert.match(localeSource, /"inventoryHint":/);
 }
 
 console.log('channel-create-flow verification passed');

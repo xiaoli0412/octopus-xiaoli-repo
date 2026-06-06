@@ -55,11 +55,8 @@ func validateGroupChannelModelTarget(channelID int, modelName string) error {
 	if !ok {
 		return fmt.Errorf("channel not found")
 	}
-	if !channel.SupportsModel(normalizedModelName) {
-		return fmt.Errorf("channel %d does not declare model %s", channelID, normalizedModelName)
-	}
-	if !channel.HasConfiguredKeyForModel(normalizedModelName) {
-		return fmt.Errorf("channel %d has no configured key for model %s", channelID, normalizedModelName)
+	if !ChannelCanServeModel(channel.ID, normalizedModelName) {
+		return fmt.Errorf("channel %d has no serviceable key for model %s", channelID, normalizedModelName)
 	}
 	return nil
 }

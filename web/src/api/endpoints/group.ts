@@ -85,6 +85,7 @@ export function useCreateGroup() {
         onSuccess: (data) => {
             logger.log('分组创建成功:', data);
             queryClient.invalidateQueries({ queryKey: ['groups', 'list'] });
+            queryClient.invalidateQueries({ queryKey: ['models', 'capability-inventory'] });
         },
         onError: (error) => {
             logger.error('分组创建失败:', error);
@@ -102,6 +103,7 @@ export function useUpdateGroup() {
         onSuccess: (data) => {
             logger.log('分组更新成功:', data);
             queryClient.invalidateQueries({ queryKey: ['groups', 'list'] });
+            queryClient.invalidateQueries({ queryKey: ['models', 'capability-inventory'] });
         },
         onError: (error) => {
             logger.error('分组更新失败:', error);
@@ -119,6 +121,7 @@ export function useDeleteGroup() {
         onSuccess: () => {
             logger.log('分组删除成功');
             queryClient.invalidateQueries({ queryKey: ['groups', 'list'] });
+            queryClient.invalidateQueries({ queryKey: ['models', 'capability-inventory'] });
         },
         onError: (error) => {
             logger.error('分组删除失败:', error);

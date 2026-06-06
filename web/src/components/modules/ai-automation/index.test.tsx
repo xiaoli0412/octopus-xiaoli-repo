@@ -222,6 +222,17 @@ vi.mock('@/api/endpoints/apikey', () => ({
 	useAPIKeyList: () => ({ data: state.apiKeys }),
 }));
 
+vi.mock('@/api/endpoints/model', () => ({
+	useCapabilityInventory: () => ({
+		data: {
+			serviceable_models: [],
+			selectable_models: [
+				{ name: 'gpt-4o', channel_count: 1, enabled_channel_count: 1, key_count: 1, request_capabilities: ['openai_chat'], inventory_source: 'serviceable' },
+			],
+		},
+	}),
+}));
+
 vi.mock('@/api/endpoints/setting', () => ({
 	SettingKey: {
 		AIAutomationBaseUrl: 'ai_automation_base_url',

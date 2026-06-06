@@ -66,7 +66,7 @@ export function SettingLLMSync() {
             </h2>
 
             {/* 同步间隔 */}
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <div className="flex items-center gap-3">
                     <Clock className="h-5 w-5 text-muted-foreground" />
                     <span className="text-sm font-medium">{t('llmSync.syncInterval.label')}</span>
@@ -77,12 +77,12 @@ export function SettingLLMSync() {
                     onChange={(e) => setSyncInterval(e.target.value)}
                     onBlur={() => handleSave(SettingKey.SyncLLMInterval, syncInterval, initialSyncInterval.current)}
                     placeholder={t('llmSync.syncInterval.placeholder')}
-                    className="w-48 rounded-xl"
+                    className="w-full rounded-xl sm:w-56 md:w-72"
                 />
             </div>
 
             {/* 手动同步 */}
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-3">
                         <RefreshCw className="h-5 w-5 text-muted-foreground" />

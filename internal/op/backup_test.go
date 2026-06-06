@@ -5070,7 +5070,7 @@ func TestDBImportIncrementalLegacyDumpPreservesRicherExistingFields(t *testing.T
 	}
 }
 
-func TestExportDumpLegacyViewDropsNewerFields(t *testing.T) {
+func TestExportDumpLegacyViewPreservesRoutingFields(t *testing.T) {
 	dump := &model.DBDump{
 		Version:      dbDumpVersion,
 		ExportedAt:   time.Now().UTC(),
@@ -5083,11 +5083,12 @@ func TestExportDumpLegacyViewDropsNewerFields(t *testing.T) {
 			KeyRoutingPolicy:  model.KeyRoutingPolicyPriority,
 		}},
 		ChannelKeys: []model.ChannelKey{{
-			ID:            2,
-			ChannelID:     1,
-			ChannelKey:    "sk-test",
-			SourceType:    model.ChannelKeySourceTypePrivateInternal,
-			AllowedModels: "gpt-4o",
+			ID:                  2,
+			ChannelID:           1,
+			ChannelKey:          "sk-test",
+			SourceType:          model.ChannelKeySourceTypePrivateInternal,
+			AllowedModels:       "gpt-4o",
+			RequestCapabilities: model.RequestCapabilityOpenAIChat,
 		}},
 		Groups: []model.Group{{
 			ID:                3,
@@ -5119,6 +5120,11 @@ func TestExportDumpLegacyViewDropsNewerFields(t *testing.T) {
 	if legacyView.ChannelKeys[0].ChannelKey != "sk-test" || legacyView.ChannelKeys[0].ChannelID != 1 {
 		t.Fatalf("legacy channel key fields = %#v, want core legacy key data preserved", legacyView.ChannelKeys[0])
 	}
+	if legacyView.ChannelKeys[0].SourceType != model.ChannelKeySourceTypePrivateInternal ||
+		legacyView.ChannelKeys[0].AllowedModels != "gpt-4o" ||
+		legacyView.ChannelKeys[0].RequestCapabilities != model.RequestCapabilityOpenAIChat {
+		t.Fatalf("legacy channel key routing fields = %#v, want source/allowed_models/request_capabilities preserved", legacyView.ChannelKeys[0])
+	}
 	if legacyView.Groups[0].Name != "legacy-export-group" || legacyView.Groups[0].FirstTokenTimeOut != 0 || legacyView.Groups[0].SessionKeepTime != 0 {
 		t.Fatalf("legacy group fields = %#v, want legacy group shape", legacyView.Groups[0])
 	}
@@ -5127,6 +5133,9 @@ func TestExportDumpLegacyViewDropsNewerFields(t *testing.T) {
 	}
 	if legacyView.APIKeys[0].Name != "client" || legacyView.APIKeys[0].APIKey != "sk-client" {
 		t.Fatalf("legacy api key fields = %#v, want legacy api key shape", legacyView.APIKeys[0])
+	}
+	if legacyView.APIKeys[0].SupportedModels != "gpt-4o" {
+		t.Fatalf("legacy api key supported_models = %q, want gpt-4o", legacyView.APIKeys[0].SupportedModels)
 	}
 }
 

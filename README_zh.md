@@ -42,7 +42,7 @@
 直接运行
 
 ```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.2
+docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.3
 ```
 
 或者使用安装脚本。脚本默认使用 `1088` 作为外部端口，启动前会先探测端口占用；如果 `1088` 已被占用，非交互场景会自动切换到可用端口并继续安装。脚本会先尝试拉取 GHCR 官方镜像；如果 GHCR 不可达，会回退到对应 release tag 的本地源码支撑 Docker 构建；如果服务器侧源码 Docker 构建仍被阻塞，还可以基于已知可用的 Linux 二进制继续构建本地 Docker 镜像。Docker Hub 已不再作为官方安装来源：
@@ -67,7 +67,7 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 如果所在网络对 GHCR 有限制，也可以显式指定一个可达的私有镜像或镜像代理：
 
 ```bash
-OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.19.2 bash install-octopus.sh
+OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.19.3 bash install-octopus.sh
 ```
 
 如果 GHCR 不通，且服务器侧源码 Docker 构建仍然失败，也可以直接提供一个已知可用的 Linux 二进制，再让安装脚本继续构建本地 Docker 镜像：

@@ -169,6 +169,39 @@ func strPtr(s string) *string {
 	return &s
 }
 
+func TestRelayRequestSelectsKeyByRawAPIFormat(t *testing.T) {
+	channel := &dbmodel.Channel{
+		ID:               77,
+		Name:             "raw-format-key-channel",
+		Type:             outbound.OutboundTypeOpenAIChat,
+		Enabled:          true,
+		KeyRoutingPolicy: dbmodel.KeyRoutingPolicyPriority,
+		Model:            "gpt-4o",
+		Keys: []dbmodel.ChannelKey{
+			{ID: 1, Enabled: true, ChannelKey: "chat-key", AllowedModels: "gpt-4o", RequestCapabilities: dbmodel.RequestCapabilityOpenAIChat},
+			{ID: 2, Enabled: true, ChannelKey: "responses-key", AllowedModels: "gpt-4o", RequestCapabilities: dbmodel.RequestCapabilityOpenAIResponses},
+		},
+	}
+
+	chatReq := &relayRequest{internalRequest: &tmodel.InternalLLMRequest{Model: "gpt-4o", RawAPIFormat: tmodel.APIFormatOpenAIChatCompletion}}
+	chatCapability := chatReq.requestCapabilityFor(channel, "gpt-4o")
+	if chatCapability != dbmodel.RequestCapabilityOpenAIChat {
+		t.Fatalf("chat capability = %q, want %q", chatCapability, dbmodel.RequestCapabilityOpenAIChat)
+	}
+	if key := channel.GetChannelKeyForRequest("gpt-4o", chatCapability); key.ChannelKey != "chat-key" {
+		t.Fatalf("chat key = %#v, want chat-key", key)
+	}
+
+	responsesReq := &relayRequest{internalRequest: &tmodel.InternalLLMRequest{Model: "gpt-4o", RawAPIFormat: tmodel.APIFormatOpenAIResponse}}
+	responsesCapability := responsesReq.requestCapabilityFor(channel, "gpt-4o")
+	if responsesCapability != dbmodel.RequestCapabilityOpenAIResponses {
+		t.Fatalf("responses capability = %q, want %q", responsesCapability, dbmodel.RequestCapabilityOpenAIResponses)
+	}
+	if key := channel.GetChannelKeyForRequest("gpt-4o", responsesCapability); key.ChannelKey != "responses-key" {
+		t.Fatalf("responses key = %#v, want responses-key", key)
+	}
+}
+
 func setupHandlerTestRoute(t *testing.T, ctx context.Context, modelName, baseURL string, retryRounds int, retryDelayMs int, keys []string) (*dbmodel.Channel, map[string]dbmodel.ChannelKey) {
 	t.Helper()
 

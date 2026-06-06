@@ -50,6 +50,7 @@ export type ChannelKey = {
     total_cost: number;
     remark: string;
     allowed_models?: string;
+    request_capabilities?: string;
 };
 
 export type KeyManagementMode = 'classified' | 'pooled';
@@ -148,7 +149,7 @@ export type CreateChannelRequest = {
     key_management_mode?: KeyManagementMode;
     key_routing_policy?: KeyRoutingPolicy;
     base_urls: BaseUrl[];
-    keys: Array<Pick<ChannelKey, 'enabled' | 'channel_key' | 'source_type' | 'remark' | 'allowed_models'>>;
+    keys: Array<Pick<ChannelKey, 'enabled' | 'channel_key' | 'source_type' | 'remark' | 'allowed_models' | 'request_capabilities'>>;
     model: string;
     custom_model?: string;
     proxy?: boolean;
@@ -181,8 +182,8 @@ export type UpdateChannelRequest = {
     param_override?: string | null;
     match_regex?: string | null;
     // keys diff
-    keys_to_add?: Array<Pick<ChannelKey, 'enabled' | 'channel_key' | 'source_type' | 'remark' | 'allowed_models'>>;
-    keys_to_update?: Array<{ id: number; enabled?: boolean; channel_key?: string; source_type?: string; remark?: string; allowed_models?: string }>;
+    keys_to_add?: Array<Pick<ChannelKey, 'enabled' | 'channel_key' | 'source_type' | 'remark' | 'allowed_models' | 'request_capabilities'>>;
+    keys_to_update?: Array<{ id: number; enabled?: boolean; channel_key?: string; source_type?: string; remark?: string; allowed_models?: string; request_capabilities?: string }>;
     keys_to_delete?: number[];
 };
 
@@ -194,6 +195,134 @@ export type FetchModelRequest = {
     channel_proxy?: string | null;
     match_regex?: string | null;
     custom_header?: CustomHeader[];
+};
+
+export type NewAPITokenUsage = {
+    available: boolean;
+    used_quota?: number;
+    remain_quota?: number;
+    unlimited?: boolean;
+    raw_status_text?: string;
+};
+
+export type NewAPIInspectResult = {
+    base_url: string;
+    api_base_url: string;
+    model_count: number;
+    models: string[];
+    request_capabilities: string[];
+    token_usage: NewAPITokenUsage;
+    warnings?: string[];
+};
+
+export type UpstreamProviderType = 'newapi' | 'sub2api' | 'openai_compatible';
+export type UpstreamAuthMode = 'token' | 'access_key' | 'account_password';
+
+export type UpstreamGatewayKey = {
+    name?: string;
+    key?: string;
+    masked_key?: string;
+    allowed_models?: string[];
+    request_capabilities?: string[];
+    groups?: string[];
+    status?: string;
+    quota?: number;
+    quota_used?: number;
+    expires_at?: string;
+    importable: boolean;
+    source_type?: string;
+};
+
+export type UpstreamSubscription = {
+    name?: string;
+    plan?: string;
+    status?: string;
+    balance?: number;
+    expires_at?: string;
+    source?: string;
+};
+
+export type UpstreamPriceCandidate = {
+    name: string;
+    canonical_name?: string;
+    cache_supported?: boolean;
+    cache_policy?: 'supported' | 'unsupported' | 'unknown';
+    cache_reason?: string;
+    price_source?: string;
+    price_matched_key?: string;
+    sources?: string[];
+    input?: number;
+    output?: number;
+    cache_read?: number;
+    cache_write?: number;
+    official_input?: number;
+    official_output?: number;
+    official_cache_read?: number;
+    official_cache_write?: number;
+};
+
+export type UpstreamInspectRequest = {
+    provider_type: UpstreamProviderType;
+    base_url: string;
+    auth_mode: UpstreamAuthMode;
+    token?: string;
+    access_key?: string;
+    user_id?: string;
+    username?: string;
+    password?: string;
+};
+
+export type UpstreamGroup = {
+    id?: string;
+    name: string;
+    description?: string;
+    platform?: string;
+    status?: string;
+    rate_multiplier?: number;
+    models?: string[];
+    request_capabilities?: string[];
+    source?: string;
+};
+
+export type UpstreamInspectResult = {
+    provider_type: UpstreamProviderType;
+    auth_mode: UpstreamAuthMode;
+    base_url: string;
+    api_base_url: string;
+    official_source: boolean;
+    source_label?: string;
+    model_count: number;
+    models: string[];
+    request_capabilities: string[];
+    token_usage: NewAPITokenUsage;
+    keys?: UpstreamGatewayKey[];
+    groups?: UpstreamGroup[];
+    subscriptions?: UpstreamSubscription[];
+    price_candidates?: UpstreamPriceCandidate[];
+    warnings?: string[];
+};
+
+export type UpstreamApplyRequest = {
+    inspect: UpstreamInspectRequest;
+    target_channel_id?: number;
+    channel_name?: string;
+    append_keys?: boolean;
+    overwrite_models?: boolean;
+    enable_channel?: boolean;
+};
+
+export type UpstreamApplyResult = {
+    channel: {
+        id: number;
+        name: string;
+        type: ChannelType;
+        enabled: boolean;
+        base_urls?: BaseUrl[];
+        custom_model?: string;
+        key_count: number;
+    };
+    inspect: UpstreamInspectResult;
+    created: boolean;
 };
 
 /**
@@ -266,6 +395,7 @@ export function useCreateChannel() {
             queryClient.invalidateQueries({ queryKey: ['channels', 'list'] });
             queryClient.invalidateQueries({ queryKey: ['models', 'list'] });
             queryClient.invalidateQueries({ queryKey: ['models', 'channel'] });
+            queryClient.invalidateQueries({ queryKey: ['models', 'capability-inventory'] });
         },
         onError: (error) => {
             logger.error('渠道创建失败:', error);
@@ -301,6 +431,7 @@ export function useUpdateChannel() {
             logger.log('渠道更新成功:', data);
             queryClient.invalidateQueries({ queryKey: ['channels', 'list'] });
             queryClient.invalidateQueries({ queryKey: ['models', 'channel'] });
+            queryClient.invalidateQueries({ queryKey: ['models', 'capability-inventory'] });
         },
         onError: (error) => {
             logger.error('渠道更新失败:', error);
@@ -327,6 +458,7 @@ export function useDeleteChannel() {
             logger.log('渠道删除成功');
             queryClient.invalidateQueries({ queryKey: ['channels', 'list'] });
             queryClient.invalidateQueries({ queryKey: ['models', 'channel'] });
+            queryClient.invalidateQueries({ queryKey: ['models', 'capability-inventory'] });
         },
         onError: (error) => {
             logger.error('渠道删除失败:', error);
@@ -353,6 +485,8 @@ export function useEnableChannel() {
         onSuccess: () => {
             logger.log('渠道状态更新成功');
             queryClient.invalidateQueries({ queryKey: ['channels', 'list'] });
+            queryClient.invalidateQueries({ queryKey: ['models', 'channel'] });
+            queryClient.invalidateQueries({ queryKey: ['models', 'capability-inventory'] });
         },
         onError: (error) => {
             logger.error('渠道状态更新失败:', error);
@@ -437,6 +571,53 @@ export function useFetchModel() {
     });
 }
 
+export function useInspectNewAPI() {
+    return useMutation({
+        mutationFn: async (data: { base_url: string; token: string }) => {
+            return apiClient.post<NewAPIInspectResult>('/api/v1/channel/newapi/inspect', data);
+        },
+        onSuccess: (data) => {
+            logger.log('New API 检查完成:', data);
+        },
+        onError: (error) => {
+            logger.error('New API 检查失败:', error);
+        },
+    });
+}
+
+export function useInspectUpstreamGateway() {
+    return useMutation({
+        mutationFn: async (data: UpstreamInspectRequest) => {
+            return apiClient.post<UpstreamInspectResult>('/api/v1/channel/upstream/inspect', data);
+        },
+        onSuccess: (data) => {
+            logger.log('上游站点检查完成:', data);
+        },
+        onError: (error) => {
+            logger.error('上游站点检查失败:', error);
+        },
+    });
+}
+
+export function useApplyUpstreamGateway() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (data: UpstreamApplyRequest) => {
+            return apiClient.post<UpstreamApplyResult>('/api/v1/channel/upstream/apply', data);
+        },
+        onSuccess: (data) => {
+            logger.log('上游站点已应用到渠道:', data);
+            queryClient.invalidateQueries({ queryKey: ['channels', 'list'] });
+            queryClient.invalidateQueries({ queryKey: ['models', 'list'] });
+            queryClient.invalidateQueries({ queryKey: ['models', 'channel'] });
+            queryClient.invalidateQueries({ queryKey: ['models', 'capability-inventory'] });
+        },
+        onError: (error) => {
+            logger.error('上游站点应用失败:', error);
+        },
+    });
+}
+
 /**
  * 获取渠道最后同步时间 Hook
  * 
@@ -473,6 +654,9 @@ export function useSyncChannel() {
         onSuccess: () => {
             logger.log('渠道同步成功');
             queryClient.invalidateQueries({ queryKey: ['channels', 'last-sync-time'] });
+            queryClient.invalidateQueries({ queryKey: ['channels', 'list'] });
+            queryClient.invalidateQueries({ queryKey: ['models', 'channel'] });
+            queryClient.invalidateQueries({ queryKey: ['models', 'capability-inventory'] });
         },
         onError: (error) => {
             logger.error('渠道同步失败:', error);
@@ -525,7 +709,7 @@ export type TestModelByConfigRequest = {
     type: ChannelType;
     enabled?: boolean;
     base_urls: BaseUrl[];
-    keys: Array<Pick<ChannelKey, 'enabled' | 'channel_key' | 'source_type' | 'allowed_models'>>;
+    keys: Array<Pick<ChannelKey, 'enabled' | 'channel_key' | 'source_type' | 'allowed_models' | 'request_capabilities'>>;
     proxy?: boolean;
     channel_proxy?: string | null;
     custom_header?: Array<CustomHeader>;

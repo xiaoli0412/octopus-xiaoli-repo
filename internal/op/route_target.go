@@ -37,22 +37,6 @@ func defaultRouteTargetResolvedPolicy(channelID, channelKeyID int, sourceType, m
 	}
 }
 
-func routeTargetKeyAllowsModel(key model.ChannelKey, modelName string) bool {
-	if modelName == "" {
-		return true
-	}
-	allowed := strings.TrimSpace(key.AllowedModels)
-	if allowed == "" {
-		return true
-	}
-	for _, part := range strings.Split(allowed, ",") {
-		if model.NormalizeRouteTargetModelName(part) == modelName {
-			return true
-		}
-	}
-	return false
-}
-
 func validateRouteTargetOverrideTarget(channelID, channelKeyID int, modelName string) error {
 	channel, ok := channelCache.Get(channelID)
 	if !ok {
@@ -69,10 +53,8 @@ func validateRouteTargetOverrideTarget(channelID, channelKeyID int, modelName st
 	if normalizedModelName == "" {
 		return fmt.Errorf("model name is required")
 	}
-	if !channel.SupportsModel(normalizedModelName) {
-		return fmt.Errorf("invalid model for channel")
-	}
-	if !routeTargetKeyAllowsModel(key, normalizedModelName) {
+	requestCapability := channel.RequestCapabilityForModel(normalizedModelName)
+	if !channel.KeyCanServeRequest(key, normalizedModelName, requestCapability) {
 		return fmt.Errorf("invalid model for channel key")
 	}
 	return nil

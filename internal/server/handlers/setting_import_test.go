@@ -118,7 +118,7 @@ func TestExportDBSupportsLegacyFormat(t *testing.T) {
 	if err := db.GetDB().Create(&channel).Error; err != nil {
 		t.Fatalf(`create channel error = %v`, err)
 	}
-	channelKey := model.ChannelKey{ChannelID: channel.ID, Enabled: true, ChannelKey: `sk-channel-secret`, SourceType: model.ChannelKeySourceTypePaidMetered, AllowedModels: `gpt-4o`}
+	channelKey := model.ChannelKey{ChannelID: channel.ID, Enabled: true, ChannelKey: `sk-channel-secret`, SourceType: model.ChannelKeySourceTypePaidMetered, AllowedModels: `gpt-4o`, RequestCapabilities: model.RequestCapabilityOpenAIChat}
 	if err := db.GetDB().Create(&channelKey).Error; err != nil {
 		t.Fatalf(`create channel key error = %v`, err)
 	}
@@ -157,11 +157,14 @@ func TestExportDBSupportsLegacyFormat(t *testing.T) {
 		t.Fatalf(`channel_keys = %#v, want one legacy key row`, payload[`channel_keys`])
 	}
 	channelKeyRow := channelKeys[0].(map[string]any)
-	if _, ok := channelKeyRow[`source_type`]; ok {
-		t.Fatalf(`legacy channel key row leaked source_type: %#v`, channelKeyRow)
+	if channelKeyRow[`source_type`] != model.ChannelKeySourceTypePaidMetered {
+		t.Fatalf(`legacy channel key source_type = %#v, want paid/metered`, channelKeyRow[`source_type`])
 	}
-	if _, ok := channelKeyRow[`allowed_models`]; ok {
-		t.Fatalf(`legacy channel key row leaked allowed_models: %#v`, channelKeyRow)
+	if channelKeyRow[`allowed_models`] != `gpt-4o` {
+		t.Fatalf(`legacy channel key allowed_models = %#v, want gpt-4o`, channelKeyRow[`allowed_models`])
+	}
+	if channelKeyRow[`request_capabilities`] != model.RequestCapabilityOpenAIChat {
+		t.Fatalf(`legacy channel key request_capabilities = %#v, want openai_chat`, channelKeyRow[`request_capabilities`])
 	}
 	llmInfos, ok := payload[`llm_infos`].([]any)
 	if !ok || len(llmInfos) != 1 {

@@ -130,7 +130,7 @@ func TestEligibleChannelKeysForModelClassifiedFiltersByModelAndCooldown(t *testi
 	}
 }
 
-func TestEligibleChannelKeysForModelPooledReturnsSharedKeyPoolForChannelModelSet(t *testing.T) {
+func TestEligibleChannelKeysForModelPooledHonorsPerKeyAllowedModels(t *testing.T) {
 	channel := &Channel{
 		ID:                2,
 		Model:             "gpt-4o,claude-3-5-sonnet",
@@ -146,7 +146,7 @@ func TestEligibleChannelKeysForModelPooledReturnsSharedKeyPoolForChannelModelSet
 
 	keys := channel.EligibleChannelKeysForModel("gpt-4o")
 	got := keyIDs(keys)
-	want := []int{1, 2, 3}
+	want := []int{1, 3}
 	if len(got) != len(want) {
 		t.Fatalf("EligibleChannelKeysForModel() IDs = %v, want %v", got, want)
 	}
@@ -175,7 +175,7 @@ func TestEligibleChannelKeysForModelPooledUnsupportedModelReturnsEmpty(t *testin
 	}
 }
 
-func TestEligibleChannelKeysForModelDiffersBetweenClassifiedAndPooled(t *testing.T) {
+func TestEligibleChannelKeysForModelHonorsAllowedModelsInBothModes(t *testing.T) {
 	classified := &Channel{
 		ID:                31,
 		Model:             "gpt-4o,claude-3-5-sonnet",
@@ -200,8 +200,8 @@ func TestEligibleChannelKeysForModelDiffersBetweenClassifiedAndPooled(t *testing
 	if len(classifiedIDs) != 1 || classifiedIDs[0] != 1 {
 		t.Fatalf("classified eligible IDs = %v, want [1]", classifiedIDs)
 	}
-	if len(pooledIDs) != 2 || pooledIDs[0] != 1 || pooledIDs[1] != 2 {
-		t.Fatalf("pooled eligible IDs = %v, want [1 2]", pooledIDs)
+	if len(pooledIDs) != 1 || pooledIDs[0] != 1 {
+		t.Fatalf("pooled eligible IDs = %v, want [1]", pooledIDs)
 	}
 }
 
@@ -209,7 +209,7 @@ func TestSupportsModelFallsBackWhenChannelDeclaresNoModels(t *testing.T) {
 	channel := &Channel{
 		ID:                33,
 		KeyManagementMode: KeyManagementModePooled,
-		Keys: []ChannelKey{{ID: 1, Enabled: true, ChannelKey: "k1", AllowedModels: "gpt-4o"}},
+		Keys:              []ChannelKey{{ID: 1, Enabled: true, ChannelKey: "k1", AllowedModels: "gpt-4o"}},
 	}
 
 	if !channel.SupportsModel("gpt-4o") {
@@ -500,5 +500,56 @@ func TestGetChannelKeyForModelExceptSkipsExcludedKeys(t *testing.T) {
 	key := channel.GetChannelKeyForModelExcept("gpt-4o", excluded)
 	if key.ID != 20 {
 		t.Fatalf("GetChannelKeyForModelExcept() = %d, want 20", key.ID)
+	}
+}
+
+func TestNormalizeChannelKeyRequestCapabilities(t *testing.T) {
+	got := NormalizeChannelKeyRequestCapabilities(" OpenAI/Chat-Completions, gemini contents,openai_chat, anthropic/messages ")
+	want := "anthropic_messages,gemini_contents,openai_chat"
+	if got != want {
+		t.Fatalf("NormalizeChannelKeyRequestCapabilities() = %q, want %q", got, want)
+	}
+}
+
+func TestEligibleChannelKeysForRequestHonorsRequestCapabilities(t *testing.T) {
+	channel := &Channel{
+		ID:                91,
+		Model:             "gpt-4o",
+		KeyManagementMode: KeyManagementModePooled,
+		KeyRoutingPolicy:  KeyRoutingPolicyRoundRobin,
+		Keys: []ChannelKey{
+			{ID: 10, Enabled: true, ChannelKey: "chat", AllowedModels: "gpt-4o", RequestCapabilities: "openai_chat"},
+			{ID: 20, Enabled: true, ChannelKey: "gemini", AllowedModels: "gpt-4o", RequestCapabilities: "gemini_contents"},
+			{ID: 30, Enabled: true, ChannelKey: "unrestricted", AllowedModels: "gpt-4o"},
+		},
+	}
+
+	chatIDs := keyIDs(channel.EligibleChannelKeysForRequest("gpt-4o", "openai/chat_completions"))
+	if len(chatIDs) != 2 || chatIDs[0] != 10 || chatIDs[1] != 30 {
+		t.Fatalf("chat eligible IDs = %v, want [10 30]", chatIDs)
+	}
+
+	geminiIDs := keyIDs(channel.EligibleChannelKeysForRequest("gpt-4o", "gemini/contents"))
+	if len(geminiIDs) != 2 || geminiIDs[0] != 20 || geminiIDs[1] != 30 {
+		t.Fatalf("gemini eligible IDs = %v, want [20 30]", geminiIDs)
+	}
+}
+
+func TestGetChannelKeyForRequestExceptKeepsProtocolFilter(t *testing.T) {
+	resetKeyRoundRobin()
+	channel := &Channel{
+		ID:               92,
+		Model:            "gpt-4o",
+		KeyRoutingPolicy: KeyRoutingPolicyRoundRobin,
+		Keys: []ChannelKey{
+			{ID: 10, Enabled: true, ChannelKey: "chat-a", AllowedModels: "gpt-4o", RequestCapabilities: "openai_chat"},
+			{ID: 20, Enabled: true, ChannelKey: "gemini", AllowedModels: "gpt-4o", RequestCapabilities: "gemini_contents"},
+			{ID: 30, Enabled: true, ChannelKey: "chat-b", AllowedModels: "gpt-4o", RequestCapabilities: "openai_chat"},
+		},
+	}
+
+	next := channel.GetChannelKeyForRequestExcept("gpt-4o", "openai_chat", map[int]struct{}{10: {}})
+	if next.ID != 30 {
+		t.Fatalf("GetChannelKeyForRequestExcept() = %d, want 30", next.ID)
 	}
 }

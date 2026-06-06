@@ -40,7 +40,7 @@ target_runtime_is_writable() {
         return 1
     fi
 
-    if [ -w "$DATA_DIR" ]; then
+    if can_write_data_dir_as_target; then
         return 0
     fi
 

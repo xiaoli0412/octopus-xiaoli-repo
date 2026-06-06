@@ -74,8 +74,9 @@ export function CardContent({ channel, stats }: { channel: Channel; stats: Stats
                 source_type: (k.source_type ?? 'unknown') as ChannelFormData['keys'][number]['source_type'],
                 remark: k.remark,
                 allowed_models: k.allowed_models ?? '',
+                request_capabilities: k.request_capabilities ?? '',
             }))
-            : [{ enabled: true, channel_key: '', source_type: 'unknown', remark: '', allowed_models: '' }],
+            : [{ enabled: true, channel_key: '', source_type: 'unknown', remark: '', allowed_models: '', request_capabilities: '' }],
         model: channel.model,
         custom_model: channel.custom_model,
         proxy: channel.proxy,
@@ -224,6 +225,7 @@ export function CardContent({ channel, stats }: { channel: Channel; stats: Stats
                 key.source_type,
                 formatSourceTypeLabel(key.source_type),
                 key.allowed_models,
+                key.request_capabilities,
                 statusMeta.label,
                 key.enabled ? t('labels.enabledOn') : t('labels.enabledOff'),
                 String(key.status_code),
@@ -305,21 +307,22 @@ export function CardContent({ channel, stats }: { channel: Channel; stats: Stats
 
         const keys_to_add = nextKeys
             .filter((k) => !k.id && k.channel_key.trim())
-            .map((k) => ({ enabled: k.enabled, channel_key: k.channel_key, source_type: (k.source_type ?? '').trim(), remark: k.remark ?? '', allowed_models: (k.allowed_models ?? '').trim() }));
+            .map((k) => ({ enabled: k.enabled, channel_key: k.channel_key, source_type: (k.source_type ?? '').trim(), remark: k.remark ?? '', allowed_models: (k.allowed_models ?? '').trim(), request_capabilities: (k.request_capabilities ?? '').trim() }));
 
         const keys_to_update = nextKeys
             .filter((k) => typeof k.id === 'number' && originalByID.has(k.id as number))
             .map((k) => {
                 const orig = originalByID.get(k.id as number)!;
-                const u: { id: number; enabled?: boolean; channel_key?: string; source_type?: string; remark?: string; allowed_models?: string } = { id: k.id as number };
+                const u: { id: number; enabled?: boolean; channel_key?: string; source_type?: string; remark?: string; allowed_models?: string; request_capabilities?: string } = { id: k.id as number };
                 if (k.enabled !== orig.enabled) u.enabled = k.enabled;
                 if (k.channel_key !== orig.channel_key) u.channel_key = k.channel_key;
                 if ((k.source_type ?? '') !== (orig.source_type ?? '')) u.source_type = (k.source_type ?? '').trim();
                 if ((k.remark ?? '') !== orig.remark) u.remark = k.remark ?? '';
                 if ((k.allowed_models ?? '') !== (orig.allowed_models ?? '')) u.allowed_models = (k.allowed_models ?? '').trim();
+                if ((k.request_capabilities ?? '') !== (orig.request_capabilities ?? '')) u.request_capabilities = (k.request_capabilities ?? '').trim();
                 return Object.keys(u).length > 1 ? u : null;
             })
-            .filter((u) => u !== null) as Array<{ id: number; enabled?: boolean; channel_key?: string; source_type?: string; remark?: string; allowed_models?: string }>;
+            .filter((u) => u !== null) as Array<{ id: number; enabled?: boolean; channel_key?: string; source_type?: string; remark?: string; allowed_models?: string; request_capabilities?: string }>;
 
         if (keys_to_add.length > 0) req.keys_to_add = keys_to_add;
         if (keys_to_update.length > 0) req.keys_to_update = keys_to_update;
@@ -380,6 +383,7 @@ export function CardContent({ channel, stats }: { channel: Channel; stats: Stats
                     channel_key: key.channel_key,
                     source_type: key.source_type ?? '',
                     allowed_models: key.allowed_models ?? '',
+                    request_capabilities: key.request_capabilities ?? '',
                 }],
                 proxy: channel.proxy,
                 channel_proxy: channel.channel_proxy ?? null,

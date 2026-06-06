@@ -392,6 +392,135 @@ func (r *InternalLLMRequest) ClearHelpFields() {
 	r.Include = nil
 }
 
+func (r *InternalLLMRequest) DeepClone() *InternalLLMRequest {
+	if r == nil {
+		return nil
+	}
+
+	cloned := *r
+
+	if len(r.Messages) > 0 {
+		cloned.Messages = make([]Message, len(r.Messages))
+		for i := range r.Messages {
+			cloned.Messages[i] = r.Messages[i].deepClone()
+		}
+	}
+
+	if r.EmbeddingInput != nil {
+		embedding := *r.EmbeddingInput
+		if r.EmbeddingInput.Single != nil {
+			single := *r.EmbeddingInput.Single
+			embedding.Single = &single
+		}
+		if len(r.EmbeddingInput.Multiple) > 0 {
+			embedding.Multiple = append([]string(nil), r.EmbeddingInput.Multiple...)
+		}
+		cloned.EmbeddingInput = &embedding
+	}
+
+	if r.LogitBias != nil {
+		cloned.LogitBias = make(map[string]int64, len(r.LogitBias))
+		for key, value := range r.LogitBias {
+			cloned.LogitBias[key] = value
+		}
+	}
+
+	if r.Metadata != nil {
+		cloned.Metadata = make(map[string]string, len(r.Metadata))
+		for key, value := range r.Metadata {
+			cloned.Metadata[key] = value
+		}
+	}
+
+	if len(r.Modalities) > 0 {
+		cloned.Modalities = append([]string(nil), r.Modalities...)
+	}
+
+	if r.Audio != nil {
+		audio := *r.Audio
+		cloned.Audio = &audio
+	}
+
+	if r.Stop != nil {
+		stop := *r.Stop
+		if r.Stop.Stop != nil {
+			stopValue := *r.Stop.Stop
+			stop.Stop = &stopValue
+		}
+		if len(r.Stop.MultipleStop) > 0 {
+			stop.MultipleStop = append([]string(nil), r.Stop.MultipleStop...)
+		}
+		cloned.Stop = &stop
+	}
+
+	if r.Stream != nil {
+		stream := *r.Stream
+		cloned.Stream = &stream
+	}
+
+	if r.StreamOptions != nil {
+		streamOptions := *r.StreamOptions
+		cloned.StreamOptions = &streamOptions
+	}
+
+	if len(r.Tools) > 0 {
+		cloned.Tools = make([]Tool, len(r.Tools))
+		for i := range r.Tools {
+			cloned.Tools[i] = r.Tools[i].deepClone()
+		}
+	}
+
+	if r.ToolChoice != nil {
+		toolChoice := *r.ToolChoice
+		if r.ToolChoice.ToolChoice != nil {
+			toolChoiceValue := *r.ToolChoice.ToolChoice
+			toolChoice.ToolChoice = &toolChoiceValue
+		}
+		if r.ToolChoice.NamedToolChoice != nil {
+			named := *r.ToolChoice.NamedToolChoice
+			toolChoice.NamedToolChoice = &named
+		}
+		cloned.ToolChoice = &toolChoice
+	}
+
+	if r.ResponseFormat != nil {
+		responseFormat := *r.ResponseFormat
+		if r.ResponseFormat.JSONSchema != nil {
+			responseFormat.JSONSchema = append(json.RawMessage(nil), r.ResponseFormat.JSONSchema...)
+		}
+		cloned.ResponseFormat = &responseFormat
+	}
+
+	if r.ExtraBody != nil {
+		cloned.ExtraBody = append(json.RawMessage(nil), r.ExtraBody...)
+	}
+
+	if r.RawRequest != nil {
+		cloned.RawRequest = append([]byte(nil), r.RawRequest...)
+	}
+
+	if r.TransformerMetadata != nil {
+		cloned.TransformerMetadata = make(map[string]string, len(r.TransformerMetadata))
+		for key, value := range r.TransformerMetadata {
+			cloned.TransformerMetadata[key] = value
+		}
+	}
+
+	if len(r.Include) > 0 {
+		cloned.Include = append([]string(nil), r.Include...)
+	}
+
+	if r.Query != nil {
+		query := make(url.Values, len(r.Query))
+		for key, values := range r.Query {
+			query[key] = append([]string(nil), values...)
+		}
+		cloned.Query = query
+	}
+
+	return &cloned
+}
+
 func (r *InternalLLMRequest) IsImageGenerationRequest() bool {
 	return len(r.Modalities) > 0 && slices.Contains(r.Modalities, "image")
 }
@@ -505,6 +634,66 @@ func (m *Message) ClearHelpFields() {
 	m.ReasoningSignature = nil
 }
 
+func (m Message) deepClone() Message {
+	cloned := m
+	cloned.Content = m.Content.deepClone()
+
+	if m.Name != nil {
+		name := *m.Name
+		cloned.Name = &name
+	}
+	if m.MessageIndex != nil {
+		index := *m.MessageIndex
+		cloned.MessageIndex = &index
+	}
+	if m.ToolCallID != nil {
+		toolCallID := *m.ToolCallID
+		cloned.ToolCallID = &toolCallID
+	}
+	if m.ToolCallName != nil {
+		toolCallName := *m.ToolCallName
+		cloned.ToolCallName = &toolCallName
+	}
+	if m.ToolCallIsError != nil {
+		toolCallIsError := *m.ToolCallIsError
+		cloned.ToolCallIsError = &toolCallIsError
+	}
+	if len(m.ToolCalls) > 0 {
+		cloned.ToolCalls = make([]ToolCall, len(m.ToolCalls))
+		for i := range m.ToolCalls {
+			cloned.ToolCalls[i] = m.ToolCalls[i].deepClone()
+		}
+	}
+	if len(m.Images) > 0 {
+		cloned.Images = make([]MessageContentPart, len(m.Images))
+		for i := range m.Images {
+			cloned.Images[i] = m.Images[i].deepClone()
+		}
+	}
+	if m.Audio != nil {
+		audio := *m.Audio
+		cloned.Audio = &audio
+	}
+	if m.ReasoningContent != nil {
+		reasoningContent := *m.ReasoningContent
+		cloned.ReasoningContent = &reasoningContent
+	}
+	if m.Reasoning != nil {
+		reasoning := *m.Reasoning
+		cloned.Reasoning = &reasoning
+	}
+	if m.ReasoningSignature != nil {
+		reasoningSignature := *m.ReasoningSignature
+		cloned.ReasoningSignature = &reasoningSignature
+	}
+	if m.CacheControl != nil {
+		cacheControl := *m.CacheControl
+		cloned.CacheControl = &cacheControl
+	}
+
+	return cloned
+}
+
 // GetReasoningContent returns the reasoning content from either ReasoningContent or Reasoning field.
 // Different providers use different field names for the same purpose.
 func (m *Message) GetReasoningContent() string {
@@ -525,6 +714,21 @@ func (m *Message) SetReasoningContent(s string) {
 type MessageContent struct {
 	Content         *string              `json:"content,omitempty"`
 	MultipleContent []MessageContentPart `json:"multiple_content,omitempty"`
+}
+
+func (c MessageContent) deepClone() MessageContent {
+	cloned := c
+	if c.Content != nil {
+		content := *c.Content
+		cloned.Content = &content
+	}
+	if len(c.MultipleContent) > 0 {
+		cloned.MultipleContent = make([]MessageContentPart, len(c.MultipleContent))
+		for i := range c.MultipleContent {
+			cloned.MultipleContent[i] = c.MultipleContent[i].deepClone()
+		}
+	}
+	return cloned
 }
 
 func (c MessageContent) MarshalJSON() ([]byte, error) {
@@ -579,6 +783,35 @@ type MessageContentPart struct {
 	// CacheControl is used for provider-specific cache control (e.g., Anthropic).
 	// This field is not serialized in JSON.
 	CacheControl *CacheControl `json:"-"`
+}
+
+func (p MessageContentPart) deepClone() MessageContentPart {
+	cloned := p
+	if p.Text != nil {
+		text := *p.Text
+		cloned.Text = &text
+	}
+	if p.ImageURL != nil {
+		imageURL := *p.ImageURL
+		if p.ImageURL.Detail != nil {
+			detail := *p.ImageURL.Detail
+			imageURL.Detail = &detail
+		}
+		cloned.ImageURL = &imageURL
+	}
+	if p.Audio != nil {
+		audio := *p.Audio
+		cloned.Audio = &audio
+	}
+	if p.File != nil {
+		file := *p.File
+		cloned.File = &file
+	}
+	if p.CacheControl != nil {
+		cacheControl := *p.CacheControl
+		cloned.CacheControl = &cacheControl
+	}
+	return cloned
 }
 
 // ImageURL represents an image URL with optional detail level.
@@ -870,6 +1103,40 @@ type Tool struct {
 	CacheControl *CacheControl `json:"-"`
 }
 
+func (t Tool) deepClone() Tool {
+	cloned := t
+	if t.Function.Parameters != nil {
+		cloned.Function.Parameters = append(json.RawMessage(nil), t.Function.Parameters...)
+	}
+	if t.Function.Strict != nil {
+		strict := *t.Function.Strict
+		cloned.Function.Strict = &strict
+	}
+	if t.ImageGeneration != nil {
+		imageGeneration := *t.ImageGeneration
+		if t.ImageGeneration.InputImageMask != nil {
+			imageGeneration.InputImageMask = make(map[string]any, len(t.ImageGeneration.InputImageMask))
+			for key, value := range t.ImageGeneration.InputImageMask {
+				imageGeneration.InputImageMask[key] = value
+			}
+		}
+		if t.ImageGeneration.OutputCompression != nil {
+			outputCompression := *t.ImageGeneration.OutputCompression
+			imageGeneration.OutputCompression = &outputCompression
+		}
+		if t.ImageGeneration.PartialImages != nil {
+			partialImages := *t.ImageGeneration.PartialImages
+			imageGeneration.PartialImages = &partialImages
+		}
+		cloned.ImageGeneration = &imageGeneration
+	}
+	if t.CacheControl != nil {
+		cacheControl := *t.CacheControl
+		cloned.CacheControl = &cacheControl
+	}
+	return cloned
+}
+
 // CacheControl represents cache control configuration.
 // This field is used internally for provider-specific cache control
 // and should not be serialized in the standard llm JSON format.
@@ -924,6 +1191,15 @@ type ToolCall struct {
 
 	// CacheControl is used for provider-specific cache control (e.g., Anthropic).
 	CacheControl *CacheControl `json:"-"`
+}
+
+func (t ToolCall) deepClone() ToolCall {
+	cloned := t
+	if t.CacheControl != nil {
+		cacheControl := *t.CacheControl
+		cloned.CacheControl = &cacheControl
+	}
+	return cloned
 }
 
 type ToolFunction struct {

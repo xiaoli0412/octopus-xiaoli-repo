@@ -108,8 +108,9 @@ type DBDumpLegacyChannelHint struct {
 }
 
 type DBDumpLegacyChannelKeyHint struct {
-	MissingSourceType    bool `json:"-"`
-	MissingAllowedModels bool `json:"-"`
+	MissingSourceType          bool `json:"-"`
+	MissingAllowedModels       bool `json:"-"`
+	MissingRequestCapabilities bool `json:"-"`
 }
 
 type DBDumpLegacyGroupHint struct {

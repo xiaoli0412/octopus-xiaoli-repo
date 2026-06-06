@@ -72,6 +72,10 @@ func init() {
 				Handle(getSettingList),
 		).
 		AddRoute(
+			router.NewRoute("/public-access", http.MethodGet).
+				Handle(getPublicAccess),
+		).
+		AddRoute(
 			router.NewRoute("/set", http.MethodPost).
 				Use(middleware.RequireJSON()).
 				Handle(setSetting),
@@ -112,6 +116,10 @@ func getSettingList(c *gin.Context) {
 		return
 	}
 	resp.Success(c, settings)
+}
+
+func getPublicAccess(c *gin.Context) {
+	resp.Success(c, op.PublicAccessInfo(c.Request))
 }
 
 func setSetting(c *gin.Context) {
@@ -619,8 +627,9 @@ func collectLegacyChannelKeyHints(raw map[string]json.RawMessage) map[int]model.
 	for _, row := range rows {
 		id := extractJSONInt(row, "id")
 		items[id] = model.DBDumpLegacyChannelKeyHint{
-			MissingSourceType:    !hasRawJSONField(row, "source_type"),
-			MissingAllowedModels: !hasRawJSONField(row, "allowed_models"),
+			MissingSourceType:          !hasRawJSONField(row, "source_type"),
+			MissingAllowedModels:       !hasRawJSONField(row, "allowed_models"),
+			MissingRequestCapabilities: !hasRawJSONField(row, "request_capabilities"),
 		}
 	}
 	return items

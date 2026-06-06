@@ -55,6 +55,7 @@ func ChannelCreate(channel *model.Channel, ctx context.Context) error {
 		}
 		channel.Keys[i].SourceType = normalizedSourceType
 		channel.Keys[i].AllowedModels = model.NormalizeChannelKeyAllowedModels(channel.Keys[i].AllowedModels)
+		channel.Keys[i].RequestCapabilities = model.NormalizeChannelKeyRequestCapabilities(channel.Keys[i].RequestCapabilities)
 	}
 	validatedBaseURLs, err := normalizeAndValidateBaseURLs(channel.BaseUrls)
 	if err != nil {
@@ -81,6 +82,8 @@ func ChannelKeyUpdate(key model.ChannelKey) error {
 	if key.ID == 0 || key.ChannelID == 0 {
 		return fmt.Errorf("invalid channel key")
 	}
+	key.AllowedModels = model.NormalizeChannelKeyAllowedModels(key.AllowedModels)
+	key.RequestCapabilities = model.NormalizeChannelKeyRequestCapabilities(key.RequestCapabilities)
 	ch, ok := channelCache.Get(key.ChannelID)
 	if !ok {
 		return fmt.Errorf("channel not found")
@@ -169,7 +172,7 @@ func ChannelUpdate(req *model.ChannelUpdateRequest, ctx context.Context) (*model
 	}
 	oldConfiguredKeyModels := make(map[string]struct{})
 	for _, modelName := range oldReferencedModels {
-		if oldChannel.HasConfiguredKeyForModel(modelName) {
+		if oldChannel.HasConfiguredKeyForRequest(modelName, oldChannel.RequestCapabilityForModel(modelName)) {
 			oldConfiguredKeyModels[modelName] = struct{}{}
 		}
 	}
@@ -311,6 +314,9 @@ func ChannelUpdate(req *model.ChannelUpdateRequest, ctx context.Context) (*model
 			if ku.AllowedModels != nil {
 				updates["allowed_models"] = model.NormalizeChannelKeyAllowedModels(*ku.AllowedModels)
 			}
+			if ku.RequestCapabilities != nil {
+				updates["request_capabilities"] = model.NormalizeChannelKeyRequestCapabilities(*ku.RequestCapabilities)
+			}
 			if len(updates) == 0 {
 				continue
 			}
@@ -327,18 +333,20 @@ func ChannelUpdate(req *model.ChannelUpdateRequest, ctx context.Context) (*model
 		newKeys := make([]model.ChannelKey, 0, len(req.KeysToAdd))
 		for _, ka := range req.KeysToAdd {
 			allowedModels := model.NormalizeChannelKeyAllowedModels(ka.AllowedModels)
+			requestCapabilities := model.NormalizeChannelKeyRequestCapabilities(ka.RequestCapabilities)
 			normalizedSourceType := model.NormalizeChannelKeySourceType(ka.SourceType)
 			if !model.IsValidChannelKeySourceType(normalizedSourceType) {
 				tx.Rollback()
 				return nil, fmt.Errorf("invalid channel key source type: %q", ka.SourceType)
 			}
 			newKeys = append(newKeys, model.ChannelKey{
-				ChannelID:     req.ID,
-				Enabled:       ka.Enabled,
-				ChannelKey:    ka.ChannelKey,
-				SourceType:    normalizedSourceType,
-				Remark:        ka.Remark,
-				AllowedModels: allowedModels,
+				ChannelID:           req.ID,
+				Enabled:             ka.Enabled,
+				ChannelKey:          ka.ChannelKey,
+				SourceType:          normalizedSourceType,
+				Remark:              ka.Remark,
+				AllowedModels:       allowedModels,
+				RequestCapabilities: requestCapabilities,
 			})
 		}
 		if err := tx.Create(&newKeys).Error; err != nil {
@@ -358,7 +366,7 @@ func ChannelUpdate(req *model.ChannelUpdateRequest, ctx context.Context) (*model
 	channel, _ := channelCache.Get(req.ID)
 	lostConfiguredKeyModels := make([]string, 0)
 	for modelName := range oldConfiguredKeyModels {
-		if channel.HasConfiguredKeyForModel(modelName) {
+		if channel.HasConfiguredKeyForRequest(modelName, channel.RequestCapabilityForModel(modelName)) {
 			continue
 		}
 		lostConfiguredKeyModels = append(lostConfiguredKeyModels, modelName)
@@ -505,20 +513,21 @@ func ChannelDel(id int, ctx context.Context) error {
 }
 
 func ChannelLLMList(ctx context.Context) ([]model.LLMChannel, error) {
-	models := []model.LLMChannel{}
-	for _, channel := range channelCache.Values() {
-		modelNames := xstrings.SplitTrimCompact(",", channel.Model, channel.CustomModel)
-		for _, modelName := range modelNames {
-			if modelName == "" {
-				continue
-			}
-			models = append(models, model.LLMChannel{
-				Name:        modelName,
-				Enabled:     channel.Enabled,
-				ChannelID:   channel.ID,
-				ChannelName: channel.Name,
-			})
-		}
+	inventory, err := CapabilityInventory(ctx)
+	if err != nil {
+		return nil, err
+	}
+	models := make([]model.LLMChannel, 0, len(inventory.ServiceableModels))
+	for _, item := range inventory.ServiceableModels {
+		models = append(models, model.LLMChannel{
+			Name:                item.Name,
+			Enabled:             item.Enabled,
+			ChannelID:           item.ChannelID,
+			ChannelName:         item.ChannelName,
+			KeyCount:            item.KeyCount,
+			RequestCapabilities: item.RequestCapabilities,
+			InventorySource:     item.InventorySource,
+		})
 	}
 	return models, nil
 }

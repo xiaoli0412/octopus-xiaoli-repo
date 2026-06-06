@@ -53,6 +53,7 @@ func normalizeHealthCheckChannel(channel *model.Channel) *model.Channel {
 		for _, key := range clone.Keys {
 			key.SourceType = model.EffectiveChannelKeySourceType(key.SourceType)
 			key.AllowedModels = model.NormalizeChannelKeyAllowedModels(key.AllowedModels)
+			key.RequestCapabilities = model.NormalizeChannelKeyRequestCapabilities(key.RequestCapabilities)
 			keys = append(keys, key)
 		}
 		clone.Keys = keys
@@ -91,14 +92,15 @@ func CheckChannelModelHealth(ctx context.Context, channel *model.Channel, modelN
 	result.ChannelID = channel.ID
 	result.ChannelName = channel.Name
 
-	if !channel.SupportsModel(modelName) {
-		result.Skipped = true
-		result.Error = fmt.Sprintf("channel:%s does not declare model:%s", channel.Name, modelName)
-		return result
-	}
 	if !channel.Enabled {
 		result.Skipped = true
 		result.Error = fmt.Sprintf("channel:%s is disabled", channel.Name)
+		return result
+	}
+	requestCapability := channel.RequestCapabilityForModel(modelName)
+	if !channel.HasConfiguredKeyForRequest(modelName, requestCapability) {
+		result.Skipped = true
+		result.Error = fmt.Sprintf("channel:%s has no available key for model:%s and request capability:%s", channel.Name, modelName, requestCapability)
 		return result
 	}
 
@@ -125,7 +127,7 @@ func CheckChannelModelHealth(ctx context.Context, channel *model.Channel, modelN
 	}
 	result.Delay = delay
 
-	channelKey := channel.GetChannelKeyForModel(modelName)
+	channelKey := channel.GetChannelKeyForRequest(modelName, requestCapability)
 	populateHealthPolicyMetadata(&result, channel, channelKey, modelName)
 	if strings.TrimSpace(channelKey.ChannelKey) == "" {
 		result.Skipped = true

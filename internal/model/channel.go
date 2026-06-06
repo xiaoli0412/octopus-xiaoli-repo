@@ -79,7 +79,8 @@ type ChannelKey struct {
 	Remark           string  `json:"remark"`
 	// AllowedModels limits what models this key can serve.
 	// Empty means "all models" (backward compatible).
-	AllowedModels string `json:"allowed_models"`
+	AllowedModels       string `json:"allowed_models"`
+	RequestCapabilities string `json:"request_capabilities"`
 }
 
 const (
@@ -87,6 +88,14 @@ const (
 	ChannelKeySourceTypePublicFree      = "public/free"
 	ChannelKeySourceTypePaidMetered     = "paid/metered"
 	ChannelKeySourceTypePrivateInternal = "private/internal"
+)
+
+const (
+	RequestCapabilityOpenAIChat        = "openai_chat"
+	RequestCapabilityOpenAIResponses   = "openai_responses"
+	RequestCapabilityAnthropicMessages = "anthropic_messages"
+	RequestCapabilityOpenAIEmbeddings  = "openai_embeddings"
+	RequestCapabilityGeminiContents    = "gemini_contents"
 )
 
 func NormalizeChannelKeySourceType(input string) string {
@@ -184,20 +193,22 @@ type ChannelUpdateRequest struct {
 }
 
 type ChannelKeyAddRequest struct {
-	Enabled       bool   `json:"enabled"`
-	ChannelKey    string `json:"channel_key" binding:"required"`
-	SourceType    string `json:"source_type"`
-	Remark        string `json:"remark"`
-	AllowedModels string `json:"allowed_models"`
+	Enabled             bool   `json:"enabled"`
+	ChannelKey          string `json:"channel_key" binding:"required"`
+	SourceType          string `json:"source_type"`
+	Remark              string `json:"remark"`
+	AllowedModels       string `json:"allowed_models"`
+	RequestCapabilities string `json:"request_capabilities"`
 }
 
 type ChannelKeyUpdateRequest struct {
-	ID            int     `json:"id" binding:"required"`
-	Enabled       *bool   `json:"enabled,omitempty"`
-	ChannelKey    *string `json:"channel_key,omitempty"`
-	SourceType    *string `json:"source_type,omitempty"`
-	Remark        *string `json:"remark,omitempty"`
-	AllowedModels *string `json:"allowed_models,omitempty"`
+	ID                  int     `json:"id" binding:"required"`
+	Enabled             *bool   `json:"enabled,omitempty"`
+	ChannelKey          *string `json:"channel_key,omitempty"`
+	SourceType          *string `json:"source_type,omitempty"`
+	Remark              *string `json:"remark,omitempty"`
+	AllowedModels       *string `json:"allowed_models,omitempty"`
+	RequestCapabilities *string `json:"request_capabilities,omitempty"`
 }
 
 // keyRoundRobin maintains per-channel+model rotation counters.
@@ -258,6 +269,109 @@ func keyAllowsModel(k ChannelKey, modelName string) bool {
 	return false
 }
 
+func NormalizeRequestCapability(input string) string {
+	v := strings.ToLower(strings.TrimSpace(input))
+	v = strings.ReplaceAll(v, "-", "_")
+	v = strings.ReplaceAll(v, "/", "_")
+	v = strings.ReplaceAll(v, " ", "_")
+	switch v {
+	case "", "unknown":
+		return ""
+	case "openai_chat", "openai_chat_completions", "chat", "chat_completions":
+		return RequestCapabilityOpenAIChat
+	case "openai_responses", "openai_response", "responses", "response":
+		return RequestCapabilityOpenAIResponses
+	case "anthropic_messages", "anthropic_message", "messages", "message":
+		return RequestCapabilityAnthropicMessages
+	case "openai_embeddings", "openai_embedding", "embeddings", "embedding":
+		return RequestCapabilityOpenAIEmbeddings
+	case "gemini_contents", "gemini_content", "generate_content", "generate_contents":
+		return RequestCapabilityGeminiContents
+	default:
+		return v
+	}
+}
+
+func RequestCapabilityForOutbound(channelType outbound.OutboundType, modelName string) string {
+	switch channelType {
+	case outbound.OutboundTypeOpenAIChat, outbound.OutboundTypeGithubCopilot:
+		return RequestCapabilityOpenAIChat
+	case outbound.OutboundTypeOpenAIResponse, outbound.OutboundTypeVolcengine:
+		return RequestCapabilityOpenAIResponses
+	case outbound.OutboundTypeOpenAIEmbedding:
+		return RequestCapabilityOpenAIEmbeddings
+	case outbound.OutboundTypeAnthropic:
+		return RequestCapabilityAnthropicMessages
+	case outbound.OutboundTypeGemini, outbound.OutboundTypeAntigravity:
+		return RequestCapabilityGeminiContents
+	case outbound.OutboundTypeZen:
+		lower := strings.ToLower(strings.TrimSpace(modelName))
+		switch {
+		case strings.HasPrefix(lower, "claude-"):
+			return RequestCapabilityAnthropicMessages
+		case strings.HasPrefix(lower, "gpt-"):
+			return RequestCapabilityOpenAIResponses
+		case strings.HasPrefix(lower, "gemini-"):
+			return RequestCapabilityGeminiContents
+		default:
+			return RequestCapabilityOpenAIChat
+		}
+	default:
+		return ""
+	}
+}
+
+func (c *Channel) RequestCapabilityForModel(modelName string) string {
+	if c == nil {
+		return ""
+	}
+	return RequestCapabilityForOutbound(c.Type, modelName)
+}
+
+func normalizeRequestCapabilities(input string) string {
+	parts := strings.Split(input, ",")
+	uniq := make(map[string]struct{}, len(parts))
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		capability := NormalizeRequestCapability(part)
+		if capability == "" {
+			continue
+		}
+		if _, ok := uniq[capability]; ok {
+			continue
+		}
+		uniq[capability] = struct{}{}
+		out = append(out, capability)
+	}
+	sort.Strings(out)
+	return strings.Join(out, ",")
+}
+
+func ChannelKeyRequestCapabilitiesList(input string) []string {
+	normalized := normalizeRequestCapabilities(input)
+	if normalized == "" {
+		return nil
+	}
+	return strings.Split(normalized, ",")
+}
+
+func keyAllowsRequestCapability(k ChannelKey, requestFormat string) bool {
+	requestCapability := NormalizeRequestCapability(requestFormat)
+	if requestCapability == "" {
+		return true
+	}
+	allowed := ChannelKeyRequestCapabilitiesList(k.RequestCapabilities)
+	if len(allowed) == 0 {
+		return true
+	}
+	for _, capability := range allowed {
+		if capability == requestCapability {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *Channel) pooledModelAllowed(modelName string) bool {
 	if c == nil {
 		return false
@@ -298,6 +412,14 @@ func normalizeAllowedModels(input string) string {
 	}
 	sort.Strings(out)
 	return strings.Join(out, ",")
+}
+
+func ChannelKeyAllowedModelsList(input string) []string {
+	normalized := normalizeAllowedModels(input)
+	if normalized == "" {
+		return nil
+	}
+	return strings.Split(normalized, ",")
 }
 
 // ChannelFetchModelRequest is used by /channel/fetch-model (not persisted).
@@ -426,11 +548,19 @@ func (c *Channel) GetChannelKeyForModel(modelName string) ChannelKey {
 	return c.GetChannelKeyForModelExcept(modelName, nil)
 }
 
+func (c *Channel) GetChannelKeyForRequest(modelName string, requestFormat string) ChannelKey {
+	return c.GetChannelKeyForRequestExcept(modelName, requestFormat, nil)
+}
+
 func (c *Channel) NextEligibleChannelKeyAfter(modelName string, afterKeyID int, excluded map[int]struct{}) ChannelKey {
+	return c.NextEligibleChannelKeyAfterRequest(modelName, "", afterKeyID, excluded)
+}
+
+func (c *Channel) NextEligibleChannelKeyAfterRequest(modelName string, requestFormat string, afterKeyID int, excluded map[int]struct{}) ChannelKey {
 	if c == nil || len(c.Keys) == 0 {
 		return ChannelKey{}
 	}
-	ordered := c.EligibleChannelKeysForModel(modelName)
+	ordered := c.EligibleChannelKeysForRequest(modelName, requestFormat)
 	if len(ordered) == 0 {
 		return ChannelKey{}
 	}
@@ -459,10 +589,18 @@ func (c *Channel) NextEligibleChannelKeyAfter(modelName string, afterKeyID int, 
 }
 
 func (c *Channel) GetChannelKeyForModelExcept(modelName string, excluded map[int]struct{}) ChannelKey {
+	return c.getChannelKeyForRequestExcept(modelName, "", excluded)
+}
+
+func (c *Channel) GetChannelKeyForRequestExcept(modelName string, requestFormat string, excluded map[int]struct{}) ChannelKey {
+	return c.getChannelKeyForRequestExcept(modelName, requestFormat, excluded)
+}
+
+func (c *Channel) getChannelKeyForRequestExcept(modelName string, requestFormat string, excluded map[int]struct{}) ChannelKey {
 	if c == nil || len(c.Keys) == 0 {
 		return ChannelKey{}
 	}
-	ordered := c.EligibleChannelKeysForModel(modelName)
+	ordered := c.EligibleChannelKeysForRequest(modelName, requestFormat)
 	if len(ordered) == 0 {
 		return ChannelKey{}
 	}
@@ -511,7 +649,7 @@ func (c *Channel) GetChannelKeyForModelExcept(modelName string, excluded map[int
 	}
 
 	if len(excluded) > 0 {
-		return c.NextEligibleChannelKeyAfter(modelName, 0, excluded)
+		return c.NextEligibleChannelKeyAfterRequest(modelName, requestFormat, 0, excluded)
 	}
 
 	if len(ordered) == 1 {
@@ -542,12 +680,11 @@ func (c *Channel) orderEligibleKeys(eligible []ChannelKey) []ChannelKey {
 }
 
 func (c *Channel) EligibleChannelKeysForModel(modelName string) []ChannelKey {
+	return c.EligibleChannelKeysForRequest(modelName, "")
+}
+
+func (c *Channel) EligibleChannelKeysForRequest(modelName string, requestFormat string) []ChannelKey {
 	if c == nil || len(c.Keys) == 0 {
-		return nil
-	}
-	mode := NormalizeKeyManagementMode(c.KeyManagementMode)
-	pooledMode := mode == KeyManagementModePooled
-	if pooledMode && !c.pooledModelAllowed(modelName) {
 		return nil
 	}
 	nowSec := time.Now().Unix()
@@ -556,7 +693,7 @@ func (c *Channel) EligibleChannelKeysForModel(modelName string) []ChannelKey {
 		if !k.Enabled || k.ChannelKey == "" {
 			continue
 		}
-		if !pooledMode && !keyAllowsModel(k, modelName) {
+		if !c.KeyCanServeRequest(k, modelName, requestFormat) {
 			continue
 		}
 		if k.StatusCode == 429 && k.LastUseTimeStamp > 0 {
@@ -570,26 +707,48 @@ func (c *Channel) EligibleChannelKeysForModel(modelName string) []ChannelKey {
 }
 
 func (c *Channel) HasConfiguredKeyForModel(modelName string) bool {
+	return c.HasConfiguredKeyForRequest(modelName, "")
+}
+
+func (c *Channel) HasConfiguredKeyForRequest(modelName string, requestFormat string) bool {
 	if c == nil || len(c.Keys) == 0 {
-		return false
-	}
-	mode := NormalizeKeyManagementMode(c.KeyManagementMode)
-	pooledMode := mode == KeyManagementModePooled
-	if pooledMode && !c.pooledModelAllowed(modelName) {
 		return false
 	}
 	for _, key := range c.Keys {
 		if !key.Enabled || strings.TrimSpace(key.ChannelKey) == "" {
 			continue
 		}
-		if !pooledMode && !keyAllowsModel(key, modelName) {
-			continue
+		if c.KeyCanServeRequest(key, modelName, requestFormat) {
+			return true
 		}
-		return true
 	}
 	return false
 }
 
+func (c *Channel) KeyCanServeModel(k ChannelKey, modelName string) bool {
+	return c.KeyCanServeRequest(k, modelName, "")
+}
+
+func (c *Channel) KeyCanServeRequest(k ChannelKey, modelName string, requestFormat string) bool {
+	if c == nil {
+		return false
+	}
+	if !keyAllowsRequestCapability(k, requestFormat) {
+		return false
+	}
+	if strings.TrimSpace(k.AllowedModels) != "" {
+		return keyAllowsModel(k, modelName)
+	}
+	if strings.TrimSpace(c.Model) != "" || strings.TrimSpace(c.CustomModel) != "" {
+		return c.SupportsModel(modelName)
+	}
+	return true
+}
+
 func NormalizeChannelKeyAllowedModels(input string) string {
 	return normalizeAllowedModels(input)
+}
+
+func NormalizeChannelKeyRequestCapabilities(input string) string {
+	return normalizeRequestCapabilities(input)
 }

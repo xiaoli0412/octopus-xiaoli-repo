@@ -88,7 +88,7 @@ export function SettingLog() {
             </h2>
 
             {/* 是否启用历史日志 */}
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <div className="flex items-center gap-3">
                     <ScrollText className="h-5 w-5 text-muted-foreground" />
                     <span className="text-sm font-medium">{t('log.enabled.label')}</span>
@@ -100,7 +100,7 @@ export function SettingLog() {
             </div>
 
             {/* 历史日志保存范围 */}
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <div className="flex items-center gap-3">
                     <Calendar className="h-5 w-5 text-muted-foreground" />
                     <span className="text-sm font-medium">{t('log.keepPeriod.label')}</span>
@@ -111,13 +111,13 @@ export function SettingLog() {
                     onChange={(e) => setKeepPeriod(e.target.value)}
                     onBlur={handleKeepPeriodSave}
                     placeholder={t('log.keepPeriod.placeholder')}
-                    className="w-48 rounded-xl"
+                    className="w-full rounded-xl sm:w-56 md:w-72"
                     disabled={!enabled}
                 />
             </div>
 
             {/* 清空历史日志 */}
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <div className="flex items-center gap-3">
                     <Trash2 className="h-5 w-5 text-muted-foreground" />
                     <span className="text-sm font-medium">{t('log.clear.label')}</span>

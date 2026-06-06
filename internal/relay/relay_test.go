@@ -347,7 +347,7 @@ func TestDynamicRoutingModeStateHybridFallbackWhenHealthDisabled(t *testing.T) {
 
 	group := dbmodel.Group{ID: 1, Mode: dbmodel.GroupModeFailover, Items: []dbmodel.GroupItem{{ChannelID: 1, ModelName: "gpt-4o", Priority: 1}}}
 	_ = ctx
-	state := initDynamicRoutingModeState(group, "gpt-4o")
+	state := initDynamicRoutingModeState(group, "gpt-4o", "")
 	if state.Mode != dynamicRoutingModeHybrid {
 		t.Fatalf("Mode = %q, want hybrid", state.Mode)
 	}
@@ -372,7 +372,7 @@ func TestDynamicRoutingModeStateIncidentSafeDisablesRace(t *testing.T) {
 	}
 
 	group := dbmodel.Group{ID: 1, Mode: dbmodel.GroupModeFailover, RaceAfterFails: 2, RaceConcurrency: 3, FailoverWindowSec: 360}
-	state := initDynamicRoutingModeState(group, "gpt-4o")
+	state := initDynamicRoutingModeState(group, "gpt-4o", "")
 	tuning := effectiveDynamicRoutingTuningForMode(group, dbmodel.RouteTargetResolvedPolicy{SourceType: dbmodel.ChannelKeySourceTypePublicFree, BillingMode: dbmodel.BillingModeFree}, state)
 	if state.EffectiveMode != dynamicRoutingModeIncidentSafe {
 		t.Fatalf("EffectiveMode = %q, want incident-safe", state.EffectiveMode)
@@ -420,7 +420,7 @@ func TestDynamicRoutingScoringDoesNotAdvanceRoundRobinKeyState(t *testing.T) {
 		Mode:  dbmodel.GroupModeFailover,
 		Items: []dbmodel.GroupItem{{ChannelID: updated.ID, ModelName: "gpt-4o", Priority: 1}},
 	}
-	_ = initDynamicRoutingModeState(group, "gpt-4o")
+	_ = initDynamicRoutingModeState(group, "gpt-4o", "")
 
 	refreshed, err := op.ChannelGet(updated.ID, ctx)
 	if err != nil {
@@ -495,7 +495,7 @@ func TestDynamicRoutingScoringDemotesCandidateWithoutEligibleKey(t *testing.T) {
 			{ID: 2, ChannelID: healthy.ID, ModelName: "gpt-4o", Priority: 2, Weight: 1},
 		},
 	}
-	state := initDynamicRoutingModeState(group, "gpt-4o")
+	state := initDynamicRoutingModeState(group, "gpt-4o", "")
 	if len(state.Recommended) == 0 || state.Recommended[0].ChannelID != healthy.ID {
 		t.Fatalf("recommended order = %#v, want eligible channel %d first", state.Recommended, healthy.ID)
 	}
@@ -504,7 +504,7 @@ func TestDynamicRoutingScoringDemotesCandidateWithoutEligibleKey(t *testing.T) {
 func TestDynamicRoutingHybridAdoptsHealthyRecommendationOrder(t *testing.T) {
 	group, unhealthyID, healthyID := setupDynamicRoutingRecommendationTest(t, dynamicRoutingModeHybrid)
 
-	state := initDynamicRoutingModeState(group, "gpt-4o")
+	state := initDynamicRoutingModeState(group, "gpt-4o", "")
 	if state.Decision != dynamicRoutingDecisionRecommended {
 		t.Fatalf("Decision = %q, want recommended", state.Decision)
 	}
@@ -541,7 +541,7 @@ func TestDynamicRoutingObservationModesKeepMechanismOrder(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			group, unhealthyID, healthyID := setupDynamicRoutingRecommendationTest(t, tc.mode)
 
-			state := initDynamicRoutingModeState(group, "gpt-4o")
+			state := initDynamicRoutingModeState(group, "gpt-4o", "")
 			if state.Decision != tc.wantDecision {
 				t.Fatalf("Decision = %q, want %q", state.Decision, tc.wantDecision)
 			}

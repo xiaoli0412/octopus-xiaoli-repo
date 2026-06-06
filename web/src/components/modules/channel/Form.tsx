@@ -31,6 +31,7 @@ export interface ChannelKeyFormItem {
     total_cost?: number;
     remark?: string;
     allowed_models?: string;
+    request_capabilities?: string;
 }
 export interface ChannelFormData {
     name: string;
@@ -193,7 +194,7 @@ export function ChannelForm({
             return;
         }
         if (!formData.keys || formData.keys.length === 0) {
-            onFormDataChange({ ...formData, keys: [{ enabled: true, channel_key: '', source_type: '', remark: '', allowed_models: '' }] });
+            onFormDataChange({ ...formData, keys: [{ enabled: true, channel_key: '', source_type: '', remark: '', allowed_models: '', request_capabilities: '' }] });
             return;
         }
         if (!formData.custom_header || formData.custom_header.length === 0) {
@@ -334,7 +335,7 @@ export function ChannelForm({
                     onFormDataChangeRef.current({
                         ...formDataRef.current,
                         base_urls: [{ url: 'https://api.githubcopilot.com', delay: 0 }],
-                        keys: [{ enabled: true, channel_key: result.access_token, source_type: '', remark: '', allowed_models: '' }],
+                        keys: [{ enabled: true, channel_key: result.access_token, source_type: '', remark: '', allowed_models: '', request_capabilities: '' }],
                     });
                     return; // Stop polling
                 }
@@ -392,7 +393,7 @@ export function ChannelForm({
                     onFormDataChangeRef.current({
                         ...formDataRef.current,
                         base_urls: currentBaseUrls.length > 0 ? currentBaseUrls : [{ url: 'https://cloudcode-pa.googleapis.com', delay: 0 }],
-                        keys: [{ enabled: true, channel_key: result.access_token, source_type: '', remark: '', allowed_models: '' }],
+                        keys: [{ enabled: true, channel_key: result.access_token, source_type: '', remark: '', allowed_models: '', request_capabilities: '' }],
                     });
                     return;
                 }
@@ -590,7 +591,7 @@ export function ChannelForm({
     const handleAddKey = () => {
         onFormDataChange({
             ...formData,
-            keys: [...formData.keys, { enabled: true, channel_key: '', source_type: '', remark: '', allowed_models: '' }],
+            keys: [...formData.keys, { enabled: true, channel_key: '', source_type: '', remark: '', allowed_models: '', request_capabilities: '' }],
         });
         setKeyFilter('');
         setExpandedKeyItems((current) => [...new Set([...current, `key-${formData.keys.length}`])]);
@@ -724,6 +725,7 @@ export function ChannelForm({
         const masked = maskKeyPreview(key.channel_key);
         const sourceTypeLabel = formatSourceTypeLabel(key.source_type);
         const allowedModels = splitAllowedModels(key.allowed_models);
+        const requestCapabilities = splitAllowedModels(key.request_capabilities);
 
         parts.push(masked || t('keyValueEmpty'));
         if (key.remark?.trim()) {
@@ -739,6 +741,7 @@ export function ChannelForm({
                 ? t('keySummaryAllowedModels', { count: allowedModels.length })
                 : t('keySummaryAllModels')
         );
+        parts.push(requestCapabilities.length > 0 ? t('requestCapabilitiesCount', { count: requestCapabilities.length }) : t('requestCapabilitiesUnlimited'));
 
         return parts;
     }, [formatSourceTypeLabel, t]);
@@ -757,6 +760,7 @@ export function ChannelForm({
                 key.channel_key ?? '',
                 key.remark ?? '',
                 key.allowed_models ?? '',
+                key.request_capabilities ?? '',
                 key.source_type ?? '',
             ].join(' ').toLowerCase();
 
@@ -855,6 +859,7 @@ export function ChannelForm({
                     channel_key: k.channel_key.trim(),
                     source_type: (k.source_type ?? '').trim(),
                     allowed_models: (k.allowed_models ?? '').trim(),
+                    request_capabilities: (k.request_capabilities ?? '').trim(),
                 })),
                 proxy: formData.proxy,
                 channel_proxy: formData.channel_proxy?.trim() || null,
@@ -1533,6 +1538,20 @@ export function ChannelForm({
                                                     </div>
                                                 </div>
 
+                                                <div className="space-y-2">
+                                                    <div className="text-sm font-medium text-card-foreground">{t('requestCapabilitiesLabel')}</div>
+                                                    <Input
+                                                        type="text"
+                                                        value={k.request_capabilities ?? ''}
+                                                        onChange={(e) => handleUpdateKey(idx, { request_capabilities: e.target.value })}
+                                                        placeholder={t('requestCapabilitiesPlaceholder')}
+                                                        className="rounded-xl bg-background"
+                                                    />
+                                                    <div className="text-xs leading-5 text-muted-foreground">
+                                                        {t('requestCapabilitiesHelp')}
+                                                    </div>
+                                                </div>
+
                                                 <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                                                     {k.source_type && k.source_type !== 'unknown' ? (
                                                         <span className="rounded-full border border-border/60 bg-background/90 px-2.5 py-1">
@@ -1542,6 +1561,11 @@ export function ChannelForm({
                                                     {k.remark?.trim() ? (
                                                         <span className="rounded-full border border-border/60 bg-background/90 px-2.5 py-1">
                                                             {k.remark.trim()}
+                                                        </span>
+                                                    ) : null}
+                                                    {k.request_capabilities?.trim() ? (
+                                                        <span className="rounded-full border border-border/60 bg-background/90 px-2.5 py-1">
+                                                            {k.request_capabilities.trim()}
                                                         </span>
                                                     ) : null}
                                                 </div>
@@ -1702,6 +1726,21 @@ export function ChannelForm({
                                                 <span className="rounded-full border border-border/60 bg-muted/20 px-2.5 py-1">{maskedKey || t('keyValueEmpty')}</span>
                                                 <span className="rounded-full border border-border/60 bg-muted/20 px-2.5 py-1">{sourceTypeSummary}</span>
                                                 <span className="rounded-full border border-border/60 bg-muted/20 px-2.5 py-1">{remarkSummary}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                                            <Input
+                                                type="text"
+                                                value={k.request_capabilities ?? ''}
+                                                onChange={(e) => handleUpdateKey(idx, { request_capabilities: e.target.value })}
+                                                placeholder={t('requestCapabilitiesCompactPlaceholder')}
+                                                className="rounded-xl bg-background"
+                                            />
+                                            <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground md:justify-end">
+                                                <span className="rounded-full border border-border/60 bg-muted/20 px-2.5 py-1">
+                                                    {k.request_capabilities?.trim() || t('requestCapabilitiesUnlimited')}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>

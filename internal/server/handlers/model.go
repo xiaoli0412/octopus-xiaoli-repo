@@ -32,6 +32,10 @@ func init() {
 				Handle(listLLMByChannel),
 		).
 		AddRoute(
+			router.NewRoute("/capability-inventory", http.MethodGet).
+				Handle(getCapabilityInventory),
+		).
+		AddRoute(
 			router.NewRoute("/update", http.MethodPost).
 				Handle(updateLLM),
 		).
@@ -136,6 +140,15 @@ func listLLMByChannel(c *gin.Context) {
 		return
 	}
 	resp.Success(c, channels)
+}
+
+func getCapabilityInventory(c *gin.Context) {
+	inventory, err := op.CapabilityInventory(c.Request.Context())
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	resp.Success(c, inventory)
 }
 
 func createLLM(c *gin.Context) {

@@ -48,7 +48,8 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 		return
 	}
 
-	modeState := initDynamicRoutingModeState(group, requestModel)
+	requestCapability := requestCapabilityForInternalRequest(internalRequest)
+	modeState := initDynamicRoutingModeState(group, requestModel, requestCapability)
 
 	// 创建迭代器（策略排序 + 粘性优先，可被动态模式覆盖）
 	iter := dynamicIterator(group, apiKeyID, requestModel, modeState)
@@ -59,7 +60,7 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 
 	// 初始化 Metrics
 	metrics := NewRelayMetrics(apiKeyID, requestModel, internalRequest)
-	metrics.SetClientIP(c.ClientIP())
+	metrics.SetClientIP(op.ClientIPFromRequest(c.Request))
 
 	// 请求级上下文
 	req := &relayRequest{
@@ -131,12 +132,9 @@ roundLoop:
 				iter.Skip(channel.ID, 0, channel.Name, "channel disabled")
 				continue
 			}
-			if !channel.SupportsModel(targetModel) {
-				iter.Skip(channel.ID, 0, channel.Name, fmt.Sprintf("stale route item: channel does not declare model %s", targetModel))
-				continue
-			}
-			if !channel.HasConfiguredKeyForModel(targetModel) {
-				iter.Skip(channel.ID, 0, channel.Name, fmt.Sprintf("stale route item: channel has no configured key for model %s", targetModel))
+			requestFormat := req.requestCapabilityFor(channel, targetModel)
+			if !channel.HasConfiguredKeyForRequest(targetModel, requestFormat) {
+				iter.Skip(channel.ID, 0, channel.Name, fmt.Sprintf("stale route item: channel does not declare model or has no configured key for model %s and request format %s", targetModel, requestFormat))
 				continue
 			}
 
@@ -162,7 +160,7 @@ roundLoop:
 					break roundLoop
 				}
 
-				usedKey := channel.GetChannelKeyForModelExcept(targetModel, excludedKeys)
+				usedKey := channel.GetChannelKeyForRequestExcept(targetModel, requestFormat, excludedKeys)
 				if strings.TrimSpace(usedKey.ChannelKey) == "" {
 					if len(excludedKeys) == 0 {
 						iter.Skip(channel.ID, 0, channel.Name, "no available key")
@@ -206,7 +204,7 @@ roundLoop:
 				consecutiveFails++
 				excludedKeys[usedKey.ID] = struct{}{}
 
-				nextKey := channel.GetChannelKeyForModelExcept(targetModel, excludedKeys)
+				nextKey := channel.GetChannelKeyForRequestExcept(targetModel, requestFormat, excludedKeys)
 				if !req.isStreaming && strings.TrimSpace(nextKey.ChannelKey) == "" {
 					policy := op.ResolveRouteTargetPolicy(channel, usedKey, targetModel)
 					tuning := effectiveDynamicRoutingTuningForMode(group, policy, req.dynamicMode)
@@ -349,6 +347,11 @@ func parseRequest(inboundType inbound.InboundType, c *gin.Context) (*model.Inter
 	}
 
 	inAdapter := inbound.Get(inboundType)
+	if inAdapter == nil {
+		err = fmt.Errorf("unsupported inbound type: %d", inboundType)
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return nil, nil, err
+	}
 	internalRequest, err := inAdapter.TransformRequest(c.Request.Context(), body)
 	if err != nil {
 		resp.Error(c, http.StatusBadRequest, err.Error())
@@ -357,6 +360,9 @@ func parseRequest(inboundType inbound.InboundType, c *gin.Context) (*model.Inter
 
 	// Pass through the original query parameters
 	internalRequest.Query = c.Request.URL.Query()
+	if internalRequest.RawAPIFormat == "" {
+		internalRequest.RawAPIFormat = rawAPIFormatForInbound(inboundType)
+	}
 
 	if err := internalRequest.Validate(); err != nil {
 		resp.Error(c, http.StatusBadRequest, err.Error())
@@ -364,6 +370,23 @@ func parseRequest(inboundType inbound.InboundType, c *gin.Context) (*model.Inter
 	}
 
 	return internalRequest, inAdapter, nil
+}
+
+func rawAPIFormatForInbound(inboundType inbound.InboundType) model.APIFormat {
+	switch inboundType {
+	case inbound.InboundTypeOpenAIChat:
+		return model.APIFormatOpenAIChatCompletion
+	case inbound.InboundTypeOpenAIResponse:
+		return model.APIFormatOpenAIResponse
+	case inbound.InboundTypeOpenAIEmbedding:
+		return model.APIFormatOpenAIEmbedding
+	case inbound.InboundTypeAnthropic:
+		return model.APIFormatAnthropicMessage
+	case inbound.InboundTypeGemini:
+		return model.APIFormatGeminiContents
+	default:
+		return ""
+	}
 }
 
 // forward 转发请求到上游服务

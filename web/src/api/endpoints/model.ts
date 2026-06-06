@@ -21,6 +21,7 @@ export interface OfficialLLMPrice {
 
 export type BillingMode = 'unknown' | 'per_request' | 'per_token' | 'per_quota' | 'flat' | 'free';
 export type ProbePolicy = 'passive_only' | 'sparse_single' | 'sequential' | 'concurrent';
+export type CachePolicy = 'unknown' | 'supported' | 'unsupported';
 
 export const BILLING_MODE_OPTIONS: BillingMode[] = ['unknown', 'per_request', 'per_token', 'per_quota', 'flat', 'free'];
 export const PROBE_POLICY_OPTIONS: ProbePolicy[] = ['passive_only', 'sparse_single', 'sequential', 'concurrent'];
@@ -35,6 +36,11 @@ export interface LLMInfo extends LLMPrice, OfficialLLMPrice {
     probe_policy?: ProbePolicy;
     probe_interval_seconds?: number;
     probe_concurrency_limit?: number;
+    cache_policy?: CachePolicy;
+    cache_reason?: string;
+    cache_supported?: boolean;
+    upstream_provider_type?: string;
+    upstream_source?: string;
 }
 
 /**
@@ -45,6 +51,40 @@ export interface LLMChannel {
     enabled: boolean;
     channel_id: number;
     channel_name: string;
+    key_count?: number;
+    request_capabilities?: string[];
+    inventory_source?: string;
+}
+
+export interface ServiceableModelInventoryItem extends LLMChannel {
+    key_count: number;
+    inventory_source: string;
+}
+
+export interface SelectableGroupModelInventoryItem {
+    name: string;
+    channel_count: number;
+    enabled_channel_count: number;
+    key_count: number;
+    request_capabilities?: string[];
+    inventory_source: string;
+}
+
+export interface RoutableModelInventoryItem {
+    name: string;
+    group_id: number;
+    group_name: string;
+    channel_count: number;
+    enabled_channel_count: number;
+    key_count: number;
+    request_capabilities?: string[];
+    inventory_source: string;
+}
+
+export interface CapabilityInventory {
+    serviceable_models: ServiceableModelInventoryItem[];
+    selectable_models: SelectableGroupModelInventoryItem[];
+    routable_models?: RoutableModelInventoryItem[];
 }
 
 /**
@@ -88,6 +128,17 @@ export function useModelChannelList() {
             return apiClient.get<LLMChannel[]>('/api/v1/model/channel');
         },
         refetchInterval: 30000,
+    });
+}
+
+export function useCapabilityInventory() {
+    return useQuery({
+        queryKey: ['models', 'capability-inventory'],
+        queryFn: async () => {
+            return apiClient.get<CapabilityInventory>('/api/v1/model/capability-inventory');
+        },
+        refetchInterval: 30000,
+        refetchOnMount: 'always',
     });
 }
 
