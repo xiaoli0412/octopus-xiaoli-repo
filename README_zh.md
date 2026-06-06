@@ -39,17 +39,15 @@
 
 ### 🐳 Docker 运行
 
-直接运行
-
-```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.4
-```
-
-或者使用安装脚本。脚本默认使用 `1088` 作为外部端口，启动前会先探测端口占用；如果 `1088` 已被占用，非交互场景会自动切换到可用端口并继续安装。脚本会先尝试拉取 GHCR 官方镜像；如果 GHCR 不可达，会回退到对应 release tag 的本地源码支撑 Docker 构建；如果服务器侧源码 Docker 构建仍被阻塞，还可以基于已知可用的 Linux 二进制继续构建本地 Docker 镜像。Docker Hub 已不再作为官方安装来源：
+推荐的一键 Docker 安装命令：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
 ```
+
+脚本默认使用 `1088` 作为外部端口，启动前会先探测端口占用；如果 `1088` 已被占用，非交互场景会自动切换到可用端口并继续安装。脚本会先尝试拉取 GHCR 官方镜像；如果 GHCR 返回 `denied` 或不可达，会回退到对应 release tag 的本地源码支撑 Docker 构建；如果服务器侧源码 Docker 构建仍被阻塞，还可以基于已知可用的 Linux 二进制继续构建本地 Docker 镜像。Docker Hub 已不再作为官方安装来源。
+
+服务器实测记录：2026-06-06，在一台干净 Ubuntu 主机上 GHCR 拉取返回 `denied`，安装脚本随后成功回退到源码 Docker 构建，并在 `1088` 端口启动健康容器。
 
 如果你的 SSH 主机访问 `raw.githubusercontent.com` 不稳定，优先改成“两步执行”，这样能更清楚地区分是脚本下载卡住，还是镜像拉取卡住：
 
@@ -67,13 +65,19 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 如果所在网络对 GHCR 有限制，也可以显式指定一个可达的私有镜像或镜像代理：
 
 ```bash
-OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.19.4 bash install-octopus.sh
+OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.19.5 bash install-octopus.sh
 ```
 
 如果 GHCR 不通，且服务器侧源码 Docker 构建仍然失败，也可以直接提供一个已知可用的 Linux 二进制，再让安装脚本继续构建本地 Docker 镜像：
 
 ```bash
 OCTOPUS_BINARY_PATH=/root/octopus-linux-amd64 bash install-octopus.sh
+```
+
+只有在确认当前服务器可以拉取 GHCR 包时，才建议直接使用 `docker run`：
+
+```bash
+docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.5
 ```
 
 如果你仍然希望手动安装，也可以继续使用仓库内 compose：

@@ -39,17 +39,15 @@
 
 ### 🐳 Docker
 
-Run directly:
-
-```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.4
-```
-
-Or use the install script. It keeps `1088` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, tries the official GHCR image first, falls back to a local source-backed Docker build from the matching release tag when GHCR is unreachable, and can finally build a local Docker image from a known-good Linux binary when the server-side source build is still blocked. Docker Hub is no longer an official install source:
+Recommended one-line Docker install:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
 ```
+
+The installer keeps `1088` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, tries the official GHCR image first, falls back to a local source-backed Docker build from the matching release tag when GHCR is denied or unreachable, and can finally build a local Docker image from a known-good Linux binary when the server-side source build is still blocked. Docker Hub is no longer an official install source.
+
+Server validation note: on 2026-06-06, a clean Ubuntu host returned `denied` while pulling the GHCR image, then the installer successfully fell back to a source-backed Docker build and started a healthy container on `1088`.
 
 If your SSH host has unstable access to `raw.githubusercontent.com`, prefer the two-step flow below so you can tell whether the failure is in script download or image pulling:
 
@@ -67,13 +65,19 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 If your network restricts GHCR, you can still pin a reachable private or mirrored registry image explicitly:
 
 ```bash
-OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.19.4 bash install-octopus.sh
+OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.19.5 bash install-octopus.sh
 ```
 
 If GHCR is blocked and the server-side source build still fails, provide a known-good Linux binary and let the installer build a local Docker image from it:
 
 ```bash
 OCTOPUS_BINARY_PATH=/root/octopus-linux-amd64 bash install-octopus.sh
+```
+
+Direct GHCR `docker run` is only recommended after you have confirmed this host can pull the GHCR package:
+
+```bash
+docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.5
 ```
 
 If you prefer the manual path, you can still clone the repository and run compose directly:
