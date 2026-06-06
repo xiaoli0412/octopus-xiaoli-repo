@@ -5,7 +5,7 @@ set -euo pipefail
 DEFAULT_PORT="1088"
 DEFAULT_DATA_DIR="./data"
 DEFAULT_CONTAINER_NAME="octopus"
-DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.7"
+DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.8"
 DEFAULT_REPO_REF="${DEFAULT_IMAGE##*:}"
 
 OCTOPUS_PORT_INPUT="${OCTOPUS_PORT:-${DEFAULT_PORT}}"
@@ -24,7 +24,7 @@ DOCKER_RUN_SECURITY_ARGS=(
 )
 
 write_info() {
-    printf '[INFO] %s\n' "$1"
+    printf '[INFO] %s\n' "$1" >&2
 }
 
 write_warn() {
@@ -225,7 +225,7 @@ pull_image() {
 
     validate_image_source "$image"
     write_info "Pulling Docker image ${image}"
-    if docker pull "$image"; then
+    if docker pull "$image" >&2; then
         printf '%s' "$image"
         return 0
     fi
