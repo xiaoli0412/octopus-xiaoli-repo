@@ -65,7 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 如果所在网络对 GHCR 有限制，也可以显式指定一个可达的私有镜像或镜像代理：
 
 ```bash
-OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.19.10 bash install-octopus.sh
+OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.19.11 bash install-octopus.sh
 ```
 
 如果 GHCR 不通，且服务器侧源码 Docker 构建仍然失败，也可以直接提供一个已知可用的 Linux 二进制，再让安装脚本继续构建本地 Docker 镜像：
@@ -77,7 +77,7 @@ OCTOPUS_BINARY_PATH=/root/octopus-linux-amd64 bash install-octopus.sh
 只有在确认当前服务器可以拉取 GHCR 包时，才建议直接使用 `docker run`：
 
 ```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.10
+docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.11
 ```
 
 如果你仍然希望手动安装，也可以继续使用仓库内 compose：

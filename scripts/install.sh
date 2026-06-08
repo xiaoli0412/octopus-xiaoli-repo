@@ -5,7 +5,7 @@ set -euo pipefail
 DEFAULT_PORT="1088"
 DEFAULT_DATA_DIR="./data"
 DEFAULT_CONTAINER_NAME="octopus"
-DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.10"
+DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.11"
 DEFAULT_REPO_REF="${DEFAULT_IMAGE##*:}"
 
 OCTOPUS_PORT_INPUT="${OCTOPUS_PORT:-${DEFAULT_PORT}}"
@@ -394,76 +394,82 @@ resolve_data_dir() {
     printf '%s' "$data_dir"
 }
 
-require_command docker "Install Docker and ensure docker compose is available."
+main() {
+    require_command docker "Install Docker and ensure docker compose is available."
 
-if ! docker info >/dev/null 2>&1; then
-    fail "Docker daemon is not available. Start Docker and try again."
-fi
+    if ! docker info >/dev/null 2>&1; then
+        fail "Docker daemon is not available. Start Docker and try again."
+    fi
 
-EXTERNAL_PORT="$(resolve_external_port "$OCTOPUS_PORT_INPUT" "$OCTOPUS_CONTAINER_NAME_INPUT")"
-OCTOPUS_DATA_DIR_RESOLVED="$(resolve_data_dir "$OCTOPUS_DATA_DIR_INPUT" "$OCTOPUS_CONTAINER_NAME_INPUT")"
-warn_if_raw_download_host_is_unstable
+    EXTERNAL_PORT="$(resolve_external_port "$OCTOPUS_PORT_INPUT" "$OCTOPUS_CONTAINER_NAME_INPUT")"
+    OCTOPUS_DATA_DIR_RESOLVED="$(resolve_data_dir "$OCTOPUS_DATA_DIR_INPUT" "$OCTOPUS_CONTAINER_NAME_INPUT")"
+    warn_if_raw_download_host_is_unstable
 
-REPO_URL="${OCTOPUS_REPO_URL:-https://github.com/xiaoli0412/octopus-xiaoli-repo.git}"
-REPO_REF="${OCTOPUS_REPO_REF:-${DEFAULT_REPO_REF}}"
-REPO_DIR="${OCTOPUS_REPO_DIR:-octopus-xiaoli-repo}"
-BINARY_PATH="${OCTOPUS_BINARY_PATH:-}"
-BINARY_IMAGE_TAG="${OCTOPUS_BINARY_IMAGE_TAG:-octopus-local:installer-fallback}"
+    REPO_URL="${OCTOPUS_REPO_URL:-https://github.com/xiaoli0412/octopus-xiaoli-repo.git}"
+    REPO_REF="${OCTOPUS_REPO_REF:-${DEFAULT_REPO_REF}}"
+    REPO_DIR="${OCTOPUS_REPO_DIR:-octopus-xiaoli-repo}"
+    BINARY_PATH="${OCTOPUS_BINARY_PATH:-}"
+    BINARY_IMAGE_TAG="${OCTOPUS_BINARY_IMAGE_TAG:-octopus-local:installer-fallback}"
 
-if [[ ! -t 0 ]]; then
-    write_info "Non-interactive install detected. The installer will try GHCR first, then fall back to a local source build from ${REPO_REF}."
-fi
+    if [[ ! -t 0 ]]; then
+        write_info "Non-interactive install detected. The installer will try GHCR first, then fall back to a local source build from ${REPO_REF}."
+    fi
 
-PULLED_IMAGE=""
-if ! PULLED_IMAGE="$(pull_image "$OCTOPUS_IMAGE_INPUT")"; then
-    if ! build_and_start_from_source "$REPO_URL" "$REPO_REF" "$REPO_DIR" "$EXTERNAL_PORT" "$OCTOPUS_DATA_DIR_RESOLVED" "$OCTOPUS_CONTAINER_NAME_INPUT"; then
-        if [[ -n "$BINARY_PATH" ]]; then
-            build_and_start_from_uploaded_binary "$BINARY_PATH" "$EXTERNAL_PORT" "$OCTOPUS_DATA_DIR_RESOLVED" "$OCTOPUS_CONTAINER_NAME_INPUT" "$BINARY_IMAGE_TAG"
-        else
-            fail "Unable to pull the GHCR image and the source-backed Docker build did not complete. Re-run with OCTOPUS_BINARY_PATH=<local-octopus-binary> to build a local Docker image from a known-good binary."
+    PULLED_IMAGE=""
+    if ! PULLED_IMAGE="$(pull_image "$OCTOPUS_IMAGE_INPUT")"; then
+        if ! build_and_start_from_source "$REPO_URL" "$REPO_REF" "$REPO_DIR" "$EXTERNAL_PORT" "$OCTOPUS_DATA_DIR_RESOLVED" "$OCTOPUS_CONTAINER_NAME_INPUT"; then
+            if [[ -n "$BINARY_PATH" ]]; then
+                build_and_start_from_uploaded_binary "$BINARY_PATH" "$EXTERNAL_PORT" "$OCTOPUS_DATA_DIR_RESOLVED" "$OCTOPUS_CONTAINER_NAME_INPUT" "$BINARY_IMAGE_TAG"
+            else
+                fail "Unable to pull the GHCR image and the source-backed Docker build did not complete. Re-run with OCTOPUS_BINARY_PATH=<local-octopus-binary> to build a local Docker image from a known-good binary."
+            fi
         fi
+
+        write_info "Octopus is starting"
+        write_info "UI: http://127.0.0.1:${EXTERNAL_PORT}"
+        write_info "Container: ${OCTOPUS_CONTAINER_NAME_INPUT}"
+        write_info "Data dir: ${OCTOPUS_DATA_DIR_RESOLVED}"
+        write_info "Source build ref: ${REPO_REF}"
+        if [[ -n "$BINARY_PATH" ]]; then
+            write_info "Binary fallback: ${BINARY_PATH}"
+        fi
+        return 0
+    fi
+
+    write_info "Removing any existing container named ${OCTOPUS_CONTAINER_NAME_INPUT}"
+    docker rm -f "$OCTOPUS_CONTAINER_NAME_INPUT" >/dev/null 2>&1 || true
+
+    mkdir -p "$OCTOPUS_DATA_DIR_RESOLVED"
+
+    write_info "Starting Octopus container with external port ${EXTERNAL_PORT}"
+    CONTAINER_ID="$(docker run -d \
+        --name "$OCTOPUS_CONTAINER_NAME_INPUT" \
+        --restart unless-stopped \
+        -p "${EXTERNAL_PORT}:1088" \
+        -e OCTOPUS_SERVER_HOST=0.0.0.0 \
+        -e OCTOPUS_SERVER_PORT=1088 \
+        -e OCTOPUS_DATABASE_TYPE=sqlite \
+        -e OCTOPUS_DATABASE_PATH=/app/data/data.db \
+        -e OCTOPUS_LOG_LEVEL=info \
+        -e DATA_DIR=/app/data \
+        -e PUID=10001 \
+        -e PGID=10001 \
+        -v "${OCTOPUS_DATA_DIR_RESOLVED}:/app/data" \
+        "${DOCKER_RUN_SECURITY_ARGS[@]}" \
+        "$PULLED_IMAGE")"
+
+    if ! verify_running_container "$OCTOPUS_CONTAINER_NAME_INPUT" \
+        "Container failed to stay running. Showing the latest logs for ${OCTOPUS_CONTAINER_NAME_INPUT}:"; then
+        fail "Octopus container exited right after startup. Check the logs above, especially data directory permissions or registry/image overrides."
     fi
 
     write_info "Octopus is starting"
     write_info "UI: http://127.0.0.1:${EXTERNAL_PORT}"
     write_info "Container: ${OCTOPUS_CONTAINER_NAME_INPUT}"
     write_info "Data dir: ${OCTOPUS_DATA_DIR_RESOLVED}"
-    write_info "Source build ref: ${REPO_REF}"
-    if [[ -n "$BINARY_PATH" ]]; then
-        write_info "Binary fallback: ${BINARY_PATH}"
-    fi
-    exit 0
+    write_info "Image: ${PULLED_IMAGE}"
+}
+
+if [[ "${OCTOPUS_INSTALL_SH_SOURCE_ONLY:-}" != "1" ]]; then
+    main "$@"
 fi
-
-write_info "Removing any existing container named ${OCTOPUS_CONTAINER_NAME_INPUT}"
-docker rm -f "$OCTOPUS_CONTAINER_NAME_INPUT" >/dev/null 2>&1 || true
-
-mkdir -p "$OCTOPUS_DATA_DIR_RESOLVED"
-
-write_info "Starting Octopus container with external port ${EXTERNAL_PORT}"
-CONTAINER_ID="$(docker run -d \
-    --name "$OCTOPUS_CONTAINER_NAME_INPUT" \
-    --restart unless-stopped \
-    -p "${EXTERNAL_PORT}:1088" \
-    -e OCTOPUS_SERVER_HOST=0.0.0.0 \
-    -e OCTOPUS_SERVER_PORT=1088 \
-    -e OCTOPUS_DATABASE_TYPE=sqlite \
-    -e OCTOPUS_DATABASE_PATH=/app/data/data.db \
-    -e OCTOPUS_LOG_LEVEL=info \
-    -e DATA_DIR=/app/data \
-    -e PUID=10001 \
-    -e PGID=10001 \
-    -v "${OCTOPUS_DATA_DIR_RESOLVED}:/app/data" \
-    "${DOCKER_RUN_SECURITY_ARGS[@]}" \
-    "$PULLED_IMAGE")"
-
-if ! verify_running_container "$OCTOPUS_CONTAINER_NAME_INPUT" \
-    "Container failed to stay running. Showing the latest logs for ${OCTOPUS_CONTAINER_NAME_INPUT}:"; then
-    fail "Octopus container exited right after startup. Check the logs above, especially data directory permissions or registry/image overrides."
-fi
-
-write_info "Octopus is starting"
-write_info "UI: http://127.0.0.1:${EXTERNAL_PORT}"
-write_info "Container: ${OCTOPUS_CONTAINER_NAME_INPUT}"
-write_info "Data dir: ${OCTOPUS_DATA_DIR_RESOLVED}"
-write_info "Image: ${PULLED_IMAGE}"
