@@ -61,25 +61,116 @@ type genAIPricesProvider struct {
 }
 
 type genAIPricesModelEntry struct {
-	ID     string           `json:"id"`
-	Match  genAIPricesMatch `json:"match"`
-	Prices struct {
-		InputMtok      float64 `json:"input_mtok"`
-		OutputMtok     float64 `json:"output_mtok"`
-		CacheReadMtok  float64 `json:"cache_read_mtok"`
-		CacheWriteMtok float64 `json:"cache_write_mtok"`
-	} `json:"prices"`
+	ID     string            `json:"id"`
+	Match  genAIPricesMatch  `json:"match"`
+	Prices genAIPriceOptions `json:"prices"`
 }
 
 type genAIPricesMatch struct {
 	StartsWith string                 `json:"starts_with"`
 	Equals     string                 `json:"equals"`
+	Contains   string                 `json:"contains"`
 	Or         []genAIPricesMatchRule `json:"or"`
 }
 
 type genAIPricesMatchRule struct {
 	StartsWith string `json:"starts_with"`
 	Equals     string `json:"equals"`
+	Contains   string `json:"contains"`
+}
+
+type genAIPriceAmount float64
+
+func (a *genAIPriceAmount) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || string(data) == "null" {
+		*a = 0
+		return nil
+	}
+	var direct float64
+	if err := json.Unmarshal(data, &direct); err == nil {
+		*a = genAIPriceAmount(direct)
+		return nil
+	}
+	var tiered struct {
+		Base  *float64 `json:"base"`
+		Tiers []struct {
+			Price float64 `json:"price"`
+		} `json:"tiers"`
+	}
+	if err := json.Unmarshal(data, &tiered); err != nil {
+		return err
+	}
+	if tiered.Base != nil {
+		*a = genAIPriceAmount(*tiered.Base)
+		return nil
+	}
+	if len(tiered.Tiers) > 0 {
+		*a = genAIPriceAmount(tiered.Tiers[0].Price)
+		return nil
+	}
+	*a = 0
+	return nil
+}
+
+type genAIPriceValues struct {
+	InputMtok      genAIPriceAmount `json:"input_mtok"`
+	OutputMtok     genAIPriceAmount `json:"output_mtok"`
+	CacheReadMtok  genAIPriceAmount `json:"cache_read_mtok"`
+	CacheWriteMtok genAIPriceAmount `json:"cache_write_mtok"`
+}
+
+func (v genAIPriceValues) isEmpty() bool {
+	return v.InputMtok == 0 && v.OutputMtok == 0 && v.CacheReadMtok == 0 && v.CacheWriteMtok == 0
+}
+
+func (v genAIPriceValues) llmPrice() model.LLMPrice {
+	return model.LLMPrice{
+		Input:      float64(v.InputMtok),
+		Output:     float64(v.OutputMtok),
+		CacheRead:  float64(v.CacheReadMtok),
+		CacheWrite: float64(v.CacheWriteMtok),
+	}
+}
+
+type genAIPriceOptions []genAIPriceValues
+
+func (o *genAIPriceOptions) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || string(data) == "null" {
+		*o = nil
+		return nil
+	}
+	var single genAIPriceValues
+	if err := json.Unmarshal(data, &single); err == nil {
+		if single.isEmpty() {
+			*o = nil
+			return nil
+		}
+		*o = []genAIPriceValues{single}
+		return nil
+	}
+	var entries []struct {
+		Prices genAIPriceValues `json:"prices"`
+	}
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return err
+	}
+	out := make([]genAIPriceValues, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.Prices.isEmpty() {
+			out = append(out, entry.Prices)
+		}
+	}
+	*o = out
+	return nil
+}
+
+func (o genAIPriceOptions) primary() (genAIPriceValues, bool) {
+	for _, price := range o {
+		if !price.isEmpty() {
+			return price, true
+		}
+	}
+	return genAIPriceValues{}, false
 }
 
 func parseGenAIPricesPayload(payload []byte) (map[string]model.LLMPrice, error) {
@@ -90,12 +181,11 @@ func parseGenAIPricesPayload(payload []byte) (map[string]model.LLMPrice, error) 
 	out := make(map[string]model.LLMPrice, 1024)
 	for _, provider := range providers {
 		for _, entry := range provider.Models {
-			price := model.LLMPrice{
-				Input:      entry.Prices.InputMtok,
-				Output:     entry.Prices.OutputMtok,
-				CacheRead:  entry.Prices.CacheReadMtok,
-				CacheWrite: entry.Prices.CacheWriteMtok,
+			priceValues, ok := entry.Prices.primary()
+			if !ok {
+				continue
 			}
+			price := priceValues.llmPrice()
 			if entry.ID != "" {
 				out[strings.ToLower(strings.TrimSpace(entry.ID))] = price
 			}
@@ -115,12 +205,18 @@ func collectGenAIPriceAliases(match genAIPricesMatch) []string {
 	if match.Equals != "" {
 		aliases = append(aliases, match.Equals)
 	}
+	if match.Contains != "" {
+		aliases = append(aliases, match.Contains)
+	}
 	for _, rule := range match.Or {
 		if rule.StartsWith != "" {
 			aliases = append(aliases, rule.StartsWith)
 		}
 		if rule.Equals != "" {
 			aliases = append(aliases, rule.Equals)
+		}
+		if rule.Contains != "" {
+			aliases = append(aliases, rule.Contains)
 		}
 	}
 	return aliases

@@ -92,6 +92,48 @@ func TestParseGenAIPricesPayloadRegistersAliasMatches(t *testing.T) {
 	}
 }
 
+func TestParseGenAIPricesPayloadSupportsTieredPriceArrays(t *testing.T) {
+	raw := []byte(`[
+		{
+			"id":"anthropic",
+			"models":[
+				{
+					"id":"claude-opus-4-6",
+					"match":{"or":[{"starts_with":"claude-opus-4-6"},{"contains":"claude-4.6-opus"}]},
+					"prices":[
+						{
+							"prices":{
+								"input_mtok":{"base":5,"tiers":[{"start":200000,"price":10}]},
+								"cache_write_mtok":{"base":6.25,"tiers":[{"start":200000,"price":12.5}]},
+								"cache_read_mtok":{"base":0.5,"tiers":[{"start":200000,"price":1}]},
+								"output_mtok":{"base":25,"tiers":[{"start":200000,"price":37.5}]}
+							}
+						},
+						{
+							"constraint":{"start_date":"2026-03-13"},
+							"prices":{"input_mtok":5,"cache_write_mtok":6.25,"cache_read_mtok":0.5,"output_mtok":25}
+						}
+					]
+				}
+			]
+		}
+	]`)
+
+	got, err := parseGenAIPricesPayload(raw)
+	if err != nil {
+		t.Fatalf("parseGenAIPricesPayload() error = %v", err)
+	}
+	for _, key := range []string{"claude-opus-4-6", "claude-4.6-opus"} {
+		price, ok := got[key]
+		if !ok {
+			t.Fatalf("parseGenAIPricesPayload() missing %q in %#v", key, got)
+		}
+		if price.Input != 5 || price.Output != 25 || price.CacheRead != 0.5 || price.CacheWrite != 6.25 {
+			t.Fatalf("parseGenAIPricesPayload() %q = %#v, want tier base prices", key, price)
+		}
+	}
+}
+
 func TestEnrichLLMInfoUsesResolvedPriceAndParsedMetadata(t *testing.T) {
 	llmPriceLock.Lock()
 	originalPrices := llmPrice

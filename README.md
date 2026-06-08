@@ -45,7 +45,7 @@ Recommended one-line Docker install:
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
 ```
 
-The installer keeps `1088` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, tries the official GHCR image first, falls back to a local source-backed Docker build from the matching release tag when GHCR is denied or unreachable, and can finally build a local Docker image from a known-good Linux binary when the server-side source build is still blocked. Docker Hub is no longer an official install source.
+The installer keeps `1088` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, reuses the existing `octopus` container data mount when `OCTOPUS_DATA_DIR` is not set, tries the official GHCR image first, falls back to a local source-backed Docker build from the matching release tag when GHCR is denied or unreachable, and can finally build a local Docker image from a known-good Linux binary when the server-side source build is still blocked. Docker Hub is no longer an official install source.
 
 Server validation note: on 2026-06-06, a clean Ubuntu host returned `denied` while pulling the GHCR image, then the installer successfully fell back to a source-backed Docker build and started a healthy container on `1088`.
 
@@ -65,7 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 If your network restricts GHCR, you can still pin a reachable private or mirrored registry image explicitly:
 
 ```bash
-OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.19.9 bash install-octopus.sh
+OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.19.10 bash install-octopus.sh
 ```
 
 If GHCR is blocked and the server-side source build still fails, provide a known-good Linux binary and let the installer build a local Docker image from it:
@@ -77,7 +77,7 @@ OCTOPUS_BINARY_PATH=/root/octopus-linux-amd64 bash install-octopus.sh
 Direct GHCR `docker run` is only recommended after you have confirmed this host can pull the GHCR package:
 
 ```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.9
+docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.10
 ```
 
 If you prefer the manual path, you can still clone the repository and run compose directly:
@@ -88,7 +88,7 @@ cd octopus-xiaoli-repo
 docker compose up -d --build
 ```
 
-If you use the compose file in this repository directly, the default persistent data directory is `./data`.
+If you use the compose file in this repository directly, the default persistent data directory is `./data`. For upgrades of an existing server, set `OCTOPUS_DATA_DIR` to the real old data directory before running compose; the one-line installer does this automatically when it can inspect the existing `octopus` container mount.
 The Debian Docker build remains available for CI and image publishing, while the install script prefers the prebuilt release image and only falls back to a source-backed Docker build when image pulling fails.
 You can also override the default compose runtime parameters without editing the file itself:
 

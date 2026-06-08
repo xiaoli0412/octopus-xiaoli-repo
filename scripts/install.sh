@@ -5,7 +5,7 @@ set -euo pipefail
 DEFAULT_PORT="1088"
 DEFAULT_DATA_DIR="./data"
 DEFAULT_CONTAINER_NAME="octopus"
-DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.9"
+DEFAULT_IMAGE="ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.10"
 DEFAULT_REPO_REF="${DEFAULT_IMAGE##*:}"
 
 OCTOPUS_PORT_INPUT="${OCTOPUS_PORT:-${DEFAULT_PORT}}"
@@ -100,6 +100,11 @@ build_and_start_from_source() {
     write_warn "Falling back to local Docker source build because image pull failed."
     if ! (
         cd "$repo_dir"
+        cat > .env <<EOF
+OCTOPUS_PORT=${external_port}
+OCTOPUS_DATA_DIR=${data_dir}
+OCTOPUS_CONTAINER_NAME=${container_name}
+EOF
         OCTOPUS_PORT="$external_port" \
         OCTOPUS_DATA_DIR="$data_dir" \
         OCTOPUS_CONTAINER_NAME="$container_name" \
@@ -363,6 +368,32 @@ find_noninteractive_fallback_port() {
     return 1
 }
 
+resolve_data_dir() {
+    local data_dir="$1"
+    local container_name="$2"
+    local existing_source=""
+
+    if [[ -n "${OCTOPUS_DATA_DIR:-}" ]]; then
+        printf '%s' "$data_dir"
+        return 0
+    fi
+
+    existing_source="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/app/data"}}{{println .Source}}{{end}}{{end}}' "$container_name" 2>/dev/null | head -n 1 || true)"
+    if [[ -n "$existing_source" ]]; then
+        write_info "Reusing existing data dir from container ${container_name}: ${existing_source}"
+        printf '%s' "$existing_source"
+        return 0
+    fi
+
+    if [[ "$data_dir" == "$DEFAULT_DATA_DIR" && -f /root/octopus-data/data.db && ! -f "${data_dir}/data.db" ]]; then
+        write_warn "Detected existing /root/octopus-data/data.db and no local ./data/data.db; reusing /root/octopus-data for upgrade safety."
+        printf '%s' "/root/octopus-data"
+        return 0
+    fi
+
+    printf '%s' "$data_dir"
+}
+
 require_command docker "Install Docker and ensure docker compose is available."
 
 if ! docker info >/dev/null 2>&1; then
@@ -370,6 +401,7 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 EXTERNAL_PORT="$(resolve_external_port "$OCTOPUS_PORT_INPUT" "$OCTOPUS_CONTAINER_NAME_INPUT")"
+OCTOPUS_DATA_DIR_RESOLVED="$(resolve_data_dir "$OCTOPUS_DATA_DIR_INPUT" "$OCTOPUS_CONTAINER_NAME_INPUT")"
 warn_if_raw_download_host_is_unstable
 
 REPO_URL="${OCTOPUS_REPO_URL:-https://github.com/xiaoli0412/octopus-xiaoli-repo.git}"
@@ -384,9 +416,9 @@ fi
 
 PULLED_IMAGE=""
 if ! PULLED_IMAGE="$(pull_image "$OCTOPUS_IMAGE_INPUT")"; then
-    if ! build_and_start_from_source "$REPO_URL" "$REPO_REF" "$REPO_DIR" "$EXTERNAL_PORT" "$OCTOPUS_DATA_DIR_INPUT" "$OCTOPUS_CONTAINER_NAME_INPUT"; then
+    if ! build_and_start_from_source "$REPO_URL" "$REPO_REF" "$REPO_DIR" "$EXTERNAL_PORT" "$OCTOPUS_DATA_DIR_RESOLVED" "$OCTOPUS_CONTAINER_NAME_INPUT"; then
         if [[ -n "$BINARY_PATH" ]]; then
-            build_and_start_from_uploaded_binary "$BINARY_PATH" "$EXTERNAL_PORT" "$OCTOPUS_DATA_DIR_INPUT" "$OCTOPUS_CONTAINER_NAME_INPUT" "$BINARY_IMAGE_TAG"
+            build_and_start_from_uploaded_binary "$BINARY_PATH" "$EXTERNAL_PORT" "$OCTOPUS_DATA_DIR_RESOLVED" "$OCTOPUS_CONTAINER_NAME_INPUT" "$BINARY_IMAGE_TAG"
         else
             fail "Unable to pull the GHCR image and the source-backed Docker build did not complete. Re-run with OCTOPUS_BINARY_PATH=<local-octopus-binary> to build a local Docker image from a known-good binary."
         fi
@@ -395,7 +427,7 @@ if ! PULLED_IMAGE="$(pull_image "$OCTOPUS_IMAGE_INPUT")"; then
     write_info "Octopus is starting"
     write_info "UI: http://127.0.0.1:${EXTERNAL_PORT}"
     write_info "Container: ${OCTOPUS_CONTAINER_NAME_INPUT}"
-    write_info "Data dir: ${OCTOPUS_DATA_DIR_INPUT}"
+    write_info "Data dir: ${OCTOPUS_DATA_DIR_RESOLVED}"
     write_info "Source build ref: ${REPO_REF}"
     if [[ -n "$BINARY_PATH" ]]; then
         write_info "Binary fallback: ${BINARY_PATH}"
@@ -406,7 +438,7 @@ fi
 write_info "Removing any existing container named ${OCTOPUS_CONTAINER_NAME_INPUT}"
 docker rm -f "$OCTOPUS_CONTAINER_NAME_INPUT" >/dev/null 2>&1 || true
 
-mkdir -p "$OCTOPUS_DATA_DIR_INPUT"
+mkdir -p "$OCTOPUS_DATA_DIR_RESOLVED"
 
 write_info "Starting Octopus container with external port ${EXTERNAL_PORT}"
 CONTAINER_ID="$(docker run -d \
@@ -421,7 +453,7 @@ CONTAINER_ID="$(docker run -d \
     -e DATA_DIR=/app/data \
     -e PUID=10001 \
     -e PGID=10001 \
-    -v "${OCTOPUS_DATA_DIR_INPUT}:/app/data" \
+    -v "${OCTOPUS_DATA_DIR_RESOLVED}:/app/data" \
     "${DOCKER_RUN_SECURITY_ARGS[@]}" \
     "$PULLED_IMAGE")"
 
@@ -433,5 +465,5 @@ fi
 write_info "Octopus is starting"
 write_info "UI: http://127.0.0.1:${EXTERNAL_PORT}"
 write_info "Container: ${OCTOPUS_CONTAINER_NAME_INPUT}"
-write_info "Data dir: ${OCTOPUS_DATA_DIR_INPUT}"
+write_info "Data dir: ${OCTOPUS_DATA_DIR_RESOLVED}"
 write_info "Image: ${PULLED_IMAGE}"
