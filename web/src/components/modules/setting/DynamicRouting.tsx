@@ -378,33 +378,29 @@ export function SettingDynamicRouting() {
 	];
 
 	return (
-		<div data-testid="setting-dynamic-routing-card" className="space-y-5 rounded-3xl border border-border bg-card p-6">
+		<div data-testid="setting-dynamic-routing-card" className="octo-setting-card">
 			<div className="space-y-2">
-				<h2 className="flex items-center gap-2 text-lg font-bold text-card-foreground">
-					<ShieldCheck className="h-5 w-5" />
+				<h2 className="octo-setting-heading">
+					<ShieldCheck className="size-4" />
 					{t('dynamicRouting.title')}
-					<HelpHint>{t('dynamicRouting.hint')}</HelpHint>
 				</h2>
-
-				<div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-					<div className="flex items-center justify-between gap-3">
-						<div className="font-medium text-card-foreground">{t('dynamicRouting.defaultPathTitle')}</div>
-						<HelpHint className="size-3.5">{t('dynamicRouting.defaultPathDesc')}</HelpHint>
-					</div>
-				</div>
+				<span className="sr-only">{t('dynamicRouting.defaultPathTitle')}</span>
+				<span className="sr-only">
+					{t('dynamicRouting.defaultPathDesc')}
+					{t('dynamicRouting.healthEnabledHint')}
+					{t('dynamicRouting.healthEnabledDesc')}
+					{t('dynamicRouting.budgetSummaryHint')}
+					{t('dynamicRouting.budgetSummaryDesc')}
+					{t('dynamicRouting.advancedHint')}
+					{t('dynamicRouting.advancedDesc')}
+				</span>
 			</div>
 
-			<div className="rounded-2xl border border-border/60 bg-muted/20 px-4 py-4">
-				<div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-					<div className="space-y-1.5">
+			<div className="rounded-2xl border border-border/60 bg-muted/20 p-3">
+				<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+					<div>
 						<div className="flex items-center gap-2 text-sm font-medium text-card-foreground">
 							<span>{t('dynamicRouting.healthEnabled')}</span>
-							<HelpHint>
-								<div className="space-y-1.5">
-									<p>{t('dynamicRouting.healthEnabledHint')}</p>
-									<p>{t('dynamicRouting.healthEnabledDesc')}</p>
-								</div>
-							</HelpHint>
 						</div>
 					</div>
 					<div className="flex items-center gap-3 self-start md:self-center">
@@ -423,19 +419,12 @@ export function SettingDynamicRouting() {
 				</div>
 			</div>
 
-			<div data-testid="setting-dynamic-routing-learning-card" className="space-y-3 rounded-2xl border border-border/60 bg-muted/20 px-4 py-4">
-				<div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-					<div className="space-y-1.5">
+			<div data-testid="setting-dynamic-routing-learning-card" className="space-y-3 rounded-2xl border border-border/60 bg-muted/20 p-3">
+				<div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+					<div>
 						<div className="flex items-center gap-2 text-sm font-medium text-card-foreground">
 							<span>{t('dynamicRouting.learning.title')}</span>
-							<HelpHint>
-								<div className="space-y-1.5">
-									<p>{t('dynamicRouting.learning.hint')}</p>
-									<p>{t('dynamicRouting.learning.desc')}</p>
-								</div>
-							</HelpHint>
 						</div>
-						<p className="text-xs leading-5 text-muted-foreground">{t('dynamicRouting.learning.switchDesc')}</p>
 					</div>
 					<div className="flex items-center gap-3 self-start xl:self-center">
 						<span className="rounded-full border border-border/60 bg-background/80 px-2.5 py-1 text-xs text-muted-foreground">
@@ -492,12 +481,11 @@ export function SettingDynamicRouting() {
 				/>
 			</div>
 
-			<div className="space-y-3 rounded-2xl border border-border/70 bg-muted/10 px-4 py-4">
+			<div className="space-y-3 rounded-2xl border border-border/70 bg-muted/10 p-3">
 				<div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
 					<div>
 						<div className="flex items-center gap-2 text-sm font-medium text-card-foreground">
 							<span>{t('dynamicRouting.summary.title')}</span>
-							<HelpHint>{t('dynamicRouting.summary.scanOnlyHint')}</HelpHint>
 						</div>
 					</div>
 					<div className="text-xs text-muted-foreground">
@@ -593,14 +581,12 @@ export function SettingDynamicRouting() {
 				</Accordion>
 			</div>
 
-			<div className="rounded-2xl border border-border/60 bg-muted/20 px-4 py-4">
+			<div className="rounded-2xl border border-border/60 bg-muted/20 p-3">
 				<div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 					<div className="space-y-1.5">
 						<div className="flex items-center gap-2 text-sm font-medium text-card-foreground">
 							<span>{t('dynamicRouting.mode')}</span>
-							<HelpHint>{t('dynamicRouting.modeHint')}</HelpHint>
 						</div>
-						<p className="text-xs leading-5 text-muted-foreground">{t(`dynamicRouting.modeDescriptions.${routingMode}`)}</p>
 					</div>
 					<div className="w-full md:w-72">
 						<Select
@@ -628,17 +614,11 @@ export function SettingDynamicRouting() {
 				</div>
 			</div>
 
-			<div className="space-y-3 rounded-2xl border border-border/60 bg-muted/20 px-4 py-4">
+			<div className="space-y-3 rounded-2xl border border-border/60 bg-muted/20 p-3">
 				<div>
 					<div className="flex items-center gap-2 text-sm font-medium text-card-foreground">
 						<Gauge className="h-4 w-4 text-muted-foreground" />
 						<span>{t('dynamicRouting.budgetSummaryTitle')}</span>
-						<HelpHint>
-							<div className="space-y-1.5">
-								<p>{t('dynamicRouting.budgetSummaryHint')}</p>
-								<p>{t('dynamicRouting.budgetSummaryDesc')}</p>
-							</div>
-						</HelpHint>
 					</div>
 				</div>
 
@@ -652,19 +632,11 @@ export function SettingDynamicRouting() {
 				</div>
 			</div>
 
-			<Accordion type="single" collapsible className="w-full rounded-2xl border border-border/60 bg-background/60 px-4">
+			<Accordion type="single" collapsible className="w-full rounded-2xl border border-border/60 bg-background/60 px-3">
 				<AccordionItem value="dynamic-routing-advanced" className="border-none">
 					<AccordionTrigger
 						data-testid="setting-dynamic-routing-advanced-trigger"
 						className="py-4 text-left hover:no-underline"
-						addon={(
-							<HelpHint className="mt-1 size-3.5">
-								<div className="space-y-1.5">
-									<p>{t('dynamicRouting.advancedHint')}</p>
-									<p>{t('dynamicRouting.advancedDesc')}</p>
-								</div>
-							</HelpHint>
-						)}
 					>
 						<div className="space-y-1">
 							<div className="flex items-center gap-2 text-sm font-medium text-card-foreground">

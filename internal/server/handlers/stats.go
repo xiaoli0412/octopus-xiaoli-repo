@@ -4,13 +4,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/relay/balancer"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/resp"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/router"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/task"
-	"github.com/gin-gonic/gin"
 )
 
 func init() {
@@ -53,7 +53,7 @@ func getStatsToday(c *gin.Context) {
 func getStatsDaily(c *gin.Context) {
 	statsDaily, err := op.StatsGetDaily(c.Request.Context())
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to get daily stats")
 		return
 	}
 	resp.Success(c, statsDaily)

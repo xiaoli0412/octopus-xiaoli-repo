@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { useSettingList, useSetSetting, SettingKey } from '@/api/endpoints/setting';
 import { useUpdateModelPrice, useLastUpdateTime } from '@/api/endpoints/model';
 import { toast } from '@/components/common/Toast';
-import { HelpHint } from '@/components/common/HelpHint';
 
 export function SettingLLMPrice() {
     const t = useTranslations('setting');
@@ -78,46 +77,30 @@ export function SettingLLMPrice() {
     ];
 
     return (
-        <div data-testid="setting-llm-price-card" className="rounded-3xl border border-border bg-card p-6 space-y-5">
-            <div className="space-y-3">
-                <h2 className="text-lg font-bold text-card-foreground flex items-center gap-2">
-                    <DollarSign className="h-5 w-5" />
+        <div data-testid="setting-llm-price-card" className="octo-setting-card">
+            <div className="space-y-2">
+                <h2 className="octo-setting-heading">
+                    <DollarSign className="size-4" />
                     {t('llmPrice.title')}
-                    <HelpHint>{t('llmPrice.hint')}</HelpHint>
                 </h2>
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
                     {scopeCards.map((card) => (
-                        <div key={card.label} className="rounded-2xl border border-border/60 bg-muted/20 px-4 py-3">
+                        <div key={card.label} className="octo-stat-card">
                             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                                 <span>{card.label}</span>
-                                <HelpHint className="size-3.5">{card.hint}</HelpHint>
                             </div>
                             <div className="mt-1 text-sm font-semibold text-card-foreground">{card.value}</div>
                         </div>
                     ))}
                 </div>
-
-                <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-                    <div className="flex items-center justify-between gap-3">
-                        <div className="font-medium text-card-foreground">{t('llmPrice.defaultPathTitle')}</div>
-                        <HelpHint className="size-3.5">{t('llmPrice.defaultPathDesc')}</HelpHint>
-                    </div>
-                    <div className="mt-2 text-xs leading-5">{t('llmPrice.probeRedirectTitle')}</div>
-                </div>
             </div>
 
             {/* 更新间隔 */}
-            <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-background/60 px-4 py-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-3">
-                    <Clock className="h-5 w-5 text-muted-foreground" />
-                    <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">{t('llmPrice.updateInterval.label')}</span>
-                            <HelpHint className="size-3.5">{t('llmPrice.updateInterval.hint')}</HelpHint>
-                        </div>
-                        <p className="text-xs text-muted-foreground">{t('llmPrice.updateInterval.hint')}</p>
-                    </div>
+            <div className="octo-setting-row rounded-2xl border border-border/60 bg-background/60 p-3">
+                <div className="octo-setting-label">
+                    <Clock className="size-4 text-muted-foreground" />
+                    <span>{t('llmPrice.updateInterval.label')}</span>
                 </div>
                 <Input
                     type="number"
@@ -125,19 +108,18 @@ export function SettingLLMPrice() {
                     onChange={(e) => setUpdateInterval(e.target.value)}
                     onBlur={() => handleSave(SettingKey.ModelInfoUpdateInterval, updateInterval, initialUpdateInterval.current)}
                     placeholder={t('llmPrice.updateInterval.placeholder')}
-                    className="w-48 rounded-xl"
+                    className="h-9 rounded-xl"
                 />
             </div>
 
             {/* 手动更新 */}
-            <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-background/60 px-4 py-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-background/60 p-3 md:flex-row md:items-center md:justify-between">
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-3">
-                        <RefreshCw className="h-5 w-5 text-muted-foreground" />
+                        <RefreshCw className="size-4 text-muted-foreground" />
                         <span className="text-sm font-medium">{t('llmPrice.manualUpdate.label')}</span>
-                        <HelpHint className="size-3.5">{t('llmPrice.manualUpdate.hint')}</HelpHint>
                     </div>
-                    <span className="text-xs text-muted-foreground ml-8">
+                    <span className="ml-7 text-xs text-muted-foreground">
                         {t('llmPrice.lastUpdate')}: {formatLastUpdateTime(lastUpdateTime)}
                     </span>
                 </div>
@@ -146,7 +128,7 @@ export function SettingLLMPrice() {
                     size="sm"
                     onClick={handleManualUpdate}
                     disabled={updatePrice.isPending}
-                    className="rounded-xl"
+                    className="h-9 rounded-xl"
                 >
                     {updatePrice.isPending ? t('llmPrice.manualUpdate.updating') : t('llmPrice.manualUpdate.button')}
                 </Button>

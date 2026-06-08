@@ -171,42 +171,36 @@ export function SettingCircuitBreaker() {
     ];
 
     return (
-        <div data-testid="setting-circuit-breaker-card" className="rounded-3xl border border-border bg-card p-6 space-y-5">
-            <div className="space-y-3">
-                <h2 className="text-lg font-bold text-card-foreground flex items-center gap-2">
-                    <ShieldAlert className="h-5 w-5" />
+        <div data-testid="setting-circuit-breaker-card" className="octo-setting-card">
+            <div className="space-y-2">
+                <h2 className="octo-setting-heading">
+                    <ShieldAlert className="size-4" />
                     {t('circuitBreaker.title')}
-                    <HelpHint>{t('circuitBreaker.hint')}</HelpHint>
                 </h2>
-
-                <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-                    <div className="flex items-center justify-between gap-3">
-                        <div className="font-medium text-card-foreground">{t('circuitBreaker.defaultPathTitle')}</div>
-                        <HelpHint className="size-3.5">{t('circuitBreaker.defaultPathDesc')}</HelpHint>
-                    </div>
-                </div>
+                <span className="sr-only">
+                    {t('circuitBreaker.defaultPathTitle')}
+                    {t('circuitBreaker.defaultPathDesc')}
+                    {t('circuitBreaker.advancedDesc')}
+                </span>
             </div>
 
-            <div className={`rounded-2xl border px-4 py-4 ${statusToneClass}`}>
-                <div className="flex items-start gap-3">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                            <div className="text-sm font-semibold">{recommendation.title}</div>
-                            <HelpHint className="size-3.5">{recommendation.description}</HelpHint>
-                        </div>
-                        <p className="text-xs leading-5">{t('circuitBreaker.recommendation.currentValues', {
+            <div className={`rounded-2xl border px-3 py-2.5 ${statusToneClass}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                        <AlertTriangle className="size-4 shrink-0" />
+                        <div className="text-sm font-semibold">{recommendation.title}</div>
+                    </div>
+                    <p className="text-xs leading-5">{t('circuitBreaker.recommendation.currentValues', {
                             threshold: normalizedThreshold,
                             cooldown: normalizedCooldown,
                             maxCooldown: normalizedMaxCooldown,
                         })}</p>
-                    </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
                 {summaryCards.map((card) => (
-                    <div key={card.label} className="rounded-2xl border border-border/60 bg-muted/20 px-4 py-3">
+                    <div key={card.label} className="octo-stat-card">
                         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                             <span>{card.label}</span>
                             <HelpHint className="size-3.5">{card.helper}</HelpHint>
@@ -216,19 +210,17 @@ export function SettingCircuitBreaker() {
                 ))}
             </div>
 
-            <Accordion type="single" collapsible className="w-full rounded-2xl border border-border/60 bg-muted/20 px-4">
+            <Accordion type="single" collapsible className="w-full rounded-2xl border border-border/60 bg-muted/20 px-3">
                 <AccordionItem value="circuit-breaker-recovery" className="border-none">
                     <AccordionTrigger
                         data-testid="setting-circuit-breaker-recovery-trigger"
                         className="py-4 text-left hover:no-underline"
-                        addon={<HelpHint className="mt-1 size-3.5">{t('circuitBreaker.recoveryDesc')}</HelpHint>}
                     >
                         <div className="space-y-1">
                             <div className="flex items-center gap-2 text-sm font-medium text-card-foreground">
                                 <Waves className="h-4 w-4 text-muted-foreground" />
                                 <span>{t('circuitBreaker.recoveryTitle')}</span>
                             </div>
-                            <p className="text-xs leading-5 text-muted-foreground">{t('circuitBreaker.recoveryCompactDesc')}</p>
                         </div>
                     </AccordionTrigger>
                     <AccordionContent className="space-y-3 border-t pb-4 pt-4">
@@ -242,7 +234,7 @@ export function SettingCircuitBreaker() {
                 </AccordionItem>
             </Accordion>
 
-            <Accordion type="single" collapsible className="w-full rounded-2xl border border-border/60 bg-background/60 px-4">
+            <Accordion type="single" collapsible className="w-full rounded-2xl border border-border/60 bg-background/60 px-3">
                 <AccordionItem value="circuit-breaker-advanced" className="border-none">
                     <AccordionTrigger
                         data-testid="setting-circuit-breaker-advanced-trigger"

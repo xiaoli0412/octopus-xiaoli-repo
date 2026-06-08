@@ -92,6 +92,7 @@ export function Upstream() {
     const [tab, setTab] = useState<DetailTab>('overview');
     const [detailSearch, setDetailSearch] = useState('');
     const [preview, setPreview] = useState<{ model_count: number; key_count: number; group_count: number; price_count: number } | null>(null);
+    const hasSites = (sites.data?.length ?? 0) > 0;
 
     const activeID = selectedID ?? sites.data?.[0]?.id;
     const detail = useUpstreamSiteDetail(activeID);
@@ -200,8 +201,14 @@ export function Upstream() {
     };
 
     return (
-        <div data-testid="upstream-page" className="grid h-full min-h-0 gap-3 lg:grid-cols-[20rem_minmax(0,1fr)]">
-            <aside className="max-h-full self-start overflow-y-auto rounded-3xl border border-border bg-card p-3">
+        <div
+            data-testid="upstream-page"
+            className={cn(
+                'grid h-full min-h-0 items-start gap-3',
+                hasSites ? 'lg:grid-cols-[16.5rem_minmax(0,1fr)] 2xl:grid-cols-[17.5rem_minmax(0,1fr)]' : 'lg:grid-cols-1',
+            )}
+        >
+            <aside className={cn('octo-section max-h-full self-start overflow-y-auto', !hasSites && 'hidden')}>
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-sm font-semibold">
                         <Waypoints className="size-4 text-primary" />
@@ -217,7 +224,7 @@ export function Upstream() {
                             type="button"
                             onClick={() => setSelectedID(site.id)}
                             className={cn(
-                                'rounded-2xl border p-3 text-left transition',
+                                'rounded-2xl border p-2.5 text-left transition',
                                 activeID === site.id ? 'border-primary/40 bg-primary/8' : 'border-border/70 bg-background/50 hover:bg-muted/35',
                             )}
                         >
@@ -233,19 +240,19 @@ export function Upstream() {
                         </button>
                     ))}
                     {(sites.data?.length ?? 0) === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-border/70 p-4 text-xs text-muted-foreground">还没有上游。先在右侧添加一个站点。</div>
+                        <div className="rounded-xl border border-dashed border-border/70 p-3 text-xs leading-5 text-muted-foreground">暂无站点。右侧接入后会在这里切换管理。</div>
                     ) : null}
                 </div>
             </aside>
 
-            <main className="min-h-0 overflow-y-auto rounded-t-3xl pb-28 md:pb-4">
-                <section className="rounded-3xl border border-border bg-card p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
+            <main className="octo-workbench">
+                <section className="octo-section">
+                    <div className="octo-toolbar">
                         <div>
                             <div className="text-base font-semibold text-card-foreground">接入站点</div>
-                            <div className="mt-1 text-xs text-muted-foreground">账号密码只用于换取令牌，不长期保存密码。</div>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
+                            {!hasSites ? <span className="octo-chip">暂无站点</span> : null}
                             {PROVIDERS.map((item) => (
                                 <button
                                     key={item.value}
@@ -259,11 +266,11 @@ export function Upstream() {
                         </div>
                     </div>
 
-                    <div className="mt-4 grid gap-2 xl:grid-cols-[0.8fr_1fr_0.75fr_1.3fr_auto_auto]">
-                        <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="名称（可选）" className="h-10 rounded-xl" />
-                        <Input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder={provider === 'sub2api' ? 'https://sub2api.org' : 'https://newapi.example.com'} className="h-10 rounded-xl" />
+                    <div className="mt-2.5 grid gap-2 md:grid-cols-2 xl:grid-cols-[0.8fr_1.35fr_0.68fr]">
+                        <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="名称（可选）" className="h-9 rounded-xl" />
+                        <Input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder={provider === 'sub2api' ? 'https://sub2api.org' : 'https://newapi.example.com'} className="h-9 rounded-xl" />
                         <Select value={authMode} onValueChange={(value) => setAuthMode(value as UpstreamAuthMode)}>
-                            <SelectTrigger className="h-10 w-full rounded-xl border-input bg-background/45 text-card-foreground">
+                            <SelectTrigger className="h-9 w-full rounded-xl border-input bg-background/45 text-card-foreground">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="max-h-72 rounded-xl border-border bg-popover text-popover-foreground shadow-xl">
@@ -274,38 +281,41 @@ export function Upstream() {
                                 ))}
                             </SelectContent>
                         </Select>
+                    </div>
+
+                    <div className="mt-2 grid gap-2 xl:grid-cols-[minmax(0,1fr)_auto_auto]">
                         {authMode === 'account_password' ? (
                             <div className="grid gap-2 md:grid-cols-3">
-                                <Input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="账号 / 邮箱" className="h-10 rounded-xl" />
-                                <Input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="密码" className="h-10 rounded-xl" />
-                                <Input value={userID} onChange={(event) => setUserID(event.target.value)} placeholder="用户 ID（可选）" className="h-10 rounded-xl" />
+                                <Input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="账号 / 邮箱" className="h-9 rounded-xl" />
+                                <Input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="密码" className="h-9 rounded-xl" />
+                                <Input value={userID} onChange={(event) => setUserID(event.target.value)} placeholder="用户 ID（可选）" className="h-9 rounded-xl" />
                             </div>
                         ) : authMode === 'access_key' ? (
-                            <Input value={accessKey} onChange={(event) => setAccessKey(event.target.value)} type="password" placeholder="网关 Key" className="h-10 rounded-xl" />
+                            <Input value={accessKey} onChange={(event) => setAccessKey(event.target.value)} type="password" placeholder="网关 Key" className="h-9 rounded-xl" />
                         ) : (
                             <div className="grid gap-2 md:grid-cols-2">
-                                <Input value={token} onChange={(event) => setToken(event.target.value)} type="password" placeholder="管理令牌" className="h-10 rounded-xl" />
-                                <Input value={userID} onChange={(event) => setUserID(event.target.value)} placeholder="用户 ID（可选）" className="h-10 rounded-xl" />
+                                <Input value={token} onChange={(event) => setToken(event.target.value)} type="password" placeholder="管理令牌" className="h-9 rounded-xl" />
+                                <Input value={userID} onChange={(event) => setUserID(event.target.value)} placeholder="用户 ID（可选）" className="h-9 rounded-xl" />
                             </div>
                         )}
-                        <Button type="button" variant="secondary" onClick={handleInspect} disabled={!canSubmit || inspectSite.isPending} className="h-10 rounded-xl">
+                        <Button type="button" variant="secondary" onClick={handleInspect} disabled={!canSubmit || inspectSite.isPending} className="h-9 rounded-xl px-3">
                             {inspectSite.isPending ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
                             检查
                         </Button>
-                        <Button type="button" onClick={handleCreate} disabled={!canSubmit || createSite.isPending} className="h-10 rounded-xl">
+                        <Button type="button" onClick={handleCreate} disabled={!canSubmit || createSite.isPending} className="h-9 rounded-xl px-3">
                             {createSite.isPending ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
                             保存
                         </Button>
                     </div>
 
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <label className="flex h-9 items-center gap-2 rounded-xl border border-border/70 px-3 text-xs text-muted-foreground">
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <label className="flex h-8 items-center gap-2 rounded-xl border border-border/70 px-3 text-xs text-muted-foreground">
                             <input type="checkbox" checked={syncToChannel} onChange={(event) => setSyncToChannel(event.target.checked)} />
                             保存后同步到渠道
                         </label>
                         <div className="min-w-[14rem] max-w-full">
                             <Select value={targetChannelID} onValueChange={setTargetChannelID}>
-                                <SelectTrigger className="h-9 w-full rounded-xl border-input bg-background/45 text-xs text-card-foreground">
+                                <SelectTrigger className="h-8 w-full rounded-xl border-input bg-background/45 text-xs text-card-foreground">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-80 rounded-xl border-border bg-popover text-popover-foreground shadow-xl">
@@ -320,34 +330,65 @@ export function Upstream() {
                         </div>
                         {preview ? (
                             <div className="flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
-                                <span className="rounded-full border border-border/70 px-2 py-1">模型 {preview.model_count}</span>
-                                <span className="rounded-full border border-border/70 px-2 py-1">Key {preview.key_count}</span>
-                                <span className="rounded-full border border-border/70 px-2 py-1">分组 {preview.group_count}</span>
-                                <span className="rounded-full border border-border/70 px-2 py-1">中转价 {preview.price_count}</span>
+                                <span className="octo-chip">模型 {preview.model_count}</span>
+                                <span className="octo-chip">Key {preview.key_count}</span>
+                                <span className="octo-chip">分组 {preview.group_count}</span>
+                                <span className="octo-chip">中转价 {preview.price_count}</span>
                             </div>
                         ) : null}
                     </div>
                 </section>
 
-                <section className="mt-3 rounded-3xl border border-border bg-card p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
+                {!activeSite ? (
+                <section className="mt-3 octo-section">
+                    <div className="octo-toolbar">
+                        <div className="min-w-0">
+                            <div className="text-base font-semibold text-card-foreground">等待接入</div>
+                            <div className="mt-1 text-xs text-muted-foreground">填好上方站点与凭据后，先检查，再保存并同步到渠道。</div>
+                        </div>
+                        {preview ? (
+                            <div className="flex flex-wrap gap-1.5">
+                                <span className="octo-chip">模型 {preview.model_count}</span>
+                                <span className="octo-chip">Key {preview.key_count}</span>
+                                <span className="octo-chip">分组 {preview.group_count}</span>
+                                <span className="octo-chip">中转价 {preview.price_count}</span>
+                            </div>
+                        ) : null}
+                    </div>
+                    <div className="mt-2.5 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                        {[
+                            ['终端', '规范化站点与 API Base'],
+                            ['凭据', '令牌、网关 Key 或一次性登录'],
+                            ['快照', '模型、Key、分组和中转价格'],
+                            ['渠道', '保存后可直接出现在渠道列表'],
+                        ].map(([title, desc]) => (
+                            <div key={title} className="octo-stat-card">
+                                <div className="text-sm font-semibold text-card-foreground">{title}</div>
+                                <div className="mt-1 text-xs leading-5 text-muted-foreground">{desc}</div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+                ) : (
+                <section className="mt-3 octo-section">
+                    <div className="octo-toolbar">
                         <div className="min-w-0">
                             <div className="truncate text-base font-semibold text-card-foreground">{activeSite?.name ?? '未选择上游'}</div>
                             <div className="mt-1 truncate text-xs text-muted-foreground">{activeSite?.api_base_url || activeSite?.base_url || '保存站点后显示终端地址'}</div>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                            <Button type="button" variant="secondary" onClick={() => handleRefresh(false)} disabled={!activeID || refreshSite.isPending} className="h-9 rounded-xl">
+                            <Button type="button" variant="secondary" onClick={() => handleRefresh(false)} disabled={!activeID || refreshSite.isPending} className="h-8 rounded-xl px-3">
                                 {refreshSite.isPending ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
                                 刷新
                             </Button>
-                            <Button type="button" onClick={handleApply} disabled={!activeID || applySite.isPending} className="h-9 rounded-xl">
+                            <Button type="button" onClick={handleApply} disabled={!activeID || applySite.isPending} className="h-8 rounded-xl px-3">
                                 {applySite.isPending ? <Loader2 className="size-4 animate-spin" /> : <PlugZap className="size-4" />}
                                 应用渠道
                             </Button>
                         </div>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+                    <div className="mt-2.5 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
                         {[
                             ['余额', formatBalance(activeSite)],
                             ['模型', String(activeSite?.model_count ?? 0)],
@@ -356,14 +397,14 @@ export function Upstream() {
                             ['中转价', String(activeSite?.price_count ?? 0)],
                             ['刷新', statusLabel(activeSite?.last_refresh_status)],
                         ].map(([label, value]) => (
-                            <div key={label} className="rounded-2xl border border-border/60 bg-muted/15 px-3 py-2">
+                            <div key={label} className="octo-stat-card">
                                 <div className="text-[11px] text-muted-foreground">{label}</div>
                                 <div className="mt-1 truncate text-sm font-semibold text-card-foreground">{value}</div>
                             </div>
                         ))}
                     </div>
 
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <div className="mt-2.5 flex flex-wrap items-center gap-2">
                         {[
                             ['overview', '概览'],
                             ['keys', 'Key'],
@@ -374,7 +415,7 @@ export function Upstream() {
                                 key={key}
                                 type="button"
                                 onClick={() => setTab(key as DetailTab)}
-                                className={cn('h-8 rounded-xl px-3 text-xs font-medium transition', tab === key ? 'bg-primary text-primary-foreground' : 'border border-border/70 text-muted-foreground hover:bg-muted/50')}
+                                className={cn('h-8 rounded-xl px-3 text-xs font-medium transition', tab === key ? 'bg-primary text-primary-foreground' : 'border border-border/70 bg-background/60 text-muted-foreground hover:bg-muted/50')}
                             >
                                 {label}
                             </button>
@@ -387,8 +428,8 @@ export function Upstream() {
                     </div>
 
                     {tab === 'overview' ? (
-                        <div className="mt-4 grid gap-3 xl:grid-cols-3">
-                            <div className="rounded-2xl border border-border/60 bg-background/55 p-3 text-xs">
+                        <div className="mt-2.5 grid gap-2 xl:grid-cols-3">
+                            <div className="octo-subsection text-xs">
                                 <div className="font-medium text-card-foreground">终端</div>
                                 <div className="mt-2 space-y-1 text-muted-foreground">
                                     <div className="truncate">站点：{activeSite?.base_url || '-'}</div>
@@ -396,7 +437,7 @@ export function Upstream() {
                                     <div>方式：{AUTH_MODES.find((item) => item.value === activeSite?.auth_mode)?.label ?? '-'}</div>
                                 </div>
                             </div>
-                            <div className="rounded-2xl border border-border/60 bg-background/55 p-3 text-xs">
+                            <div className="octo-subsection text-xs">
                                 <div className="font-medium text-card-foreground">凭据</div>
                                 <div className="mt-2 flex flex-wrap gap-1.5">
                                     {(detail.data?.credentials ?? []).slice(0, 4).map((item) => (
@@ -405,7 +446,7 @@ export function Upstream() {
                                     {(detail.data?.credentials?.length ?? 0) === 0 ? <span className="text-muted-foreground">-</span> : null}
                                 </div>
                             </div>
-                            <div className="rounded-2xl border border-border/60 bg-background/55 p-3 text-xs">
+                            <div className="octo-subsection text-xs">
                                 <div className="font-medium text-card-foreground">渠道</div>
                                 <div className="mt-2 text-muted-foreground">
                                     {detail.data?.linked_channel ? `${detail.data.linked_channel.name} / Key ${detail.data.linked_channel.key_count}` : '尚未应用到渠道'}
@@ -415,10 +456,10 @@ export function Upstream() {
                     ) : null}
 
                     {tab === 'keys' ? (
-                        <div className="mt-4 max-h-[28rem] overflow-y-auto pr-1">
+                        <div className="mt-2.5 max-h-[24rem] overflow-y-auto pr-1">
                             <div className="grid gap-2 xl:grid-cols-2">
                                 {filteredKeys.map((item) => (
-                                    <div key={item.id} className="rounded-2xl border border-border/60 bg-background/55 p-3 text-xs">
+                                    <div key={item.id} className="octo-subsection text-xs">
                                         <div className="flex items-center justify-between gap-2">
                                             <span className="truncate font-medium text-card-foreground">{item.name || `Key ${item.id}`}</span>
                                             <span className="font-mono text-[11px] text-muted-foreground">{item.masked_key || '-'}</span>
@@ -435,10 +476,10 @@ export function Upstream() {
                     ) : null}
 
                     {tab === 'groups' ? (
-                        <div className="mt-4 max-h-[28rem] overflow-y-auto pr-1">
+                        <div className="mt-2.5 max-h-[24rem] overflow-y-auto pr-1">
                             <div className="grid gap-2 xl:grid-cols-2">
                                 {filteredGroups.map((item) => (
-                                    <div key={item.id} className="rounded-2xl border border-border/60 bg-background/55 p-3 text-xs">
+                                    <div key={item.id} className="octo-subsection text-xs">
                                         <div className="flex items-center justify-between gap-2">
                                             <span className="truncate font-medium text-card-foreground">{item.name}</span>
                                             <span className="text-[11px] text-muted-foreground">{item.platform || item.source || '-'}</span>
@@ -455,19 +496,19 @@ export function Upstream() {
                     ) : null}
 
                     {tab === 'prices' ? (
-                        <div className="mt-4">
+                        <div className="mt-2.5">
                             <div className="mb-3 flex flex-wrap gap-2">
                                 {filteredPrices.slice(0, 3).map((item) => (
-                                    <div key={`preview-${item.id}`} className="rounded-2xl border border-border/60 bg-background/70 px-3 py-2 text-xs">
+                                    <div key={`preview-${item.id}`} className="octo-stat-card text-xs">
                                         <div className="max-w-[12rem] truncate font-medium text-card-foreground">{item.model_name}</div>
                                         <div className="mt-1 text-[11px] text-muted-foreground">入 {formatNumber(item.input)} / 出 {formatNumber(item.output)}</div>
                                     </div>
                                 ))}
                             </div>
-                            <div className="max-h-[28rem] overflow-y-auto pr-1">
+                            <div className="max-h-[24rem] overflow-y-auto pr-1">
                                 <div className="grid gap-2 xl:grid-cols-2">
                                     {filteredPrices.map((item) => (
-                                        <div key={item.id} className="rounded-2xl border border-border/60 bg-background/55 p-3 text-xs">
+                                        <div key={item.id} className="octo-subsection text-xs">
                                             <div className="flex items-center justify-between gap-2">
                                                 <span className="truncate font-medium text-card-foreground">{item.model_name}</span>
                                                 <span className="shrink-0 text-[11px] text-muted-foreground">{item.source_label || '中转价'}</span>
@@ -486,6 +527,7 @@ export function Upstream() {
                         </div>
                     ) : null}
                 </section>
+                )}
             </main>
         </div>
     );

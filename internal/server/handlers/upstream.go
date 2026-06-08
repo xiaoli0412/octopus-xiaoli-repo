@@ -55,7 +55,7 @@ func init() {
 func listUpstreamSites(c *gin.Context) {
 	sites, err := op.UpstreamSiteList(c.Request.Context())
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to list upstream sites")
 		return
 	}
 	resp.Success(c, sites)
@@ -167,7 +167,7 @@ func deleteUpstreamSite(c *gin.Context) {
 		return
 	}
 	if err := op.UpstreamSiteDelete(c.Request.Context(), id); err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to delete upstream site")
 		return
 	}
 	resp.Success(c, nil)

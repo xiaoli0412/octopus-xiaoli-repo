@@ -29,7 +29,7 @@ func respondGroupOpError(c *gin.Context, err error) {
 	case strings.Contains(message, "invalid"), strings.Contains(message, "must be"):
 		resp.Error(c, http.StatusBadRequest, message)
 	default:
-		resp.Error(c, http.StatusInternalServerError, message)
+		resp.Error(c, http.StatusInternalServerError, "internal server error")
 	}
 }
 
@@ -73,7 +73,7 @@ func init() {
 func getGroupList(c *gin.Context) {
 	groups, err := op.GroupList(c.Request.Context())
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to list groups")
 		return
 	}
 	resp.Success(c, groups)

@@ -416,11 +416,11 @@ function statusTone(status?: string) {
 function WorkspacePanel({ title, description, children, testId }: { title: string; description?: string; children: React.ReactNode; testId?: string }) {
 	return (
 		<section data-testid={testId} className="octo-panel min-h-0 overflow-hidden">
-			<div className="flex flex-wrap items-center justify-between gap-2 border-b border-card-border px-4 py-3 sm:px-5">
+			<div className="flex flex-wrap items-center justify-between gap-2 border-b border-card-border px-3 py-2">
 				<div className="text-sm font-semibold text-card-foreground">{title}</div>
-				{description ? <div className="text-xs text-muted-foreground">{description}</div> : null}
+				{description ? <div className="octo-chip hidden md:inline-flex">{description}</div> : null}
 			</div>
-			<div className="min-h-0 overflow-y-auto px-4 py-3.5 sm:px-5">{children}</div>
+			<div className="min-h-0 overflow-y-auto px-3 py-2.5">{children}</div>
 		</section>
 	);
 }
@@ -451,22 +451,22 @@ function MutationRow({ mutation }: { mutation: GovernanceMutation }) {
 
 function DomainCard({ domain }: { domain: GovernanceDomainPlanView }) {
 	return (
-		<div className="rounded-2xl border border-card-border bg-background/55 p-3.5">
+		<div className="rounded-xl border border-card-border bg-background/55 p-2.5">
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div className="min-w-0 flex-1">
 					<div className="truncate text-sm font-semibold text-card-foreground">{localizeDomainTitle(domain.key, domain.title)}</div>
-					<div className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{localizeDomainSummary(domain.key, domain.summary)}</div>
+					<div className="mt-1 line-clamp-1 text-xs leading-5 text-muted-foreground">{localizeDomainSummary(domain.key, domain.summary)}</div>
 				</div>
 				<div className={cn('shrink-0 rounded-full border px-2.5 py-1 text-[11px]', statusTone(domain.status))}>{localizeDomainStatus(domain.status)}</div>
 			</div>
-			<div className="mt-3 grid grid-cols-2 gap-2.5">
-				<div className="rounded-xl border border-card-border/60 bg-muted/20 px-3 py-2">
+			<div className="mt-2 grid grid-cols-2 gap-2">
+				<div className="rounded-lg border border-card-border/60 bg-muted/20 px-2.5 py-1.5">
 					<div className="text-[11px] text-muted-foreground">发现问题</div>
-					<div className="mt-1 text-[1.1rem] font-semibold text-foreground"><AnimatedNumber value={domain.finding_count} /></div>
+					<div className="mt-0.5 text-base font-semibold text-foreground"><AnimatedNumber value={domain.finding_count} /></div>
 				</div>
-				<div className="rounded-xl border border-card-border/60 bg-muted/20 px-3 py-2">
+				<div className="rounded-lg border border-card-border/60 bg-muted/20 px-2.5 py-1.5">
 					<div className="text-[11px] text-muted-foreground">待应用变更</div>
-					<div className="mt-1 text-[1.1rem] font-semibold text-foreground"><AnimatedNumber value={domain.mutation_count} /></div>
+					<div className="mt-0.5 text-base font-semibold text-foreground"><AnimatedNumber value={domain.mutation_count} /></div>
 				</div>
 			</div>
 		</div>
@@ -475,9 +475,9 @@ function DomainCard({ domain }: { domain: GovernanceDomainPlanView }) {
 
 function StatMiniCard({ title, value, tone = 'default' }: { title: string; value: React.ReactNode; tone?: 'default' | 'emphasis' }) {
 	return (
-		<div className={cn('rounded-2xl border p-3', tone === 'emphasis' ? 'border-primary/20 bg-primary/5' : 'border-card-border/70 bg-background/55')}>
+		<div className={cn('rounded-xl border px-2.5 py-2', tone === 'emphasis' ? 'border-primary/20 bg-primary/5' : 'border-card-border/70 bg-background/55')}>
 			<div className="text-[11px] text-muted-foreground">{title}</div>
-			<div className="mt-1 break-all text-sm font-semibold text-card-foreground">{value}</div>
+			<div className="mt-0.5 line-clamp-2 break-all text-sm font-semibold text-card-foreground">{value}</div>
 		</div>
 	);
 }
@@ -685,6 +685,7 @@ export function AIAutomation() {
 	const selectedSessionQuery = useGovernanceSession(selectedSessionFromList?.id);
 	const rollbackPointsQuery = useGovernanceRollbackPoints(selectedSessionFromList?.id);
 	const selectedSession = selectedSessionQuery.data;
+	const hasSession = Boolean(selectedSessionFromList?.id);
 	const rollbackPoints = rollbackPointsQuery.data ?? selectedSession?.rollback_points ?? [];
 	const presets = presetsQuery.data ?? [];
 	const strategyProfiles = profilesQuery.data ?? [];
@@ -872,16 +873,16 @@ export function AIAutomation() {
 	};
 
 	return (
-		<div className="h-full min-h-0 overflow-y-auto overscroll-contain rounded-t-3xl">
-			<PageWrapper className="space-y-5 pb-24 md:pb-4" data-testid="ai-automation-page">
-				<section className="rounded-3xl border border-card-border bg-card p-4 sm:p-5">
-					<div className="flex flex-wrap items-center justify-between gap-3">
+		<div className="octo-workbench">
+			<PageWrapper className="space-y-3" data-testid="ai-automation-page" disableAnimations>
+				<section className="octo-section">
+					<div className="octo-toolbar">
 						<div className="flex flex-wrap items-center gap-3">
-							<div className="flex items-center gap-2 text-xl font-semibold tracking-tight text-card-foreground">
+							<div className="flex items-center gap-2 text-lg font-semibold tracking-tight text-card-foreground">
 								<Workflow className="size-5 text-primary" />
 								{tx('hero.title')}
 							</div>
-							<div className="rounded-full border border-card-border bg-background/55 px-3 py-1 text-xs text-muted-foreground">{tx('hero.badge')}</div>
+							<div className="octo-chip">{tx('hero.badge')}</div>
 						</div>
 						<Button type="button" variant="outline" className="h-9 rounded-xl" onClick={() => setSettingsOpen(true)}>
 							<Settings2 className="size-4" />
@@ -889,46 +890,46 @@ export function AIAutomation() {
 						</Button>
 					</div>
 
-					<div className="mt-4 space-y-4">
-						<div className="space-y-4">
-							<div className="rounded-3xl border border-card-border bg-background/55 p-4">
+					<div className="mt-2.5 space-y-2.5">
+						<div className="space-y-2.5">
+							<div className="rounded-xl border border-card-border bg-background/55 p-2.5">
 								<div className="flex flex-wrap items-center justify-between gap-2">
 									<div className="text-sm font-semibold text-card-foreground">{tx('main.goalTitle')}</div>
-									<div className="text-xs text-muted-foreground">{tx('main.goalDesc')}</div>
+									<div className="hidden text-xs text-muted-foreground md:block">{tx('main.goalDesc')}</div>
 								</div>
-								<Input data-testid="ai-governance-goal-input" className="mt-3 h-11 rounded-xl" placeholder={tx('main.goalPlaceholder')} value={goal} onChange={(event) => setGoal(event.target.value)} />
-								<div className="mt-3 flex flex-wrap gap-2">
+								<div className="mt-2 grid gap-2 xl:grid-cols-[minmax(0,1fr)_auto]">
+									<Input data-testid="ai-governance-goal-input" className="h-9 rounded-xl" placeholder={tx('main.goalPlaceholder')} value={goal} onChange={(event) => setGoal(event.target.value)} />
+									<div className="flex flex-wrap gap-2">
+										<Button data-testid="ai-governance-create-button" className="h-9 rounded-xl px-3" onClick={handleCreateSession} disabled={createSession.isPending}><Play className="size-4" />{createSession.isPending ? tx('actions.creating') : tx('actions.create')}</Button>
+										{hasSession ? <Button data-testid="ai-governance-replan-button" variant="outline" className="h-9 rounded-xl px-3" onClick={handleReplan} disabled={replanSession.isPending}><RotateCcw className="size-4" />{tx('actions.replan')}</Button> : null}
+										{hasSession ? <Button data-testid="ai-governance-apply-button" variant="outline" className="h-9 rounded-xl border-emerald-500/30 bg-emerald-500/10 px-3 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300" onClick={handleApply} disabled={!selectedSession?.preview.can_apply || applySession.isPending}><ShieldCheck className="size-4" />{applySession.isPending ? tx('actions.applying') : tx('actions.apply')}</Button> : null}
+									</div>
+								</div>
+								<div className="mt-2 flex flex-wrap gap-2">
 									{QUICK_GOALS.map((item) => (
-										<button key={item.key} type="button" className="rounded-full border border-card-border bg-background px-3 py-1.5 text-xs text-muted-foreground transition hover:border-primary/30 hover:text-card-foreground" onClick={() => setGoal(item.value)}>
+										<button key={item.key} type="button" className="rounded-full border border-card-border bg-background px-2.5 py-1 text-xs text-muted-foreground transition hover:border-primary/30 hover:text-card-foreground" onClick={() => setGoal(item.value)}>
 											{tx(item.label)}
 										</button>
 									))}
 								</div>
-								<div className="mt-4 flex flex-wrap gap-3">
-									<Button data-testid="ai-governance-create-button" className="rounded-xl" onClick={handleCreateSession} disabled={createSession.isPending}><Play className="size-4" />{createSession.isPending ? tx('actions.creating') : tx('actions.create')}</Button>
-									<Button data-testid="ai-governance-replan-button" variant="outline" className="rounded-xl" onClick={handleReplan} disabled={!selectedSessionFromList?.id || replanSession.isPending}><RotateCcw className="size-4" />{tx('actions.replan')}</Button>
-									<Button data-testid="ai-governance-apply-button" variant="outline" className="rounded-xl border-emerald-500/30 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-300" onClick={handleApply} disabled={!selectedSession?.preview.can_apply || applySession.isPending}><ShieldCheck className="size-4" />{applySession.isPending ? tx('actions.applying') : tx('actions.apply')}</Button>
-								</div>
 							</div>
 
-							<div className="grid gap-3 min-[375px]:grid-cols-2 xl:grid-cols-4">
+							<div className="grid gap-2 min-[375px]:grid-cols-2 xl:grid-cols-4">
 								<StatMiniCard title={tx('summary.currentGoal')} value={currentGoal || tx('summary.goalEmpty')} tone="emphasis" />
 								<StatMiniCard title={tx('summary.activePlan')} value={currentSummary} />
 								<StatMiniCard title={tx('summary.lastApply')} value={selectedSession?.applied_at ? formatDateTimeByLocale(selectedSession.applied_at, locale) : tx('summary.notApplied')} />
 								<StatMiniCard title={tx('sidebar.runtimePolicy')} value={currentRuntimePolicyText} />
 							</div>
 
-							<section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
-								{currentDomains.length ? currentDomains.map((domain) => <DomainCard key={domain.key} domain={domain} />) : [
-									{ key: 'routing_grouping', title: '分组与路由', summary: '整理托管治理组、分组项和路由目标覆盖。', status: 'idle', finding_count: 0, mutation_count: 0 },
-									{ key: 'pricing', title: '价格覆盖', summary: '检查已配置模型是否存在缺价与计费缺口。', status: 'idle', finding_count: 0, mutation_count: 0 },
-									{ key: 'dynamic_routing', title: '动态路由', summary: '统一查看模式、学习开关和竞速预算。', status: 'idle', finding_count: 0, mutation_count: 0 },
-									{ key: 'runtime_policy', title: 'AI 运行时', summary: '管理分发模式、并发上限和规则降级策略。', status: 'idle', finding_count: 0, mutation_count: 0 },
-								].map((domain) => <DomainCard key={domain.key} domain={domain as GovernanceDomainPlanView} />)}
-							</section>
+							{currentDomains.length ? (
+								<section className="grid gap-2 md:grid-cols-2 2xl:grid-cols-4">
+									{currentDomains.map((domain) => <DomainCard key={domain.key} domain={domain} />)}
+								</section>
+							) : null}
 						</div>
-						<div className="rounded-3xl border border-card-border bg-muted/15 p-4">
-							<div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-5">
+						{selectedSession ? (
+						<div className="rounded-xl border border-card-border bg-muted/15 p-2.5">
+							<div className="grid gap-2 md:grid-cols-2 2xl:grid-cols-5">
 								<StatMiniCard title="当前状态" value={currentStatusText} />
 								<StatMiniCard title="当前来源" value={currentSourceLabel} />
 								<StatMiniCard title={tx('main.scopeLabel')} value={currentScopeSummary} />
@@ -936,18 +937,19 @@ export function AIAutomation() {
 								<StatMiniCard title="托管治理组" value={localizeKnownText(currentManagedGroup)} />
 							</div>
 						</div>
+						) : null}
 					</div>
 				</section>
 
-				<section className="space-y-4">
-					<div className="flex flex-wrap gap-2">{WORKSPACE_TABS.map((tab) => { const Icon = tab.icon; return <button key={tab.key} data-testid={`ai-governance-tab-${tab.key}`} type="button" className={cn('inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm transition', workspaceTab === tab.key ? 'border-primary/30 bg-primary/10 text-primary' : 'border-card-border bg-card text-muted-foreground hover:border-primary/20 hover:text-card-foreground')} onClick={() => setWorkspaceTab(tab.key)}><Icon className="size-4" />{tx(tab.label)}</button>; })}</div>
-					<div className="grid gap-5 2xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
-						{workspaceTab === 'preview' ? <WorkspacePanel title={tx('workspace.previewTitle')} description={tx('workspace.previewDesc')} testId="ai-governance-workspace-preview"><div className="space-y-4 xl:col-span-2"><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><StatMiniCard title={tx('preview.groups')} value={<AnimatedNumber value={selectedSession?.preview.impact_counts.groups ?? 0} />} /><StatMiniCard title={tx('preview.items')} value={<AnimatedNumber value={selectedSession?.preview.impact_counts.items ?? 0} />} /><StatMiniCard title={tx('preview.overrides')} value={<AnimatedNumber value={selectedSession?.preview.impact_counts.overrides ?? 0} />} /><StatMiniCard title={tx('preview.status')} value={selectedSession?.preview.can_apply ? tx('preview.ready') : tx('preview.blocked')} /></div><div className="grid gap-3 md:grid-cols-2">{selectedSession?.preview.summary_lines?.length ? selectedSession.preview.summary_lines.map((line, index) => <div key={index} className="rounded-2xl border border-card-border/70 bg-background/70 px-3 py-2 text-sm text-card-foreground">{localizeKnownText(line)}</div>) : null}{selectedSession?.preview.risk_notes?.map((line, index) => <div key={`risk-${index}`} className="rounded-2xl border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-sm text-card-foreground">{localizeKnownText(line)}</div>)}{selectedSession?.preview.apply_blockers?.map((line, index) => <div key={`blocker-${index}`} className="rounded-2xl border border-destructive/20 bg-destructive/8 px-3 py-2 text-sm text-card-foreground">{localizeKnownText(line)}</div>)}</div><div className="space-y-3">{selectedSession?.preview.mutations?.length ? selectedSession.preview.mutations.map((mutation, index) => <MutationRow key={`${mutation.type}-${index}`} mutation={mutation} />) : <div className="rounded-xl border border-dashed border-card-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">{tx('states.noPreview')}</div>}</div></div></WorkspacePanel> : null}
+				<section className="space-y-2.5">
+					<div className="flex gap-2 overflow-x-auto pb-1">{WORKSPACE_TABS.map((tab) => { const Icon = tab.icon; return <button key={tab.key} data-testid={`ai-governance-tab-${tab.key}`} type="button" className={cn('inline-flex h-9 shrink-0 items-center gap-2 rounded-full border px-3 text-xs transition', workspaceTab === tab.key ? 'border-primary/30 bg-primary/10 text-primary' : 'border-card-border bg-card text-muted-foreground hover:border-primary/20 hover:text-card-foreground')} onClick={() => setWorkspaceTab(tab.key)}><Icon className="size-4" />{tx(tab.label)}</button>; })}</div>
+					<div className={cn('grid gap-3', selectedSession ? '2xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]' : '')}>
+						{workspaceTab === 'preview' ? <WorkspacePanel title={tx('workspace.previewTitle')} description={tx('workspace.previewDesc')} testId="ai-governance-workspace-preview">{selectedSession ? <div className="space-y-3 xl:col-span-2"><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4"><StatMiniCard title={tx('preview.groups')} value={<AnimatedNumber value={selectedSession.preview.impact_counts.groups ?? 0} />} /><StatMiniCard title={tx('preview.items')} value={<AnimatedNumber value={selectedSession.preview.impact_counts.items ?? 0} />} /><StatMiniCard title={tx('preview.overrides')} value={<AnimatedNumber value={selectedSession.preview.impact_counts.overrides ?? 0} />} /><StatMiniCard title={tx('preview.status')} value={selectedSession.preview.can_apply ? tx('preview.ready') : tx('preview.blocked')} /></div><div className="grid gap-2 md:grid-cols-2">{selectedSession.preview.summary_lines?.length ? selectedSession.preview.summary_lines.map((line, index) => <div key={index} className="rounded-xl border border-card-border/70 bg-background/70 px-3 py-2 text-sm text-card-foreground">{localizeKnownText(line)}</div>) : null}{selectedSession.preview.risk_notes?.map((line, index) => <div key={`risk-${index}`} className="rounded-xl border border-amber-500/20 bg-amber-500/8 px-3 py-2 text-sm text-card-foreground">{localizeKnownText(line)}</div>)}{selectedSession.preview.apply_blockers?.map((line, index) => <div key={`blocker-${index}`} className="rounded-xl border border-destructive/20 bg-destructive/8 px-3 py-2 text-sm text-card-foreground">{localizeKnownText(line)}</div>)}</div><div className="space-y-2">{selectedSession.preview.mutations?.length ? selectedSession.preview.mutations.map((mutation, index) => <MutationRow key={`${mutation.type}-${index}`} mutation={mutation} />) : <div className="rounded-xl border border-dashed border-card-border bg-muted/20 px-4 py-4 text-sm text-muted-foreground">{tx('states.noPreview')}</div>}</div></div> : <div className="rounded-xl border border-dashed border-card-border bg-muted/20 px-4 py-4 text-sm text-muted-foreground">输入目标并生成方案后，这里会显示影响范围和变更预览。</div>}</WorkspacePanel> : null}
 						{workspaceTab === 'profiles' ? <WorkspacePanel title={tx('workspace.profilesTitle')} description={tx('workspace.profilesDesc')} testId="ai-governance-workspace-profiles"><div className="space-y-4 xl:col-span-2"><div className="flex flex-col gap-3 md:flex-row"><Input className="h-11 rounded-xl" placeholder={tx('profiles.namePlaceholder')} value={newProfileName} onChange={(event) => setNewProfileName(event.target.value)} /><Button variant="outline" className="rounded-xl" onClick={handleCreateProfile}>{tx('profiles.create')}</Button></div><div className="space-y-3">{strategyProfiles.length ? strategyProfiles.map((profile) => <div key={profile.id} className="rounded-2xl border border-card-border/70 bg-muted/20 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div className="min-w-0 flex-1"><div className="break-all text-sm font-medium text-card-foreground">{localizeKnownText(profile.name)}</div><div className="mt-1 break-all text-xs text-muted-foreground">{localizeKnownText(profile.summary || tx('profiles.noSummary'))}</div></div><div className="flex items-center gap-2"><div className={cn('rounded-full border px-3 py-1 text-[11px]', profile.is_active ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'border-card-border bg-background text-muted-foreground')}>{profile.is_active ? tx('profiles.active') : localizeProfileStatus(profile.status)}</div><Button variant="outline" className="rounded-xl" onClick={() => handleActivateProfile(profile.id)} disabled={profile.is_active}>{tx('profiles.activate')}</Button></div></div></div>) : <div className="rounded-xl border border-dashed border-card-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">{tx('profiles.empty')}</div>}</div></div></WorkspacePanel> : null}
 						{workspaceTab === 'rollback' ? <WorkspacePanel title={tx('workspace.rollbackTitle')} description={tx('workspace.rollbackDesc')} testId="ai-governance-workspace-rollback"><div className="space-y-3">{rollbackPoints.length ? rollbackPoints.map((point) => <div key={point.id} className="rounded-2xl border border-card-border/70 bg-muted/20 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="text-sm font-medium text-card-foreground">#{point.id}</div><div className="mt-1 break-all text-xs text-muted-foreground">{localizeKnownText(point.summary)}</div><div className="mt-1 text-[11px] text-muted-foreground">{formatDateTimeByLocale(point.created_at, locale)}</div></div><Button variant="outline" className="rounded-xl" onClick={() => handleRollback(point)}>{tx('actions.rollback')}</Button></div></div>) : <div className="rounded-xl border border-dashed border-card-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">{tx('states.noRollbackPoints')}</div>}</div></WorkspacePanel> : null}
 						{workspaceTab === 'history' ? <WorkspacePanel title={tx('workspace.historyTitle')} description={tx('workspace.historyDesc')} testId="ai-governance-workspace-history"><div className="space-y-5"><div className="space-y-3">{sessions.length ? sessions.map((session) => <button key={session.id} type="button" className={cn('w-full rounded-2xl border p-4 text-left transition', selectedSessionFromList?.id === session.id ? 'border-primary/30 bg-primary/10 text-primary' : 'border-card-border bg-muted/20 text-card-foreground hover:border-primary/20')} onClick={() => setSelectedSessionID(session.id)}><div className="flex flex-wrap items-center justify-between gap-2"><div className="break-all text-sm font-medium">#{session.id} · {localizeKnownText(session.goal)}</div><div className={cn('rounded-full border px-2.5 py-1 text-[11px]', statusTone(session.status))}>{localizeSessionStatus(session.status)}</div></div><div className="mt-2 break-all text-xs leading-5 text-muted-foreground">{localizeKnownText(session.operator_summary)}</div></button>) : <div className="rounded-xl border border-dashed border-card-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">{tx('states.noHistory')}</div>}</div><div ref={learningSectionRef} data-ai-focus-target="learning" className="rounded-2xl border border-card-border/70 bg-muted/20 p-4"><div className="flex items-center gap-2 text-sm font-semibold text-card-foreground"><Sparkles className="size-4 text-primary" />{tx('history.learningTitle')}</div><div className="mt-2 text-xs leading-5 text-muted-foreground">{tx('history.learningDesc')}</div><div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><StatMiniCard title={tx('history.learningEnabled')} value={learningSummary?.enabled ? tx('sidebar.learningOn') : tx('sidebar.learningOff')} /><StatMiniCard title={tx('history.learningSamples')} value={<><AnimatedNumber value={learningSummary?.sample_count ?? 0} /> 条</>} /><StatMiniCard title={tx('history.learningTopTarget')} value={localizeKnownText(learningSummary?.top_target || '-')} /><StatMiniCard title={tx('history.learningUpdated')} value={learningSummary?.last_sample_at ? formatDateTimeByLocale(new Date(learningSummary.last_sample_at * 1000).toISOString(), locale) : '-'} /></div></div></div></WorkspacePanel> : null}
 						{workspaceTab === 'expert' ? <WorkspacePanel title={tx('workspace.expertTitle')} description={tx('workspace.expertDesc')} testId="ai-governance-workspace-expert"><div className="space-y-4 xl:col-span-2"><div className="grid gap-3 sm:grid-cols-3">{presets.map((preset) => <button key={preset.id} type="button" className={cn('rounded-2xl border p-4 text-left transition', selectedPresetID === preset.id ? 'border-primary/30 bg-primary/10 text-primary' : 'border-card-border bg-muted/20 text-card-foreground hover:border-primary/20')} onClick={() => setSelectedPresetID(preset.id)}><div className="text-sm font-medium">{localizePresetName(preset.id, preset.name)}</div><div className="mt-1 text-xs leading-5 text-muted-foreground">{localizePresetDescription(preset.id, preset.description)}</div></button>)}</div>{selectedPreset ? <div className="rounded-2xl border border-card-border/70 bg-muted/20 p-4"><div className="text-sm font-semibold text-card-foreground">{localizePresetName(selectedPreset.id, selectedPreset.name)}</div><div className="mt-2 break-all text-sm leading-6 text-muted-foreground">{localizePresetDescription(selectedPreset.id, selectedPreset.description)}</div><div className="mt-3 grid gap-3 sm:grid-cols-3"><StatMiniCard title={tx('expert.reviewDepth')} value={localizePresetDepth(selectedPreset.review_depth)} /><StatMiniCard title={tx('expert.cleanup')} value={selectedPreset.cleanup_stale ? tx('expert.enabled') : tx('expert.disabled')} /><StatMiniCard title={tx('expert.syncBindings')} value={selectedPreset.sync_bindings ? tx('expert.enabled') : tx('expert.disabled')} /></div></div> : null}</div></WorkspacePanel> : null}
-						<WorkspacePanel title={tx('workspace.detailsTitle')} description={tx('workspace.detailsDesc')} testId="ai-governance-workspace-details"><div className="space-y-4 xl:col-span-2"><div className="rounded-2xl border border-card-border/70 bg-muted/20 p-4"><div className="text-[11px] text-muted-foreground">{tx('details.currentSession')}</div><div className="mt-2 text-sm font-medium text-card-foreground">{selectedSession ? `#${selectedSession.id}` : '-'}</div><div className="mt-1 break-all text-xs leading-5 text-muted-foreground">{localizeKnownText(selectedSession?.operator_summary || tx('states.idleSummary'))}</div></div><div className="rounded-2xl border border-card-border/70 bg-muted/20 p-4"><div className="text-[11px] text-muted-foreground">{tx('details.snapshotChecksum')}</div><div className="mt-2 break-all font-mono text-xs leading-6 text-card-foreground">{selectedSession?.snapshot_checksum || '-'}</div></div><div className="rounded-2xl border border-card-border/70 bg-muted/20 p-4"><div className="text-[11px] text-muted-foreground">{tx('details.applyHistory')}</div><div className="mt-3 space-y-2">{selectedSession?.apply_runs?.length ? selectedSession.apply_runs.map((run) => <div key={run.id} className="rounded-xl border border-card-border/60 bg-background/75 p-3 text-xs leading-5 text-card-foreground">#{run.id} · {localizeSessionStatus(run.status)}<div className="mt-1 break-all text-muted-foreground">{localizeKnownText(run.result_summary)}</div></div>) : <div className="rounded-xl border border-dashed border-card-border bg-muted/20 px-3 py-3 text-xs text-muted-foreground">{tx('states.noApplyHistory')}</div>}</div></div></div></WorkspacePanel>
+						{selectedSession ? <WorkspacePanel title={tx('workspace.detailsTitle')} description={tx('workspace.detailsDesc')} testId="ai-governance-workspace-details"><div className="space-y-3 xl:col-span-2"><div className="rounded-xl border border-card-border/70 bg-muted/20 p-3"><div className="text-[11px] text-muted-foreground">{tx('details.currentSession')}</div><div className="mt-1 text-sm font-medium text-card-foreground">#{selectedSession.id}</div><div className="mt-1 break-all text-xs leading-5 text-muted-foreground">{localizeKnownText(selectedSession.operator_summary || tx('states.idleSummary'))}</div></div><div className="rounded-xl border border-card-border/70 bg-muted/20 p-3"><div className="text-[11px] text-muted-foreground">{tx('details.snapshotChecksum')}</div><div className="mt-1 break-all font-mono text-xs leading-6 text-card-foreground">{selectedSession.snapshot_checksum || '-'}</div></div><div className="rounded-xl border border-card-border/70 bg-muted/20 p-3"><div className="text-[11px] text-muted-foreground">{tx('details.applyHistory')}</div><div className="mt-2 space-y-2">{selectedSession.apply_runs?.length ? selectedSession.apply_runs.map((run) => <div key={run.id} className="rounded-xl border border-card-border/60 bg-background/75 p-2.5 text-xs leading-5 text-card-foreground">#{run.id} · {localizeSessionStatus(run.status)}<div className="mt-1 break-all text-muted-foreground">{localizeKnownText(run.result_summary)}</div></div>) : <div className="rounded-xl border border-dashed border-card-border bg-muted/20 px-3 py-2.5 text-xs text-muted-foreground">{tx('states.noApplyHistory')}</div>}</div></div></div></WorkspacePanel> : null}
 					</div>
 				</section>
 				<RuntimePolicyDialog open={settingsOpen} onOpenChange={setSettingsOpen} policy={runtimePolicy} baseURL={settingsBaseUrlValue} useLocalDefault={currentUseLocalDefault} apiKeySelection={defaultAPIKeySelection} apiKeyOptions={apiKeyOptions} model={selectedModelValue} modelOptions={modelOptions} onSave={handleSaveRuntimePolicy} isSaving={updateRuntimePolicy.isPending || setSetting.isPending} />

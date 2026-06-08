@@ -238,7 +238,7 @@ func TestStartAntigravityOAuthRejectsCredentialBearingAuthorizeURL(t *testing.T)
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusInternalServerError, recorder.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), "antigravity authorize url must not include credentials") {
+	if !strings.Contains(recorder.Body.String(), "antigravity oauth configuration is invalid") {
 		t.Fatalf("body = %q, want credential validation message", recorder.Body.String())
 	}
 }

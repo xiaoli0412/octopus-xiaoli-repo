@@ -69,7 +69,7 @@ func respondAIAutomationError(c *gin.Context, err error) {
 	case message == "invalid governance session id" || message == "invalid expert preset" || message == "goal is required" || message == "session_id is required" || message == "name is required" || message == "invalid strategy profile id" || message == "governance preview is not applyable":
 		resp.Error(c, http.StatusBadRequest, message)
 	default:
-		resp.Error(c, http.StatusInternalServerError, message)
+		resp.Error(c, http.StatusInternalServerError, "internal server error")
 	}
 }
 

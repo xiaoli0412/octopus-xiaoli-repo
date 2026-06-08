@@ -166,7 +166,7 @@ docker run -d \
 
 说明：Docker Hub 安装方案已经废弃，当前仅推荐 GHCR 官方镜像、仓库内 compose，或安装脚本在 GHCR 拉取失败时走的源码支撑 Docker 构建路径。
 
-浏览器打开 `http://localhost:1088`，默认账号密码 `admin` / `admin`。
+浏览器打开 `http://localhost:1088`，默认用户名为 `admin`；初始密码请通过 `docker logs octopus` 查看，或在部署前用 `OCTOPUS_ADMIN_PASSWORD` 指定。
 
 ### Docker Compose
 

@@ -38,7 +38,7 @@ func init() {
 func latest(c *gin.Context) {
 	latestInfo, err := update.GetLatestInfo()
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to check for updates")
 		return
 	}
 	resp.Success(c, *latestInfo)
@@ -63,7 +63,7 @@ func updateFunc(c *gin.Context) {
 			resp.Error(c, http.StatusNotImplemented, err.Error())
 			return
 		}
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "update failed")
 		return
 	}
 	resp.Success(c, "update success")

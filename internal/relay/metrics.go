@@ -43,6 +43,29 @@ type RelayMetrics struct {
 
 var relayStatsDailyUpdate = op.StatsDailyUpdate
 
+// calculateTokenCosts computes input and output costs given pricing, usage, and whether
+// the request is Anthropic-style (where prompt_tokens already includes cached tokens).
+func calculateTokenCosts(modelPrice model.LLMPrice, usage *transformerModel.Usage) (inputCost, outputCost float64) {
+	cachedTokens := int64(0)
+	if usage.PromptTokensDetails != nil {
+		cachedTokens = usage.PromptTokensDetails.CachedTokens
+	}
+
+	if usage.AnthropicUsage {
+		inputCost = (float64(cachedTokens)*modelPrice.CacheRead +
+			float64(usage.PromptTokens)*modelPrice.Input +
+			float64(usage.CacheCreationInputTokens)*modelPrice.CacheWrite) * 1e-6
+	} else {
+		nonCachedPromptTokens := usage.PromptTokens - cachedTokens
+		if nonCachedPromptTokens < 0 {
+			nonCachedPromptTokens = 0
+		}
+		inputCost = (float64(cachedTokens)*modelPrice.CacheRead + float64(nonCachedPromptTokens)*modelPrice.Input) * 1e-6
+	}
+	outputCost = float64(usage.CompletionTokens) * modelPrice.Output * 1e-6
+	return inputCost, outputCost
+}
+
 func NewRelayMetrics(apiKeyID int, requestModel string, req *transformerModel.InternalLLMRequest) *RelayMetrics {
 	return &RelayMetrics{
 		APIKeyID:        apiKeyID,
@@ -83,14 +106,7 @@ func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMRes
 	}
 	m.CacheReadTokens = int64(usage.PromptTokensDetails.CachedTokens)
 	m.CacheWriteTokens = int64(usage.CacheCreationInputTokens)
-	if usage.AnthropicUsage {
-		m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead +
-			float64(usage.PromptTokens)*modelPrice.Input +
-			float64(usage.CacheCreationInputTokens)*modelPrice.CacheWrite) * 1e-6
-	} else {
-		m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead + float64(usage.PromptTokens-usage.PromptTokensDetails.CachedTokens)*modelPrice.Input) * 1e-6
-	}
-	m.Stats.OutputCost = float64(usage.CompletionTokens) * modelPrice.Output * 1e-6
+	m.Stats.InputCost, m.Stats.OutputCost = calculateTokenCosts(*modelPrice, usage)
 }
 
 func (m *RelayMetrics) Save(ctx context.Context, success bool, err error, attempts []model.ChannelAttempt) {
@@ -160,14 +176,7 @@ func (m *RelayMetrics) recalculateCostsForChannel(channelID int) {
 	}
 	m.CacheReadTokens = int64(usage.PromptTokensDetails.CachedTokens)
 	m.CacheWriteTokens = int64(usage.CacheCreationInputTokens)
-	if usage.AnthropicUsage {
-		m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead +
-			float64(usage.PromptTokens)*modelPrice.Input +
-			float64(usage.CacheCreationInputTokens)*modelPrice.CacheWrite) * 1e-6
-	} else {
-		m.Stats.InputCost = (float64(usage.PromptTokensDetails.CachedTokens)*modelPrice.CacheRead + float64(usage.PromptTokens-usage.PromptTokensDetails.CachedTokens)*modelPrice.Input) * 1e-6
-	}
-	m.Stats.OutputCost = float64(usage.CompletionTokens) * modelPrice.Output * 1e-6
+	m.Stats.InputCost, m.Stats.OutputCost = calculateTokenCosts(modelPrice, usage)
 }
 
 func finalChannel(attempts []model.ChannelAttempt) (int, string) {

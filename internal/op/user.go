@@ -1,11 +1,14 @@
 package op
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
@@ -14,6 +17,7 @@ import (
 )
 
 var userCache model.User
+var userCacheLock sync.RWMutex
 
 var (
 	ErrInvalidUsername          = errors.New("new username cannot be empty")
@@ -26,23 +30,24 @@ var (
 
 const (
 	bootstrapAdminDefaultUsername = "admin"
-	bootstrapAdminDefaultPassword = "admin"
 	bootstrapAdminUsernameEnv     = "OCTOPUS_ADMIN_USERNAME"
 	bootstrapAdminPasswordEnv     = "OCTOPUS_ADMIN_PASSWORD"
 )
 
 var logBootstrapAdminCredentials = func(username, password string, usingBuiltInDefaultPassword bool) {
 	if usingBuiltInDefaultPassword {
-		log.Warnf("initial administrator created with built-in bootstrap credentials. Sign in with the documented default credentials and change the password before using the console")
+		log.Warnf("initial administrator created with generated password: %s — sign in and change the password before using the console", password)
 		return
 	}
 	log.Warnf("initial administrator created from %s/%s; rotate these bootstrap credentials immediately", bootstrapAdminUsernameEnv, bootstrapAdminPasswordEnv)
 }
 
-func bootstrapPasswordForLog(password string, usingBuiltInDefaultPassword bool) string {
-	_ = password
-	_ = usingBuiltInDefaultPassword
-	return ""
+func generateRandomPassword() string {
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		panic(fmt.Sprintf("failed to generate random password: %v", err))
+	}
+	return hex.EncodeToString(b)
 }
 
 func parseBoolSettingValue(value string) bool {
@@ -109,13 +114,15 @@ func resolveBootstrapAdminCredentials() (string, string, bool, error) {
 	if strings.TrimSpace(password) != "" {
 		return username, password, false, nil
 	}
-	return username, bootstrapAdminDefaultPassword, true, nil
+	return username, generateRandomPassword(), true, nil
 }
 
 func UserInit() error {
 	var loaded model.User
 	if err := db.GetDB().Order("id asc").First(&loaded).Error; err == nil {
+		userCacheLock.Lock()
 		userCache = loaded
+		userCacheLock.Unlock()
 		return nil
 	} else if err != gorm.ErrRecordNotFound {
 		return err
@@ -132,15 +139,19 @@ func UserInit() error {
 	if err := db.GetDB().Create(&adminUser).Error; err != nil {
 		return err
 	}
+	userCacheLock.Lock()
 	userCache = adminUser
+	userCacheLock.Unlock()
 	if err := persistForcePasswordChange(usingBuiltInDefaultPassword); err != nil {
 		return err
 	}
-	logBootstrapAdminCredentials(username, bootstrapPasswordForLog(password, usingBuiltInDefaultPassword), usingBuiltInDefaultPassword)
+	logBootstrapAdminCredentials(username, password, usingBuiltInDefaultPassword)
 	return nil
 }
 
 func UserChangePassword(oldPassword, newPassword string) error {
+	userCacheLock.Lock()
+	defer userCacheLock.Unlock()
 	newPassword = strings.TrimSpace(newPassword)
 	if newPassword == "" {
 		return ErrInvalidNewPassword
@@ -167,6 +178,8 @@ func UserChangePassword(oldPassword, newPassword string) error {
 }
 
 func UserForceChangePassword(newUsername, newPassword string) error {
+	userCacheLock.Lock()
+	defer userCacheLock.Unlock()
 	newUsername = strings.TrimSpace(newUsername)
 	newPassword = strings.TrimSpace(newPassword)
 	if newPassword == "" {
@@ -201,6 +214,8 @@ func UserForceChangePassword(newUsername, newPassword string) error {
 }
 
 func UserChangeUsername(currentPassword, newUsername string) error {
+	userCacheLock.Lock()
+	defer userCacheLock.Unlock()
 	newUsername = strings.TrimSpace(newUsername)
 	if newUsername == "" {
 		return ErrInvalidUsername
@@ -219,6 +234,8 @@ func UserChangeUsername(currentPassword, newUsername string) error {
 }
 
 func UserVerify(username, password string) error {
+	userCacheLock.RLock()
+	defer userCacheLock.RUnlock()
 	if username != userCache.Username {
 		return fmt.Errorf("incorrect username")
 	}
@@ -229,5 +246,7 @@ func UserVerify(username, password string) error {
 }
 
 func UserGet() model.User {
+	userCacheLock.RLock()
+	defer userCacheLock.RUnlock()
 	return userCache
 }

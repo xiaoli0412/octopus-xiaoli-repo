@@ -81,16 +81,16 @@ export function SettingLog() {
     };
 
     return (
-        <div className="rounded-3xl border border-border bg-card p-6 space-y-5">
-            <h2 className="text-lg font-bold text-card-foreground flex items-center gap-2">
-                <ScrollText className="h-5 w-5" />
+        <div className="octo-setting-card">
+            <h2 className="octo-setting-heading">
+                <ScrollText className="size-4" />
                 {t('log.title')}
             </h2>
 
             {/* 是否启用历史日志 */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                <div className="flex items-center gap-3">
-                    <ScrollText className="h-5 w-5 text-muted-foreground" />
+            <div className="octo-setting-row">
+                <div className="octo-setting-label">
+                    <ScrollText className="size-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{t('log.enabled.label')}</span>
                 </div>
                 <Switch
@@ -100,9 +100,9 @@ export function SettingLog() {
             </div>
 
             {/* 历史日志保存范围 */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                <div className="flex items-center gap-3">
-                    <Calendar className="h-5 w-5 text-muted-foreground" />
+            <div className="octo-setting-row">
+                <div className="octo-setting-label">
+                    <Calendar className="size-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{t('log.keepPeriod.label')}</span>
                 </div>
                 <Input
@@ -111,15 +111,15 @@ export function SettingLog() {
                     onChange={(e) => setKeepPeriod(e.target.value)}
                     onBlur={handleKeepPeriodSave}
                     placeholder={t('log.keepPeriod.placeholder')}
-                    className="w-full rounded-xl sm:w-56 md:w-72"
+                    className="h-9 rounded-xl"
                     disabled={!enabled}
                 />
             </div>
 
             {/* 清空历史日志 */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                <div className="flex items-center gap-3">
-                    <Trash2 className="h-5 w-5 text-muted-foreground" />
+            <div className="octo-setting-row">
+                <div className="octo-setting-label">
+                    <Trash2 className="size-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{t('log.clear.label')}</span>
                 </div>
                 <Button
@@ -127,7 +127,7 @@ export function SettingLog() {
                     size="sm"
                     onClick={handleClearLogs}
                     disabled={isClearing}
-                    className="rounded-xl"
+                    className="h-9 rounded-xl md:w-fit"
                 >
                     {isClearing ? t('log.clear.clearing') : t('log.clear.button')}
                 </Button>

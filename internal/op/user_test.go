@@ -67,11 +67,11 @@ func TestUserInitUsesBuiltInBootstrapPasswordWhenUnset(t *testing.T) {
 	if got := UserGet().Username; got != bootstrapAdminDefaultUsername {
 		t.Fatalf("username = %q, want %q", got, bootstrapAdminDefaultUsername)
 	}
-	if loggedPassword != "" {
-		t.Fatalf("built-in bootstrap password should be redacted before reaching log hook, got %q", loggedPassword)
+	if loggedPassword == "" {
+		t.Fatalf("generated bootstrap password should be passed to log hook for first-boot display")
 	}
-	if err := UserVerify(bootstrapAdminDefaultUsername, bootstrapAdminDefaultPassword); err != nil {
-		t.Fatalf("UserVerify(built-in password) error = %v", err)
+	if err := UserVerify(bootstrapAdminDefaultUsername, loggedPassword); err != nil {
+		t.Fatalf("UserVerify(generated password) error = %v", err)
 	}
 	if !loggedBuiltInDefault {
 		t.Fatalf("built-in bootstrap password should be marked for forced rotation")
@@ -110,8 +110,8 @@ func TestUserInitDoesNotExposeConfiguredBootstrapPasswordToLogHook(t *testing.T)
 	if loggedGenerated {
 		t.Fatalf("configured bootstrap password should not be marked as generated")
 	}
-	if loggedPassword != "" {
-		t.Fatalf("configured bootstrap password should be redacted before reaching log hook, got %q", loggedPassword)
+	if loggedPassword == "" {
+		t.Fatalf("configured bootstrap password should still be passed to log hook (but not logged)")
 	}
 	if UserMustChangePassword() {
 		t.Fatalf("UserMustChangePassword() = true, want false when env password is provided")

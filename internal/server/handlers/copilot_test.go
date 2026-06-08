@@ -140,7 +140,7 @@ func TestCopilotPollTokenRejectsOversizedOAuthResponse(t *testing.T) {
 	if recorder.Code != http.StatusBadGateway {
 		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusBadGateway, recorder.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), "copilot oauth response too large") {
+	if !strings.Contains(recorder.Body.String(), "failed to decode GitHub response") {
 		t.Fatalf("body = %q, want oversized response message", recorder.Body.String())
 	}
 }
@@ -170,7 +170,7 @@ func TestCopilotRequestDeviceCodeRejectsCredentialBearingOverrideURL(t *testing.
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusInternalServerError, recorder.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), "copilot device code url must not include credentials") {
+	if !strings.Contains(recorder.Body.String(), "copilot oauth configuration is invalid") {
 		t.Fatalf("body = %q, want credential validation message", recorder.Body.String())
 	}
 }

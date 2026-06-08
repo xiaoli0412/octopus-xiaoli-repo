@@ -35,7 +35,7 @@ func init() {
 func getOpsOverview(c *gin.Context) {
 	overview, err := op.OpsOverviewGet(c.Request.Context())
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to get ops overview")
 		return
 	}
 	resp.Success(c, overview)
@@ -58,7 +58,7 @@ func getOpsEntities(c *gin.Context) {
 	}
 	items, err := op.OpsEntityList(c.Request.Context(), scope, limit)
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to list ops entities")
 		return
 	}
 	resp.Success(c, items)
@@ -84,7 +84,7 @@ func getOpsEntitySeries(c *gin.Context) {
 	}
 	items, err := op.OpsEntitySeries(c.Request.Context(), scope, entityKey)
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to get ops entity series")
 		return
 	}
 	resp.Success(c, items)
@@ -112,7 +112,7 @@ func getOpsRecentDetails(c *gin.Context) {
 	}
 	items, err := op.OpsRecentDetails(c.Request.Context(), scope, entityKey, limit)
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to get recent ops details")
 		return
 	}
 	resp.Success(c, items)

@@ -326,18 +326,11 @@ func (ra *relayAttempt) attempt() attemptResult {
 	}
 }
 
-func apiKeyAllowsModel(supportedModels, requestedModel string) bool {
-	if strings.TrimSpace(supportedModels) == "" {
-		return true
-	}
-	return slices.Contains(xstrings.SplitTrimCompact(",", supportedModels), strings.TrimSpace(requestedModel))
-}
-
 // parseRequest 解析并验证入站请求
 func parseRequest(inboundType inbound.InboundType, c *gin.Context) (*model.InternalLLMRequest, model.Inbound, error) {
 	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxRelayRequestBodyBytes+1))
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "internal server error")
 		return nil, nil, err
 	}
 	if int64(len(body)) > maxRelayRequestBodyBytes {

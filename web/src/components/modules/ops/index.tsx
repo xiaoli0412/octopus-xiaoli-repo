@@ -200,13 +200,13 @@ function cacheDetailLabel(row: OpsRecentDetail) {
 
 function SummaryCard({ title, value, hint, icon: Icon }: { title: string; value: string; hint: string; icon: typeof Activity }) {
     return (
-        <div className="rounded-2xl border border-card-border bg-background/55 px-3.5 py-3">
+        <div className="octo-stat-card">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Icon className="size-3.5" />
                 {title}
             </div>
-            <div className="mt-1.5 text-xl font-semibold text-foreground">{value}</div>
-            <div className="mt-1 text-[11px] leading-5 text-muted-foreground">{hint}</div>
+            <div className="mt-1 text-base font-semibold text-foreground">{value}</div>
+            <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{hint}</div>
         </div>
     );
 }
@@ -242,7 +242,7 @@ function EntityCard({
             type="button"
             onClick={onClick}
             className={cn(
-                'w-full rounded-2xl border px-3.5 py-3 text-left transition',
+                'w-full rounded-2xl border px-3 py-2.5 text-left transition',
                 active
                     ? 'border-primary/35 bg-primary/10 text-primary'
                     : `${cardTone(item.success_rate)} text-card-foreground hover:border-primary/20 hover:bg-muted/20`,
@@ -257,8 +257,8 @@ function EntityCard({
                     {metricLabel(metric)}
                 </div>
             </div>
-            <div className="mt-3 flex items-end justify-between gap-3">
-                <div className="text-lg font-semibold tabular-nums">{formatMetric(metric, metricValue(item, metric))}</div>
+            <div className="mt-2 flex items-end justify-between gap-3">
+                <div className="text-base font-semibold tabular-nums">{formatMetric(metric, metricValue(item, metric))}</div>
                 <div className="text-[11px] text-muted-foreground">缓存 {cacheSummaryLabel(item)}</div>
             </div>
         </button>
@@ -268,7 +268,7 @@ function EntityCard({
 function DetailsTable({ rows }: { rows: OpsRecentDetail[] }) {
     if (!rows.length) {
         return (
-            <div className="rounded-2xl border border-dashed border-card-border bg-background/35 px-4 py-4 text-sm text-muted-foreground">
+            <div className="rounded-2xl border border-dashed border-card-border bg-background/35 px-4 py-3 text-sm text-muted-foreground">
                 最近 12 小时没有可展示的调用明细。
             </div>
         );
@@ -278,7 +278,7 @@ function DetailsTable({ rows }: { rows: OpsRecentDetail[] }) {
         <>
             <div className="space-y-3 md:hidden">
                 {rows.map((row) => (
-                    <div key={row.id} className="rounded-2xl border border-card-border bg-background/40 px-4 py-3 text-sm">
+                    <div key={row.id} className="rounded-2xl border border-card-border bg-background/40 px-3 py-2.5 text-sm">
                         <div className="flex items-start justify-between gap-3">
                             <div>
                                 <div className="font-medium text-card-foreground">{new Date(row.time * 1000).toLocaleTimeString()}</div>
@@ -316,7 +316,7 @@ function DetailsTable({ rows }: { rows: OpsRecentDetail[] }) {
             <div className="hidden overflow-hidden rounded-2xl border border-card-border bg-background/40 md:block">
                 <div className="overflow-x-auto">
                     <div className="min-w-[44rem]">
-                        <div className="grid grid-cols-[9rem_1fr_1fr_7rem_7rem] gap-3 border-b border-card-border px-4 py-3 text-[11px] text-muted-foreground">
+                        <div className="grid grid-cols-[9rem_1fr_1fr_7rem_7rem] gap-3 border-b border-card-border px-3 py-2.5 text-[11px] text-muted-foreground">
                             <div>时间 / IP</div>
                             <div>模型</div>
                             <div>渠道 / Key</div>
@@ -325,7 +325,7 @@ function DetailsTable({ rows }: { rows: OpsRecentDetail[] }) {
                         </div>
                         <div className="max-h-[24rem] overflow-y-auto">
                             {rows.map((row) => (
-                                <div key={row.id} className="grid grid-cols-[9rem_1fr_1fr_7rem_7rem] gap-3 border-b border-card-border/60 px-4 py-3 text-xs last:border-b-0">
+                                <div key={row.id} className="grid grid-cols-[9rem_1fr_1fr_7rem_7rem] gap-3 border-b border-card-border/60 px-3 py-2.5 text-xs last:border-b-0">
                                     <div className="space-y-1">
                                         <div className="font-medium text-card-foreground">{new Date(row.time * 1000).toLocaleTimeString()}</div>
                                         <div className="flex items-center gap-2 text-muted-foreground">
@@ -383,14 +383,14 @@ function SeriesChart({ data, metric, chartType }: { data: OpsSeriesPoint[]; metr
 
     if (!hasObservedTraffic) {
         return (
-            <div className="flex h-[10rem] items-center justify-center rounded-2xl border border-dashed border-card-border bg-background/35 px-4 text-center text-sm leading-6 text-muted-foreground">
+            <div className="flex h-[6rem] items-center justify-center rounded-xl border border-dashed border-card-border bg-background/35 px-4 text-center text-sm leading-6 text-muted-foreground">
                 最近 12 小时暂无可绘制的{metricLabel(metric)}趋势数据。
             </div>
         );
     }
 
     return (
-        <ChartContainer config={chartConfig} className="h-[14rem] w-full">
+        <ChartContainer config={chartConfig} className="h-[10rem] w-full">
             {chartType === 'line' ? (
                 <LineChart data={chartData} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -478,26 +478,25 @@ function ScopeWorkspace({
 
     const mainPanel = (
         <div className="space-y-4">
-            <div className="rounded-3xl border border-card-border bg-card p-4">
+            <div className="octo-section">
                 <div className="flex flex-col gap-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="text-base font-semibold text-card-foreground">{title}</div>
-                        <div className="text-xs text-muted-foreground">{desc}</div>
+                        <div className="octo-chip">{desc}</div>
                     </div>
                     <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                         <div className="min-w-0 space-y-2">
                             <div className="text-[11px] text-muted-foreground">当前对象</div>
-                            <div className="break-all text-lg font-semibold text-card-foreground">
+                            <div className="break-all text-base font-semibold text-card-foreground">
                                 {selectedLabel}
                             </div>
                             {selectedEntity ? (
-                                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                                    <span>{requestCount} 请求</span>
-                                    <span>成功率 {percent(selectedEntity.success_rate)}</span>
-                                    <span>读取 {selectedEntity.cache_supported ? percent(selectedEntity.cache_hit_rate) : '不可缓存'}</span>
-                                    <span>创建 {selectedEntity.cache_supported ? percent(selectedEntity.cache_create_rate) : '不可缓存'}</span>
-                                    <span>参与 {cacheSummaryLabel(selectedEntity)}</span>
-                                    <span>延迟 {duration(selectedEntity.avg_latency_ms)}</span>
+                                <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+                                    <span className="octo-chip">{requestCount} 请求</span>
+                                    <span className="octo-chip">成功 {percent(selectedEntity.success_rate)}</span>
+                                    <span className="octo-chip">读取 {selectedEntity.cache_supported ? percent(selectedEntity.cache_hit_rate) : '不可缓存'}</span>
+                                    <span className="octo-chip">创建 {selectedEntity.cache_supported ? percent(selectedEntity.cache_create_rate) : '不可缓存'}</span>
+                                    <span className="octo-chip">延迟 {duration(selectedEntity.avg_latency_ms)}</span>
                                 </div>
                             ) : (
                                 <div className="text-xs leading-5 text-muted-foreground">暂无有效请求，图表会在新流量进入后自动更新。</div>
@@ -510,7 +509,7 @@ function ScopeWorkspace({
                                         key={item}
                                         type="button"
                                         className={cn(
-                                            'shrink-0 rounded-xl border px-3 py-1.5 text-sm transition',
+                                            'shrink-0 rounded-xl border px-2.5 py-1.5 text-xs transition',
                                             metric === item ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border/60 bg-background/70 text-muted-foreground hover:text-foreground',
                                         )}
                                         onClick={() => onMetricChange(item)}
@@ -527,7 +526,7 @@ function ScopeWorkspace({
                                             key={item.key}
                                             type="button"
                                             className={cn(
-                                                'inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm transition',
+                                                'inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-xs transition',
                                                 chartType === item.key ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border/60 bg-background/70 text-muted-foreground hover:text-foreground',
                                             )}
                                             onClick={() => onChartTypeChange(item.key)}
@@ -540,19 +539,18 @@ function ScopeWorkspace({
                             </div>
                         </div>
                     </div>
-                    <div className="rounded-2xl border border-card-border bg-background/40 p-3">
+                    <div className="rounded-xl border border-card-border bg-background/40 p-2">
                         <SeriesChart data={series} metric={metric} chartType={chartType} />
                     </div>
                 </div>
             </div>
 
-            <div className="rounded-3xl border border-card-border bg-card p-4">
+            <div className="octo-section">
                 <div className="flex items-center gap-2 text-base font-semibold text-card-foreground">
                     <Waypoints className="size-4.5 text-primary" />
                     最近明细
                 </div>
-                <div className="mt-1 text-xs leading-5 text-muted-foreground">当前维度最近 12 小时调用记录。</div>
-                <div className="mt-4">
+                <div className="mt-3">
                     <DetailsTable rows={details} />
                 </div>
             </div>
@@ -564,13 +562,13 @@ function ScopeWorkspace({
     }
 
     return (
-        <section className="grid items-start gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <section className="grid items-start gap-3 xl:grid-cols-[280px_minmax(0,1fr)]">
             <div className="space-y-3">
                 <div className="flex items-center justify-between gap-3 px-1 text-xs text-muted-foreground">
                     <span>对象列表</span>
                     <span>{sortedEntities.length} 项</span>
                 </div>
-                <div className="space-y-2">
+                <div className="max-h-[calc(100vh-17rem)] space-y-2 overflow-y-auto pr-1">
                     {sortedEntities.map((item) => (
                         <EntityCard
                             key={item.entity_key}
@@ -581,7 +579,7 @@ function ScopeWorkspace({
                         />
                     ))}
                     {!sortedEntities.length ? (
-                        <div className="rounded-2xl border border-dashed border-card-border bg-background/35 px-4 py-6 text-sm text-muted-foreground">
+                        <div className="rounded-2xl border border-dashed border-card-border bg-background/35 px-4 py-3 text-sm text-muted-foreground">
                             当前 12 小时暂无数据。
                         </div>
                     ) : null}
@@ -612,17 +610,17 @@ export function Ops() {
     const totalRequests = total ? total.success_count + total.failure_count : 0;
 
     return (
-        <PageWrapper data-testid="ops-page" className="h-full min-h-0 overflow-y-auto overscroll-contain space-y-4 rounded-t-3xl pb-24 md:space-y-5 md:pb-4">
-            <section className="rounded-3xl border border-card-border bg-card p-4">
+        <PageWrapper data-testid="ops-page" className="octo-workbench space-y-3" disableAnimations>
+            <section className="octo-section">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3">
-                        <div className="text-xl font-semibold tracking-tight text-card-foreground">运维工作台</div>
-                        <div className="rounded-full border border-card-border bg-background/55 px-3 py-1 text-xs text-muted-foreground">12 小时 · 5 分钟桶</div>
+                        <div className="text-lg font-semibold tracking-tight text-card-foreground">运维工作台</div>
+                        <div className="octo-chip">12 小时 · 5 分钟桶</div>
                     </div>
-                    <div className="text-xs text-muted-foreground">模型 / 渠道 / Key / 缓存 / IP</div>
+                    <div className="hidden text-xs text-muted-foreground md:block">模型 / 渠道 / Key / 缓存 / IP</div>
                 </div>
 
-                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div className="mt-2.5 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
                     <SummaryCard title="总成功率" value={total ? percent(total.success_rate) : '-'} hint={`${shortNumber(totalRequests)} 请求`} icon={ShieldCheck} />
                     <SummaryCard title="读取命中率" value={total ? percent(total.cache_hit_rate) : '-'} hint={`可缓存 ${shortNumber(total?.cache_eligible_count ?? 0)}`} icon={Database} />
                     <SummaryCard title="缓存创建率" value={total ? percent(total.cache_create_rate) : '-'} hint={`创建 ${shortNumber(total?.cache_create_count ?? 0)} 次`} icon={Layers3} />
@@ -644,12 +642,24 @@ export function Ops() {
                     })}
                 </TabsList>
 
-                <TabsContents className="mt-4">
+                <TabsContents className="mt-3">
                     <TabsContent value="overview">
-                        <section className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
-                            <div className="rounded-3xl border border-card-border bg-card p-4">
-                                <div className="text-base font-semibold text-card-foreground">重点对象</div>
-                                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <section className="space-y-3">
+                            <ScopeWorkspace
+                                title="全局趋势"
+                                desc="请求 · 缓存 · 延迟"
+                                scope="overall"
+                                metric={metric}
+                                onMetricChange={setMetric}
+                                chartType={chartType}
+                                onChartTypeChange={setChartType}
+                            />
+                            <div className="octo-section">
+                                <div className="octo-toolbar">
+                                    <div className="text-base font-semibold text-card-foreground">重点对象</div>
+                                    <div className="text-xs text-muted-foreground">按最近 12 小时成功率与请求量聚合</div>
+                                </div>
+                                <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                                     {[{
                                         title: '模型',
                                         items: overview?.top_models ?? [],
@@ -662,37 +672,29 @@ export function Ops() {
                                     }, {
                                         title: '访问 IP',
                                         items: overview?.top_ips ?? [],
-                                    }].map((group) => (
-                                        <div key={group.title} className="rounded-2xl border border-card-border bg-background/40 p-3">
-                                            <div className="mb-3 text-sm font-medium text-card-foreground">{group.title}</div>
-                                            {group.items.length ? (
-                                                <div className="space-y-2">
-                                                    {group.items.slice(0, 4).map((item) => (
-                                                        <div key={item.entity_key} className="flex items-center justify-between gap-3 rounded-xl border border-card-border/60 bg-background/60 px-3 py-2">
-                                                            <div className="min-w-0 truncate text-sm text-card-foreground">{item.entity_display_label || item.entity_label || item.entity_key}</div>
-                                                            <div className="text-xs text-muted-foreground">{percent(item.success_rate)}</div>
-                                                        </div>
-                                                    ))}
+                                    }].map((group) => {
+                                        const lead = group.items[0];
+                                        return (
+                                            <div key={group.title} className="octo-stat-card">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="text-sm font-semibold text-card-foreground">{group.title}</div>
+                                                    <div className="text-[11px] text-muted-foreground">{group.items.length} 项</div>
                                                 </div>
-                                            ) : (
-                                                <div className="rounded-xl border border-dashed border-card-border/70 bg-background/30 px-3 py-6 text-sm text-muted-foreground">
-                                                    暂无数据
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
+                                                {lead ? (
+                                                    <div className="mt-2 min-w-0">
+                                                        <div className="truncate text-sm text-card-foreground">{lead.entity_display_label || lead.entity_label || lead.entity_key}</div>
+                                                        <div className="mt-1 text-xs text-muted-foreground">{percent(lead.success_rate)} · {shortNumber(lead.success_count + lead.failure_count)} 请求</div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="mt-2 rounded-lg border border-dashed border-card-border/70 bg-background/30 px-2.5 py-1.5 text-xs text-muted-foreground">
+                                                        暂无数据
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
-
-                            <ScopeWorkspace
-                                title="全局趋势"
-                                desc="请求 · 缓存 · 延迟"
-                                scope="overall"
-                                metric={metric}
-                                onMetricChange={setMetric}
-                                chartType={chartType}
-                                onChartTypeChange={setChartType}
-                            />
                         </section>
                     </TabsContent>
 
@@ -721,7 +723,7 @@ export function Ops() {
                     </TabsContent>
 
                     <TabsContent value="key">
-                        <div className="mb-4 flex flex-wrap gap-2">
+                        <div className="mb-3 flex flex-wrap gap-2">
                             {([
                                 { key: 'channel_key', label: '渠道 Key' },
                                 { key: 'api_key', label: '分发 Key' },
@@ -730,7 +732,7 @@ export function Ops() {
                                     key={item.key}
                                     type="button"
                                     className={cn(
-                                        'rounded-xl border px-3 py-1.5 text-sm transition',
+                                        'rounded-xl border px-3 py-1.5 text-xs transition',
                                         keyScope === item.key ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border/60 bg-background/70 text-muted-foreground hover:text-foreground',
                                     )}
                                     onClick={() => setKeyScope(item.key)}
@@ -751,7 +753,7 @@ export function Ops() {
                     </TabsContent>
 
                     <TabsContent value="cache">
-                        <div className="mb-4 flex flex-wrap gap-2">
+                        <div className="mb-3 flex flex-wrap gap-2">
                             {([
                                 { key: 'model', label: '模型缓存' },
                                 { key: 'channel', label: '渠道缓存' },
@@ -763,7 +765,7 @@ export function Ops() {
                                     key={item.key}
                                     type="button"
                                     className={cn(
-                                        'rounded-xl border px-3 py-1.5 text-sm transition',
+                                        'rounded-xl border px-3 py-1.5 text-xs transition',
                                         cacheScope === item.key ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border/60 bg-background/70 text-muted-foreground hover:text-foreground',
                                     )}
                                     onClick={() => setCacheScope(item.key)}

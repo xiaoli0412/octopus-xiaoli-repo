@@ -51,8 +51,7 @@
   "app": {
     "forcePassword": {
       "title": "First sign-in: update the default admin password",
-      "descPrefix": "You are currently signed in with the built-in bootstrap account",
-      "descSuffix": ". Before entering the console, you must set a new password. You can also rename the username if needed.",
+      "desc": "The initial administrator sign-in is complete. Set a new password before entering the console; renaming the username is optional.",
       "usernameLabel": "Admin username",
       "usernamePlaceholder": "Optional: enter a new admin username",
       "usernameHintPrefix": "Leave blank to keep the current username",

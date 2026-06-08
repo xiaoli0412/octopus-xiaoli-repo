@@ -27,7 +27,7 @@ func respondRouteTargetOpError(c *gin.Context, err error) {
 	case strings.Contains(message, "invalid"), strings.Contains(message, "required"):
 		resp.Error(c, http.StatusBadRequest, message)
 	default:
-		resp.Error(c, http.StatusInternalServerError, message)
+		resp.Error(c, http.StatusInternalServerError, "internal server error")
 	}
 }
 

@@ -116,33 +116,33 @@ export function SettingInfo() {
     };
 
     return (
-        <div className="rounded-3xl border border-border bg-card p-6 space-y-4">
-            <h2 className="text-lg font-bold text-card-foreground flex items-center gap-2">
-                <Info className="h-5 w-5" />
+        <div className="octo-setting-card">
+            <h2 className="octo-setting-heading">
+                <Info className="size-4" />
                 {t('info.title')}
             </h2>
             {/* GitHub 仓库 */}
-            <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <Github className="h-5 w-5 text-muted-foreground" />
+            <div className="octo-setting-row">
+                <div className="octo-setting-label">
+                    <Github className="size-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{t('info.github')}</span>
                 </div>
                 <a
                     href={GITHUB_REPO}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-primary hover:underline"
+                    className="min-w-0 truncate text-sm text-primary hover:underline md:text-right"
                 >
                     {GITHUB_REPO.replace('https://github.com/', '')}
                 </a>
             </div>
             {/* 当前版本 */}
-            <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <Tag className="h-5 w-5 text-muted-foreground" />
+            <div className="octo-setting-row">
+                <div className="octo-setting-label">
+                    <Tag className="size-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{t('info.currentVersion')}</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-center gap-2 md:justify-end">
                     {nowVersionQuery.isLoading ? (
                         <Loader2 className="size-4 animate-spin text-muted-foreground" />
                     ) : (
@@ -154,12 +154,12 @@ export function SettingInfo() {
             </div>
 
             {/* 最新版本 */}
-            <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <Download className="h-5 w-5 text-muted-foreground" />
+            <div className="octo-setting-row">
+                <div className="octo-setting-label">
+                    <Download className="size-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{t('info.latestVersion')}</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-center gap-2 md:justify-end">
                             {latestInfoQuery.isLoading ? (
                         <Loader2 className="size-4 animate-spin text-muted-foreground" />
                     ) : (

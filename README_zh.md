@@ -65,7 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 如果所在网络对 GHCR 有限制，也可以显式指定一个可达的私有镜像或镜像代理：
 
 ```bash
-OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.19.8 bash install-octopus.sh
+OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.19.9 bash install-octopus.sh
 ```
 
 如果 GHCR 不通，且服务器侧源码 Docker 构建仍然失败，也可以直接提供一个已知可用的 Linux 二进制，再让安装脚本继续构建本地 Docker 镜像：
@@ -77,7 +77,7 @@ OCTOPUS_BINARY_PATH=/root/octopus-linux-amd64 bash install-octopus.sh
 只有在确认当前服务器可以拉取 GHCR 包时，才建议直接使用 `docker run`：
 
 ```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.8
+docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.9
 ```
 
 如果你仍然希望手动安装，也可以继续使用仓库内 compose：
@@ -112,7 +112,7 @@ docker compose up -d
 ### 🛠️ 源码运行
 
 **环境要求：**
-- Go 1.24.4
+- Go 1.24.4+
 - Node.js 18+
 - pnpm
 
@@ -216,13 +216,13 @@ http://localhost:3000
 首次启动后，Octopus 会创建初始管理员账户：
 
 - **用户名**：默认是 `admin`，也可通过 `OCTOPUS_ADMIN_USERNAME` 指定
-- **密码**：默认是 `admin`，也可通过 `OCTOPUS_ADMIN_PASSWORD` 指定
+- **密码**：默认随机生成并打印在启动日志中，也可通过 `OCTOPUS_ADMIN_PASSWORD` 指定
 
-如果没有显式提供 `OCTOPUS_ADMIN_PASSWORD`，内置首次启动凭据就是 `admin / admin`。
-使用这组内置默认凭据首次登录后，Octopus 会阻止继续访问其余管理台功能，直到你完成一次管理员密码修改。
+如果没有显式提供 `OCTOPUS_ADMIN_PASSWORD`，请通过 `docker logs octopus` 或服务启动日志查看生成的初始密码。
+使用生成密码或环境变量指定的启动密码首次登录后，Octopus 会阻止继续访问其余管理台功能，直到你完成一次管理员密码修改。
 首次登录时用户名可选修改；如果不改，仍然保留 `admin`，但密码必须修改。
 
-> ⚠️ **安全提示**：请在首次登录后立即修改默认密码。
+> ⚠️ **安全提示**：请在首次登录后立即修改初始密码。
 
 ### 📝 配置文件
 
@@ -257,6 +257,8 @@ http://localhost:3000
 | `database.type` | 数据库类型 | `sqlite` |
 | `database.path` | 数据库连接地址 | `data/data.db` |
 | `log.level` | 日志级别 | `info` |
+
+> **注意**：`config.json` 中的默认端口为 `8080`。如果通过 Docker（安装脚本或 docker-compose）部署，外部端口默认映射为 `1088`。
 
 对于 `octopus healthcheck` CLI，如果配置里的监听地址是 `0.0.0.0` 或 `::` 这类仅适合服务端绑定的通配地址，命令会自动改用 `127.0.0.1` 作为探活目标。
 
@@ -496,7 +498,7 @@ client = OpenAI(
     api_key="sk-octopus-P48ROljwJmWBYVARjwQM8Nkiezlg7WOrXXOWDYY8TI5p9Mzg", 
 )
 completion = client.chat.completions.create(
-    model="octopus-openai",  // 填写正确的分组名称
+    model="octopus-openai",  # 填写正确的分组名称
     messages = [
         {"role": "user", "content": "Hello"},
     ],

@@ -8,6 +8,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db/migrate"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/log"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -101,8 +102,12 @@ func InitDB(dbType, dsn string, debug bool) error {
 		return err
 	}
 	if db.Dialector != nil && db.Dialector.Name() == "postgres" {
-		db.Exec("DEALLOCATE ALL")
-		db.Exec("DISCARD ALL")
+		if err := db.Exec("DEALLOCATE ALL").Error; err != nil {
+			log.Warnf("postgres DEALLOCATE ALL failed: %v", err)
+		}
+		if err := db.Exec("DISCARD ALL").Error; err != nil {
+			log.Warnf("postgres DISCARD ALL failed: %v", err)
+		}
 	}
 	return nil
 }

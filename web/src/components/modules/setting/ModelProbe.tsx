@@ -267,24 +267,25 @@ export function SettingModelProbe() {
     };
 
     return (
-        <div data-testid="setting-model-probe-card" className="rounded-3xl border border-border bg-card p-6 space-y-5">
+        <div data-testid="setting-model-probe-card" className="octo-setting-card">
             <div className="space-y-2">
-                <h2 className="flex items-center gap-2 text-lg font-bold text-card-foreground">
-                    <Activity className="h-5 w-5" />
+                <h2 className="octo-setting-heading">
+                    <Activity className="size-4" />
                     {t('title')}
-                    <HelpHint>{t('hint')}</HelpHint>
                 </h2>
-                <p className="text-sm text-muted-foreground">{t('defaultPathDesc')}</p>
+                <span className="sr-only">
+                    {t('defaultPathDesc')}
+                    {t('defaultPathHint')}
+                    {t('guidanceHint')}
+                </span>
             </div>
 
-            <div data-testid="setting-model-probe-default-path" className="rounded-2xl border border-border/60 bg-muted/20 px-4 py-3">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-1">
+            <div data-testid="setting-model-probe-default-path" className="rounded-2xl border border-border/60 bg-muted/20 px-3 py-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
                         <div className="flex items-center gap-2 text-sm font-medium text-card-foreground">
                             <span>{t('defaultPathTitle')}</span>
-                            <HelpHint>{t('defaultPathHint')}</HelpHint>
                         </div>
-                        <p className="text-xs text-muted-foreground">{t('guidanceCompactDesc')}</p>
                     </div>
                     <span className="rounded-full border border-border/60 bg-background/80 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                         {t('defaultBadge')}
@@ -302,12 +303,12 @@ export function SettingModelProbe() {
                 />
             </div>
 
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
                 {summaryCards.map((card) => {
                     const Icon = card.icon;
 
                     return (
-                        <div key={card.label} className="rounded-2xl border border-border/60 bg-muted/20 px-4 py-3">
+                        <div key={card.label} className="octo-stat-card">
                             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                                 <Icon className="h-3.5 w-3.5" />
                                 <span>{card.label}</span>
@@ -318,12 +319,11 @@ export function SettingModelProbe() {
                 })}
             </div>
 
-            <div className="rounded-2xl border border-border/60 bg-muted/20 px-4 py-3">
+            <div className="rounded-2xl border border-border/60 bg-muted/20 px-3 py-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 text-sm font-medium text-card-foreground">
                             <span>{t('guidanceTitle')}</span>
-                            <HelpHint>{t('guidanceHint')}</HelpHint>
                         </div>
                     </div>
                     <Button
@@ -357,11 +357,11 @@ export function SettingModelProbe() {
                     ) : null}
                 </div>
             ) : !shouldRenderModelRows ? (
-                <div data-testid="setting-model-probe-collapsed-state" className="rounded-2xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+                <div data-testid="setting-model-probe-collapsed-state" className="rounded-2xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
                     {t('collapsedState')}
                 </div>
             ) : (
-                <div data-testid="setting-model-probe-empty-state" className="rounded-2xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+                <div data-testid="setting-model-probe-empty-state" className="rounded-2xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
                     {t('empty')}
                 </div>
             )}

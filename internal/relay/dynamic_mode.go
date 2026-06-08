@@ -433,13 +433,6 @@ func shouldEscalateToRaceWithMode(group dbmodel.Group, policy dbmodel.RouteTarge
 	return shouldEscalateToRace(group, policy, consecutiveFails, tuning)
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func dynamicRoutingSummarySnapshot() DynamicRoutingSummarySnapshot {
 	mode := dynamicRoutingMode()
 	healthEnabled, _ := op.SettingGetBool(dbmodel.SettingKeyDynamicRoutingHealthEnabled)

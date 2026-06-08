@@ -199,7 +199,7 @@ func randomOAuthState() (string, error) {
 func startAntigravityOAuth(c *gin.Context) {
 	clientID, _, authorizeURL, _, scope, err := antigravityConfig()
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "antigravity oauth configuration is invalid")
 		return
 	}
 	if clientID == "" {
@@ -208,7 +208,7 @@ func startAntigravityOAuth(c *gin.Context) {
 	}
 	state, err := randomOAuthState()
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to generate oauth state")
 		return
 	}
 	redirectURI := buildAPIPublicBase(c) + "/api/v1/channel/antigravity/oauth/callback"

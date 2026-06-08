@@ -59,16 +59,16 @@ export function SettingLLMSync() {
     };
 
     return (
-        <div className="rounded-3xl border border-border bg-card p-6 space-y-5">
-            <h2 className="text-lg font-bold text-card-foreground flex items-center gap-2">
-                <RefreshCw className="h-5 w-5" />
+        <div className="octo-setting-card">
+            <h2 className="octo-setting-heading">
+                <RefreshCw className="size-4" />
                 {t('llmSync.title')}
             </h2>
 
             {/* 同步间隔 */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                <div className="flex items-center gap-3">
-                    <Clock className="h-5 w-5 text-muted-foreground" />
+            <div className="octo-setting-row">
+                <div className="octo-setting-label">
+                    <Clock className="size-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{t('llmSync.syncInterval.label')}</span>
                 </div>
                 <Input
@@ -77,18 +77,18 @@ export function SettingLLMSync() {
                     onChange={(e) => setSyncInterval(e.target.value)}
                     onBlur={() => handleSave(SettingKey.SyncLLMInterval, syncInterval, initialSyncInterval.current)}
                     placeholder={t('llmSync.syncInterval.placeholder')}
-                    className="w-full rounded-xl sm:w-56 md:w-72"
+                    className="h-9 rounded-xl"
                 />
             </div>
 
             {/* 手动同步 */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-background/60 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-3">
-                        <RefreshCw className="h-5 w-5 text-muted-foreground" />
+                        <RefreshCw className="size-4 text-muted-foreground" />
                         <span className="text-sm font-medium">{t('llmSync.manualSync.label')}</span>
                     </div>
-                    <span className="text-xs text-muted-foreground ml-8">
+                    <span className="ml-7 text-xs text-muted-foreground">
                         {t('llmSync.lastSync')}: {formatLastSyncTime(lastSyncTime)}
                     </span>
                 </div>
@@ -97,7 +97,7 @@ export function SettingLLMSync() {
                     size="sm"
                     onClick={handleManualSync}
                     disabled={syncChannel.isPending}
-                    className="rounded-xl"
+                    className="h-9 rounded-xl"
                 >
                     {syncChannel.isPending ? t('llmSync.manualSync.syncing') : t('llmSync.manualSync.button')}
                 </Button>

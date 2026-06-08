@@ -20,27 +20,7 @@ func estimateProbeCosts(internalResp *transformerModel.InternalLLMResponse, actu
 		return 0, 0
 	}
 
-	usage := internalResp.Usage
-	cachedTokens := int64(0)
-	if usage.PromptTokensDetails != nil {
-		cachedTokens = usage.PromptTokensDetails.CachedTokens
-	}
-	nonCachedPromptTokens := usage.PromptTokens - cachedTokens
-	if nonCachedPromptTokens < 0 {
-		nonCachedPromptTokens = 0
-	}
-
-	if usage.AnthropicUsage {
-		inputCost := (float64(cachedTokens)*modelPrice.CacheRead +
-			float64(usage.PromptTokens)*modelPrice.Input +
-			float64(usage.CacheCreationInputTokens)*modelPrice.CacheWrite) * 1e-6
-		outputCost := float64(usage.CompletionTokens) * modelPrice.Output * 1e-6
-		return inputCost, outputCost
-	}
-
-	inputCost := (float64(cachedTokens)*modelPrice.CacheRead + float64(nonCachedPromptTokens)*modelPrice.Input) * 1e-6
-	outputCost := float64(usage.CompletionTokens) * modelPrice.Output * 1e-6
-	return inputCost, outputCost
+	return calculateTokenCosts(*modelPrice, internalResp.Usage)
 }
 
 func applyProbeUsageToChannelKey(channel *dbmodel.Channel, usedKey dbmodel.ChannelKey, actualModel string, internalResp *transformerModel.InternalLLMResponse, statusCode int) (float64, float64) {

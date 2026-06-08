@@ -16,9 +16,9 @@ export function NavBar() {
             <motion.nav
                 aria-label="Main Navigation"
                 className={cn(
-                    "fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-1 p-3",
+                    "fixed bottom-3 left-1/2 max-w-[calc(100vw-0.75rem)] -translate-x-1/2 overflow-x-auto flex items-center gap-1 p-1.5",
                     "md:sticky md:top-30 md:left-auto md:bottom-auto md:translate-x-0 md:flex-col md:gap-3",
-                    "bg-sidebar text-sidebar-foreground border border-sidebar-border rounded-3xl",
+                    "bg-sidebar text-sidebar-foreground border border-sidebar-border rounded-[1.25rem] md:rounded-3xl md:p-3",
                     "custom-shadow"
                 )}
                 variants={ENTRANCE_VARIANTS.navbar}
@@ -35,7 +35,7 @@ export function NavBar() {
                             onClick={() => setActiveItem(route.id as NavItem)}
                             onMouseEnter={() => preload(route.id)}
                             className={cn(
-                                "relative p-2 md:p-3 rounded-2xl z-20",
+                                "relative shrink-0 p-2 md:p-3 rounded-xl md:rounded-2xl z-20",
                                 isActive ? "text-sidebar-primary-foreground" : "text-sidebar-foreground/60 hover:bg-sidebar-accent"
                             )}
                             initial={{ opacity: 0, scale: 0.8 }}
@@ -53,7 +53,7 @@ export function NavBar() {
                             {isActive && (
                                 <motion.div
                                     layoutId="navbar-indicator"
-                                    className="absolute inset-0 bg-sidebar-primary rounded-2xl z-0"
+                                    className="absolute inset-0 bg-sidebar-primary rounded-xl md:rounded-2xl z-0"
                                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                                 />
                             )}

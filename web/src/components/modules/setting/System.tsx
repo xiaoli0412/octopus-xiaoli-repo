@@ -104,16 +104,16 @@ export function SettingSystem() {
     }, [publicAccess]);
 
     return (
-        <div className="rounded-3xl border border-border bg-card p-6 space-y-5">
-            <h2 className="text-lg font-bold text-card-foreground flex items-center gap-2">
-                <Monitor className="h-5 w-5" />
+        <div className="octo-setting-card">
+            <h2 className="octo-setting-heading">
+                <Monitor className="size-4" />
                 {t('system')}
             </h2>
 
             {/* 代理地址 */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                <div className="flex items-center gap-3">
-                    <Globe className="h-5 w-5 text-muted-foreground" />
+            <div className="octo-setting-row">
+                <div className="octo-setting-label">
+                    <Globe className="size-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{t('proxyUrl.label')}</span>
                 </div>
                 <Input
@@ -121,25 +121,24 @@ export function SettingSystem() {
                     onChange={(e) => setProxyUrl(e.target.value)}
                     onBlur={() => handleSave('proxy_url', proxyUrl, initialProxyUrl.current)}
                     placeholder={t('proxyUrl.placeholder')}
-                    className="w-full rounded-xl sm:w-56 md:w-72"
+                    className="h-9 rounded-xl"
                 />
             </div>
 
-            <div className="rounded-2xl border border-border/70 bg-muted/15 p-4">
-                <div className="flex items-start justify-between gap-4">
+            <div className="rounded-xl border border-border/70 bg-muted/15 p-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                         <div className="flex items-center gap-2 text-sm font-semibold text-card-foreground">
                             <Link2 className="size-4 text-primary" />
                             公共访问地址
                         </div>
-                        <div className="mt-1 text-xs leading-5 text-muted-foreground">API 参考、CCSwitch 深链接和外部客户端示例会优先使用这里的地址。</div>
                     </div>
-                    <div className="hidden rounded-xl border border-border/60 bg-background/60 px-3 py-2 text-[11px] text-muted-foreground md:block">
+                    <div className="rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-[11px] text-muted-foreground">
                         当前访问 IP：{publicAccess?.current_client_label || '-'}
                     </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
                     <label className="grid gap-1 text-xs text-muted-foreground">
                         主地址
                         <Input
@@ -147,7 +146,7 @@ export function SettingSystem() {
                             onChange={(e) => setApiBaseUrl(e.target.value)}
                             onBlur={() => handleSave(SettingKey.ApiBaseUrl, apiBaseUrl.trim(), initialApiBaseUrl.current)}
                             placeholder="https://api.example.com"
-                            className="h-10 rounded-xl"
+                            className="h-9 rounded-xl"
                         />
                     </label>
                     <label className="grid gap-1 text-xs text-muted-foreground">
@@ -157,7 +156,7 @@ export function SettingSystem() {
                             onChange={(e) => setTrustedProxyCIDRs(e.target.value)}
                             onBlur={() => handleSave(SettingKey.TrustedProxyCIDRs, trustedProxyCIDRs.trim(), initialTrustedProxyCIDRs.current)}
                             placeholder="127.0.0.1,10.0.0.0/8"
-                            className="h-10 rounded-xl"
+                            className="h-9 rounded-xl"
                         />
                     </label>
                     <label className="grid gap-1 text-xs text-muted-foreground md:col-span-2">
@@ -167,12 +166,12 @@ export function SettingSystem() {
                             onChange={(e) => setApiAlternateBaseUrls(e.target.value)}
                             onBlur={() => handleSave(SettingKey.ApiAlternateBaseUrls, apiAlternateBaseUrls.trim(), initialApiAlternateBaseUrls.current)}
                             placeholder={'https://api-a.example.com\nhttp://152.42.180.195:1088'}
-                            className="min-h-20 rounded-xl border border-input bg-transparent px-3 py-2 text-sm text-card-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring"
+                            className="min-h-12 rounded-xl border border-input bg-transparent px-3 py-2 text-sm text-card-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring"
                         />
                     </label>
                 </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                     {(['masked', 'full'] as const).map((mode) => (
                         <button
                             key={mode}
@@ -182,19 +181,18 @@ export function SettingSystem() {
                                 handleSave(SettingKey.OpsIPDisplayMode, mode, initialOpsIPDisplayMode.current);
                             }}
                             className={cn(
-                                'rounded-xl border px-3 py-1.5 text-xs transition',
+                                'rounded-full border px-2.5 py-1 text-xs transition',
                                 opsIPDisplayMode === mode ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border/60 bg-background/60 text-muted-foreground hover:text-foreground',
                             )}
                         >
                             IP {mode === 'masked' ? '默认脱敏' : '完整显示'}
                         </button>
                     ))}
-                    <div className="text-[11px] text-muted-foreground">只有可信代理命中时才读取 X-Forwarded-For。</div>
                 </div>
 
-                <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+                <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
                     {publicBaseSummary.map((item) => (
-                        <span key={item} className="max-w-full break-all rounded-full border border-border/60 bg-background/60 px-3 py-1 font-mono text-[11px] text-muted-foreground">
+                        <span key={item} className="max-w-full break-all rounded-full border border-border/60 bg-background/60 px-2.5 py-1 font-mono text-[10px] text-muted-foreground">
                             {item}
                         </span>
                     ))}
@@ -202,9 +200,9 @@ export function SettingSystem() {
             </div>
 
             {/* 统计保存周期 */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                <div className="flex items-center gap-3">
-                    <Clock className="h-5 w-5 text-muted-foreground" />
+            <div className="octo-setting-row">
+                <div className="octo-setting-label">
+                    <Clock className="size-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{t('statsSaveInterval.label')}</span>
                 </div>
                 <Input
@@ -213,21 +211,21 @@ export function SettingSystem() {
                     onChange={(e) => setStatsSaveInterval(e.target.value)}
                     onBlur={() => handleSave('stats_save_interval', statsSaveInterval, initialStatsSaveInterval.current)}
                     placeholder={t('statsSaveInterval.placeholder')}
-                    className="w-full rounded-xl sm:w-56 md:w-72"
+                    className="h-9 rounded-xl"
                 />
             </div>
 
             {/* CORS 跨域白名单 */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                <div className="flex items-center gap-3">
-                    <Shield className="h-5 w-5 text-muted-foreground" />
+            <div className="octo-setting-row">
+                <div className="octo-setting-label">
+                    <Shield className="size-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{t('corsAllowOrigins.label')}</span>
                 </div>
                 <Input
                     value={corsAllowOrigins}
                     onChange={(e) => setCorsAllowOrigins(e.target.value)}
                     onBlur={() => handleSave(SettingKey.CORSAllowOrigins, corsAllowOrigins, initialCorsAllowOrigins.current)}
-                    className="w-full rounded-xl sm:w-56 md:w-72"
+                    className="h-9 rounded-xl"
                 />
             </div>
         </div>

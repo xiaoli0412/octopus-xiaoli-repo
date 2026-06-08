@@ -229,7 +229,7 @@ go run main.go start
 
 # 启动前端（另一终端）
 cd web
-NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:8080" pnpm run dev
+NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:1088" pnpm run dev
 ```
 
 也可以优先使用仓库内脚本化入口来校验依赖并启动开发环境：
@@ -338,8 +338,8 @@ node .\scripts\run-frontend-verification-suite.mjs screenshot
 使用 `OCTOPUS_` 前缀设置配置：
 
 ```bash
-export OCTOPUS_DB_TYPE=sqlite
-export OCTOPUS_DB_CONNSTRING=data/octopus.db
+export OCTOPUS_DATABASE_TYPE=sqlite
+export OCTOPUS_DATABASE_PATH=data/octopus.db
 export OCTOPUS_LOG_LEVEL=info
 ```
 

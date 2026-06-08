@@ -618,14 +618,3 @@ func setupDynamicRoutingRecommendationTest(t *testing.T, mode string) (dbmodel.G
 	}
 	return group, unhealthy.ID, healthy.ID
 }
-
-func TestAPIKeyAllowsModelTrimsWhitespace(t *testing.T) {
-	t.Parallel()
-
-	if !apiKeyAllowsModel("gpt-4o, gpt-4.1 ,  gpt-5", "gpt-4.1") {
-		t.Fatal("apiKeyAllowsModel should accept trimmed supported model entries")
-	}
-	if apiKeyAllowsModel("gpt-4o, gpt-5", "gpt-4.1") {
-		t.Fatal("apiKeyAllowsModel should reject unsupported models")
-	}
-}

@@ -51,8 +51,7 @@
   "app": {
     "forcePassword": {
       "title": "首次登录：请先修改默认管理员密码",
-      "descPrefix": "当前登录的是内置初始化账号",
-      "descSuffix": "。进入控制台前必须先设置新密码，用户名可按需修改。",
+      "desc": "初始管理员登录已完成。进入控制台前必须先设置新密码，用户名可按需修改。",
       "usernameLabel": "管理员用户名",
       "usernamePlaceholder": "可选：输入新的管理员用户名",
       "usernameHintPrefix": "留空则继续使用当前用户名",

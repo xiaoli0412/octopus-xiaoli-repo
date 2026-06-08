@@ -241,23 +241,47 @@ html.dark,
 
 @layer components {
   .octo-panel {
-    @apply min-w-0 rounded-[1.4rem] border border-border bg-card shadow-sm;
+    @apply min-w-0 rounded-[1.05rem] border border-border/80 bg-card shadow-sm;
   }
 
   .octo-panel-compact {
-    @apply min-w-0 rounded-[1.4rem] border border-border bg-card p-3.5 shadow-sm sm:p-4;
+    @apply min-w-0 rounded-[1.05rem] border border-border/80 bg-card p-3 shadow-sm;
+  }
+
+  .octo-workbench {
+    @apply h-full min-h-0 overflow-y-auto overscroll-contain pb-32 md:pb-3;
+  }
+
+  .octo-section {
+    @apply min-w-0 rounded-[1.05rem] border border-border bg-card p-3 shadow-sm;
+  }
+
+  .octo-subsection {
+    @apply min-w-0 rounded-[0.9rem] border border-border/60 bg-background/55 p-2.5;
+  }
+
+  .octo-toolbar {
+    @apply flex min-w-0 flex-wrap items-center justify-between gap-2;
+  }
+
+  .octo-chip {
+    @apply inline-flex min-h-6 max-w-full items-center gap-1.5 rounded-full border border-border/60 bg-background/70 px-2.5 py-0.5 text-[11px] leading-none text-muted-foreground;
+  }
+
+  .octo-stat-card {
+    @apply min-w-0 rounded-[0.85rem] border border-border/60 bg-background/60 px-2.5 py-2;
   }
 
   .octo-setting-card {
-    @apply min-w-0 space-y-3.5 rounded-[1.4rem] border border-border bg-card p-3.5 shadow-sm sm:p-4;
+    @apply min-w-0 space-y-2.5 rounded-[1.05rem] border border-border/80 bg-card p-3 shadow-sm;
   }
 
   .octo-setting-heading {
-    @apply flex min-w-0 items-center gap-2 text-[15px] font-semibold text-card-foreground;
+    @apply flex min-w-0 items-center gap-2 text-[15px] font-semibold leading-6 text-card-foreground;
   }
 
   .octo-setting-row {
-    @apply grid gap-2 md:grid-cols-[minmax(0,11rem)_minmax(0,1fr)] md:items-start;
+    @apply grid gap-2 md:grid-cols-[minmax(0,8.5rem)_minmax(0,1fr)] md:items-center;
   }
 
   .octo-setting-label {

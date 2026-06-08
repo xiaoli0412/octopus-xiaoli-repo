@@ -4,8 +4,8 @@ import (
 	"strings"
 
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/model"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound/anthropic"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound/antigravity"
-	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound/authropic"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound/copilot"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound/gemini"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound/openai"
@@ -57,7 +57,7 @@ var outboundFactories = map[OutboundType]func() model.Outbound{
 	OutboundTypeOpenAIChat:      func() model.Outbound { return &openai.ChatOutbound{} },
 	OutboundTypeOpenAIResponse:  func() model.Outbound { return &openai.ResponseOutbound{} },
 	OutboundTypeOpenAIEmbedding: func() model.Outbound { return &openai.EmbeddingOutbound{} },
-	OutboundTypeAnthropic:       func() model.Outbound { return &authropic.MessageOutbound{} },
+	OutboundTypeAnthropic:       func() model.Outbound { return &anthropic.MessageOutbound{} },
 	OutboundTypeGemini:          func() model.Outbound { return &gemini.MessagesOutbound{} },
 	OutboundTypeVolcengine:      func() model.Outbound { return &volcengine.ResponseOutbound{} },
 	// GitHub Copilot exchanges OAuth token for short-lived Copilot API token, then uses OpenAI Chat format

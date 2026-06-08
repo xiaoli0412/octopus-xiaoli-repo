@@ -19,10 +19,10 @@ const LazySettingBackup = dynamic(() => import('./Backup').then((mod) => ({ defa
 
 export function Setting() {
     return (
-        <div className="h-full min-h-0 overflow-y-auto overscroll-contain rounded-t-3xl">
-            <PageWrapper className="pb-24 md:pb-4">
-                <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
-                    <div className="min-w-0 space-y-4">
+        <div className="octo-workbench">
+            <PageWrapper className="space-y-3" disableAnimations>
+                <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+                    <div className="min-w-0 space-y-3">
                         <SettingSystem key="setting-system" />
                         <SettingLog key="setting-log" />
                         <SettingAPIKey key="setting-apikey" />
@@ -30,7 +30,7 @@ export function Setting() {
                         <LazySettingModelProbe key="setting-model-probe" />
                         <LazySettingBackup key="setting-backup" />
                     </div>
-                    <div className="min-w-0 space-y-4">
+                    <div className="min-w-0 space-y-3">
                         <SettingInfo key="setting-info" />
                         <SettingAppearance key="setting-appearance" />
                         <SettingAccount key="setting-account" />

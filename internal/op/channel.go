@@ -142,14 +142,19 @@ func ChannelKeySaveDB(ctx context.Context) error {
 	}
 
 	dbConn := db.GetDB().WithContext(ctx)
+	var dirtyKeys []model.ChannelKey
 	for _, id := range keyIDs {
 		k, ok := channelKeyCache.Get(id)
 		if !ok {
 			continue
 		}
-		if err := dbConn.Save(&k).Error; err != nil {
-			return err
-		}
+		dirtyKeys = append(dirtyKeys, k)
+	}
+	if len(dirtyKeys) == 0 {
+		return nil
+	}
+	if err := dbConn.Save(&dirtyKeys).Error; err != nil {
+		return err
 	}
 	return nil
 }

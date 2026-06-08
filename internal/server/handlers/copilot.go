@@ -102,7 +102,7 @@ var copilotHTTPClient = &http.Client{Timeout: 15 * time.Second}
 func copilotRequestDeviceCode(c *gin.Context) {
 	clientID, scope, deviceCodeURL, _, err := copilotOAuthConfig()
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "copilot oauth configuration is invalid")
 		return
 	}
 	bodyPayload, err := json.Marshal(map[string]string{
@@ -110,13 +110,13 @@ func copilotRequestDeviceCode(c *gin.Context) {
 		"scope":     scope,
 	})
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to marshal request body")
 		return
 	}
 
 	httpReq, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, deviceCodeURL, strings.NewReader(string(bodyPayload)))
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to create http request")
 		return
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -124,14 +124,14 @@ func copilotRequestDeviceCode(c *gin.Context) {
 
 	httpResp, err := copilotHTTPClient.Do(httpReq)
 	if err != nil {
-		resp.Error(c, http.StatusBadGateway, err.Error())
+		resp.Error(c, http.StatusBadGateway, "failed to reach GitHub")
 		return
 	}
 	defer httpResp.Body.Close()
 
 	var result copilotDeviceCodeResponse
 	if err := decodeCopilotOAuthResponse(httpResp.Body, &result); err != nil {
-		resp.Error(c, http.StatusBadGateway, "failed to decode GitHub response: "+err.Error())
+		resp.Error(c, http.StatusBadGateway, "failed to decode GitHub response")
 		return
 	}
 
@@ -156,7 +156,7 @@ func copilotPollToken(c *gin.Context) {
 
 	clientID, _, _, accessTokenURL, err := copilotOAuthConfig()
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "copilot oauth configuration is invalid")
 		return
 	}
 	bodyPayload, err := json.Marshal(map[string]string{
@@ -165,12 +165,12 @@ func copilotPollToken(c *gin.Context) {
 		"grant_type":  "urn:ietf:params:oauth:grant-type:device_code",
 	})
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to marshal request body")
 		return
 	}
 	httpReq, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, accessTokenURL, strings.NewReader(string(bodyPayload)))
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to create http request")
 		return
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -178,14 +178,14 @@ func copilotPollToken(c *gin.Context) {
 
 	httpResp, err := copilotHTTPClient.Do(httpReq)
 	if err != nil {
-		resp.Error(c, http.StatusBadGateway, err.Error())
+		resp.Error(c, http.StatusBadGateway, "failed to reach GitHub")
 		return
 	}
 	defer httpResp.Body.Close()
 
 	var result copilotPollResponse
 	if err := decodeCopilotOAuthResponse(httpResp.Body, &result); err != nil {
-		resp.Error(c, http.StatusBadGateway, "failed to decode GitHub response: "+err.Error())
+		resp.Error(c, http.StatusBadGateway, "failed to decode GitHub response")
 		return
 	}
 

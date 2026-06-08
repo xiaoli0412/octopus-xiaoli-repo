@@ -66,13 +66,13 @@ func init() {
 func getModelList(c *gin.Context) {
 	models, err := op.GroupListModel(c.Request.Context())
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to list models")
 		return
 	}
 	apiKeyId := c.GetInt("api_key_id")
 	apiKey, err := op.APIKeyGet(apiKeyId, c.Request.Context())
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to get api key")
 		return
 	}
 	if apiKey.SupportedModels != "" {
@@ -123,12 +123,12 @@ func getModelList(c *gin.Context) {
 
 func listLLM(c *gin.Context) {
 	if err := helper.EnsureReferencedLLMInfos(c.Request.Context()); err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to sync model information")
 		return
 	}
 	models, err := op.LLMList(c.Request.Context())
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to list models")
 		return
 	}
 	upstreamSummaries, _ := op.UpstreamPriceSummaries(c.Request.Context())
@@ -155,7 +155,7 @@ func listLLM(c *gin.Context) {
 func listLLMByChannel(c *gin.Context) {
 	channels, err := op.ChannelLLMList(c.Request.Context())
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to list channel models")
 		return
 	}
 	resp.Success(c, channels)
@@ -164,7 +164,7 @@ func listLLMByChannel(c *gin.Context) {
 func getCapabilityInventory(c *gin.Context) {
 	inventory, err := op.CapabilityInventory(c.Request.Context())
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to get capability inventory")
 		return
 	}
 	resp.Success(c, inventory)
@@ -173,7 +173,7 @@ func getCapabilityInventory(c *gin.Context) {
 func listUpstreamPrices(c *gin.Context) {
 	summaries, err := op.UpstreamPriceSummaries(c.Request.Context())
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to list upstream prices")
 		return
 	}
 	resp.Success(c, summaries)
@@ -186,7 +186,7 @@ func createLLM(c *gin.Context) {
 		return
 	}
 	if err := op.LLMCreate(model, c.Request.Context()); err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to create model")
 		return
 	}
 	resp.Success(c, model)
@@ -199,7 +199,7 @@ func updateLLM(c *gin.Context) {
 		return
 	}
 	if err := op.LLMUpdate(model, c.Request.Context()); err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to update model")
 		return
 	}
 	resp.Success(c, model)
@@ -214,7 +214,7 @@ func deleteLLM(c *gin.Context) {
 		return
 	}
 	if err := op.LLMDelete(req.Name, c.Request.Context()); err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to delete model")
 		return
 	}
 	resp.Success(c, nil)
@@ -223,7 +223,7 @@ func deleteLLM(c *gin.Context) {
 func updateLLMPrice(c *gin.Context) {
 	err := price.UpdateLLMPrice(c.Request.Context())
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to update model prices")
 		return
 	}
 	resp.Success(c, nil)

@@ -64,7 +64,7 @@ func respondChannelOpError(c *gin.Context, err error) {
 	case strings.Contains(message, "invalid"), strings.Contains(message, "must be"), strings.Contains(message, "must not"):
 		resp.Error(c, http.StatusBadRequest, message)
 	default:
-		resp.Error(c, http.StatusInternalServerError, message)
+		resp.Error(c, http.StatusInternalServerError, "internal server error")
 	}
 }
 
@@ -142,7 +142,7 @@ func init() {
 func listChannel(c *gin.Context) {
 	channels, err := op.ChannelList(c.Request.Context())
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to list channels")
 		return
 	}
 	for i, channel := range channels {
@@ -255,7 +255,7 @@ func fetchModel(c *gin.Context) {
 	}
 	models, err := helper.FetchModels(c.Request.Context(), channel)
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to fetch models from upstream")
 		return
 	}
 	resp.Success(c, models)

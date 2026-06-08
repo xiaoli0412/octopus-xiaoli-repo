@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	serverauth "github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/auth"
-	"github.com/gin-gonic/gin"
 )
 
 func TestLoginReturnsBadRequestForInvalidExpire(t *testing.T) {
@@ -96,24 +96,10 @@ func TestLoginReturnsForceChangeFlagForBuiltInBootstrapCredentials(t *testing.T)
 		t.Fatalf("initializeHandlerCaches() after user init error = %v", err)
 	}
 
-	recorder := performJSONHandlerRequest(t, http.MethodPost, "/api/v1/user/login", map[string]any{
-		"username": "admin",
-		"password": "admin",
-		"expire":   0,
-	}, login)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusOK, recorder.Body.String())
-	}
-	res := decodeHandlerResponse(t, recorder)
-	var payload struct {
-		MustChangePassword bool `json:"must_change_password"`
-	}
-	if err := json.Unmarshal(res.Data, &payload); err != nil {
-		t.Fatalf("unmarshal login payload error = %v", err)
-	}
-	if !payload.MustChangePassword {
-		t.Fatalf("must_change_password = false, want true for built-in bootstrap credentials")
+	// With a randomly generated bootstrap password, verify the force-change flag
+	// is set directly (login cannot be tested with an unknown generated password).
+	if !op.UserMustChangePassword() {
+		t.Fatalf("UserMustChangePassword() = false, want true for built-in bootstrap credentials")
 	}
 }
 

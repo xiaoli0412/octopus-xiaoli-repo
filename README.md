@@ -65,7 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 If your network restricts GHCR, you can still pin a reachable private or mirrored registry image explicitly:
 
 ```bash
-OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.19.8 bash install-octopus.sh
+OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.19.9 bash install-octopus.sh
 ```
 
 If GHCR is blocked and the server-side source build still fails, provide a known-good Linux binary and let the installer build a local Docker image from it:
@@ -77,7 +77,7 @@ OCTOPUS_BINARY_PATH=/root/octopus-linux-amd64 bash install-octopus.sh
 Direct GHCR `docker run` is only recommended after you have confirmed this host can pull the GHCR package:
 
 ```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.8
+docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.9
 ```
 
 If you prefer the manual path, you can still clone the repository and run compose directly:
@@ -113,7 +113,7 @@ Download the binary for your platform from [Releases](https://github.com/xiaoli0
 ### 🛠️ Build from Source
 
 **Requirements:**
-- Go 1.24.4
+- Go 1.24.4+
 - Node.js 18+
 - pnpm
 
@@ -227,10 +227,10 @@ http://localhost:3000
 After first launch, Octopus creates the initial administrator with:
 
 - **Username**: `admin` by default, or `OCTOPUS_ADMIN_USERNAME` if set
-- **Password**: `admin` by default, or `OCTOPUS_ADMIN_PASSWORD` if set
+- **Password**: a random one-time bootstrap password printed in the startup logs, or `OCTOPUS_ADMIN_PASSWORD` if set
 
-If you do not provide `OCTOPUS_ADMIN_PASSWORD`, the built-in bootstrap credentials are `admin / admin`.
-After the first successful login with the built-in password, Octopus blocks the rest of the management console until you set a new administrator password.
+If you do not provide `OCTOPUS_ADMIN_PASSWORD`, check `docker logs octopus` or the server startup logs for the generated initial password.
+After the first successful login with the generated or environment-provided bootstrap password, Octopus blocks the rest of the management console until you set a new administrator password.
 Changing the username during that first-login flow is optional; changing the password is mandatory.
 
 ### 📝 Configuration File
@@ -266,6 +266,8 @@ The configuration file is located at `data/config.json` by default and is automa
 | `database.type` | Database type | `sqlite` |
 | `database.path` | Database connection string | `data/data.db` |
 | `log.level` | Log level | `info` |
+
+> **Note**: The default port in `config.json` is `8080`. If you deploy via Docker (install script or docker-compose), the external port is mapped to `1088` by default.
 
 For the `octopus healthcheck` CLI, wildcard listen addresses such as `0.0.0.0` and `::` are automatically mapped to `127.0.0.1` so the probe uses a client-reachable target.
 
@@ -571,4 +573,3 @@ For Claude Code, you can also configure separate model mappings for Haiku / Sonn
 
 - 🙏 [looplj/axonhub](https://github.com/looplj/axonhub) - The LLM API adaptation module in this project is directly derived from this repository
 - 📊 [sst/models.dev](https://github.com/sst/models.dev) - AI model database providing model pricing data
-

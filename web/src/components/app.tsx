@@ -266,12 +266,12 @@ export function AppContainer() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
-            className="mx-auto flex h-dvh max-w-6xl flex-col overflow-hidden px-3 md:grid md:grid-cols-[auto_1fr] md:gap-6 md:px-6"
+            className="mx-auto flex h-dvh w-full max-w-[1500px] flex-col overflow-hidden px-2.5 md:grid md:grid-cols-[auto_1fr] md:gap-4 md:px-4 2xl:px-5"
         >
             <NavBar />
             <main className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
-                <header className="my-6 flex flex-none items-center gap-x-2 px-2">
-                    <Logo size={48} />
+                <header className="my-1.5 flex flex-none items-center gap-x-2 px-1 md:my-3 md:px-1">
+                    <Logo size={34} />
                     <div className="flex-1 overflow-hidden">
                         <AnimatePresence mode="wait" custom={direction}>
                             <motion.div
@@ -288,7 +288,7 @@ export function AppContainer() {
                                 transition={{ duration: 0.3 }}
                                 className="flex items-center"
                             >
-                                <span className="mt-1 text-3xl font-bold">{t(activeItem)}</span>
+                                <span className="mt-0.5 text-lg font-semibold tracking-tight md:text-2xl">{t(activeItem)}</span>
                             </motion.div>
                         </AnimatePresence>
                     </div>
@@ -366,7 +366,7 @@ function ForcePasswordGate({
                     <Logo size={46} />
                     <div>
                         <div className="text-xl font-semibold">{t('forcePassword.title')}</div>
-                        <div className="mt-1 text-sm text-muted-foreground">{t('forcePassword.descPrefix')} <span className="font-medium text-foreground">admin / admin</span>{t('forcePassword.descSuffix')}</div>
+                        <div className="mt-1 text-sm text-muted-foreground">{t('forcePassword.desc')}</div>
                     </div>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-4">

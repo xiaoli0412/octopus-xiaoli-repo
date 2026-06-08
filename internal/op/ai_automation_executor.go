@@ -19,7 +19,7 @@ import (
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	tmodel "github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/model"
-	authropicoutbound "github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound/authropic"
+	anthropicoutbound "github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound/anthropic"
 	geminioutbound "github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound/gemini"
 	openaioutbound "github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound/openai"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/log"
@@ -1208,7 +1208,7 @@ func buildAIAutomationOutboundRequest(ctx context.Context, channelType string, r
 	var outbound tmodel.Outbound
 	switch channelType {
 	case "anthropic":
-		outbound = &authropicoutbound.MessageOutbound{}
+		outbound = &anthropicoutbound.MessageOutbound{}
 	case "gemini":
 		outbound = &geminioutbound.MessagesOutbound{}
 	case "openai", "openai-compatible", "":
@@ -1230,7 +1230,7 @@ func parseAIAutomationOutboundResponse(ctx context.Context, channelType string, 
 	var outbound tmodel.Outbound
 	switch channelType {
 	case "anthropic":
-		outbound = &authropicoutbound.MessageOutbound{}
+		outbound = &anthropicoutbound.MessageOutbound{}
 	case "gemini":
 		outbound = &geminioutbound.MessagesOutbound{}
 	default:

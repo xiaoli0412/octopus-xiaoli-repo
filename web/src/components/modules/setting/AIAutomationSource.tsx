@@ -1,6 +1,6 @@
 'use client';
 
-import { Bot, ExternalLink, ShieldCheck, Sparkles } from 'lucide-react';
+import { Bot, ExternalLink } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { useAIGovernanceOverview, useStrategyProfiles } from '@/api/endpoints/ai-automation';
@@ -31,57 +31,43 @@ export function SettingAIAutomationSource() {
 
 	return (
 		<div className="octo-setting-card" data-testid="setting-ai-governance-source">
-			<div className="flex items-start gap-3">
-				<div className="rounded-2xl bg-primary/10 p-2 text-primary">
-					<Bot className="size-5" />
-				</div>
+			<div className="octo-toolbar">
 				<div className="min-w-0 flex-1">
-					<h3 className="text-base font-semibold text-card-foreground">{t('aiAutomationSource.title')}</h3>
-					<p className="mt-1 text-sm leading-6 text-muted-foreground">{t('aiAutomationSource.desc')}</p>
+					<h3 className="octo-setting-heading">
+						<Bot className="size-4" />
+						{t('aiAutomationSource.title')}
+					</h3>
 				</div>
-			</div>
-
-			<div className="rounded-2xl border border-border/70 bg-muted/20 p-3">
-				<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-					<div className="rounded-xl border border-border/60 bg-background/75 px-3 py-2 text-xs">
-						<div className="text-muted-foreground">{t('aiAutomationSource.mode')}</div>
-						<div className="mt-1 font-medium text-card-foreground break-all">{modeLabel}</div>
-					</div>
-					<div className="rounded-xl border border-border/60 bg-background/75 px-3 py-2 text-xs">
-						<div className="text-muted-foreground">{t('aiAutomationSource.profileLabel')}</div>
-						<div className="mt-1 font-medium text-card-foreground">{overview?.active_strategy_profile?.name ?? t('aiAutomationSource.noActiveProfile')}</div>
-					</div>
-					<div className="rounded-xl border border-border/60 bg-background/75 px-3 py-2 text-xs">
-						<div className="text-muted-foreground">{t('aiAutomationSource.profileConfidence')}</div>
-						<div className="mt-1 font-medium text-card-foreground">{overview?.learning ? `样本 ${overview.learning.sample_count}` : '样本 0'}</div>
-					</div>
-					<div className="rounded-xl border border-border/60 bg-background/75 px-3 py-2 text-xs">
-						<div className="text-muted-foreground">{t('aiAutomationSource.status')}</div>
-						<div className="mt-1 font-medium text-card-foreground">{recentStatusLabel}</div>
-					</div>
-				</div>
-
-				<div className="mt-3 grid gap-2 text-xs leading-5 text-muted-foreground">
-					<div className="flex items-start gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-emerald-900 dark:text-emerald-100">
-						<ShieldCheck className="mt-0.5 size-4 shrink-0" />
-						<div>{t('aiAutomationSource.manualSafety')}</div>
-					</div>
-					<div className="flex items-start gap-2 rounded-2xl border border-border/70 bg-background/75 p-3">
-						<Sparkles className="mt-0.5 size-4 shrink-0" />
-						<div>{overview?.recent_session?.operator_summary || t('aiAutomationSource.profileSummaryFallback')}</div>
-					</div>
-				</div>
-
-				<div className="mt-3 text-xs leading-5 text-muted-foreground">
-					{t('aiAutomationSource.profileEmpty')} {strategyProfiles.length > 0 ? `${strategyProfiles.length}` : '0'}
-				</div>
-			</div>
-
-			<div className="flex justify-start sm:justify-end">
 				<Button type="button" variant="outline" className="h-10 w-full rounded-xl sm:w-auto sm:min-w-40" onClick={openAICenter}>
 					<ExternalLink className="size-4" />
 					{t('aiAutomationSource.openCenter')}
 				</Button>
+			</div>
+
+			<div className="rounded-2xl border border-border/70 bg-muted/20 p-3">
+				<div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+					<div className="octo-stat-card text-xs">
+						<div className="text-muted-foreground">{t('aiAutomationSource.mode')}</div>
+						<div className="mt-1 font-medium text-card-foreground break-all">{modeLabel}</div>
+					</div>
+					<div className="octo-stat-card text-xs">
+						<div className="text-muted-foreground">{t('aiAutomationSource.profileLabel')}</div>
+						<div className="mt-1 font-medium text-card-foreground">{overview?.active_strategy_profile?.name ?? t('aiAutomationSource.noActiveProfile')}</div>
+					</div>
+					<div className="octo-stat-card text-xs">
+						<div className="text-muted-foreground">{t('aiAutomationSource.profileConfidence')}</div>
+						<div className="mt-1 font-medium text-card-foreground">{overview?.learning ? `样本 ${overview.learning.sample_count}` : '样本 0'}</div>
+					</div>
+					<div className="octo-stat-card text-xs">
+						<div className="text-muted-foreground">{t('aiAutomationSource.status')}</div>
+						<div className="mt-1 font-medium text-card-foreground">{recentStatusLabel}</div>
+					</div>
+				</div>
+				<div className="mt-2 line-clamp-2 rounded-xl border border-border/60 bg-background/75 px-3 py-2 text-xs leading-5 text-muted-foreground">
+					<span>{overview?.recent_session?.operator_summary || t('aiAutomationSource.profileSummaryFallback')}</span>
+					<span> · {t('aiAutomationSource.profileEmpty')} {strategyProfiles.length > 0 ? `${strategyProfiles.length}` : '0'}</span>
+					<span className="sr-only">{t('aiAutomationSource.manualSafety')}</span>
+				</div>
 			</div>
 		</div>
 	);

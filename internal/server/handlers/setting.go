@@ -35,11 +35,11 @@ var refreshCachesAfterMutableSettingOperation = op.InitCache
 var syncMutableSettingTasksAfterCacheRefresh = syncMutableSettingTasksFromCache
 
 func respondMutableSettingOperationRefreshFailure(c *gin.Context, operation string, err error) {
-	resp.Error(c, http.StatusInternalServerError, fmt.Sprintf("%s succeeded but cache refresh failed: %v", operation, err))
+	resp.Error(c, http.StatusInternalServerError, fmt.Sprintf("%s succeeded but cache refresh failed", operation))
 }
 
 func respondMutableSettingOperationTaskSyncFailure(c *gin.Context, operation string, err error) {
-	resp.Error(c, http.StatusInternalServerError, fmt.Sprintf("%s succeeded but task schedule sync failed: %v", operation, err))
+	resp.Error(c, http.StatusInternalServerError, fmt.Sprintf("%s succeeded but task schedule sync failed", operation))
 }
 
 func syncMutableSettingTasksFromCache() error {
@@ -112,7 +112,7 @@ func init() {
 func getSettingList(c *gin.Context) {
 	settings, err := op.SettingList(c.Request.Context())
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to list settings")
 		return
 	}
 	resp.Success(c, settings)
@@ -133,7 +133,7 @@ func setSetting(c *gin.Context) {
 		return
 	}
 	if err := op.SettingSetString(setting.Key, setting.Value); err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to update setting")
 		return
 	}
 	switch setting.Key {
@@ -186,7 +186,7 @@ func exportDB(c *gin.Context) {
 
 	dump, err := op.DBExportAll(c.Request.Context(), includeLogs, includeStats, includeSecrets)
 	if err != nil {
-		resp.Error(c, http.StatusInternalServerError, err.Error())
+		resp.Error(c, http.StatusInternalServerError, "failed to export database")
 		return
 	}
 
@@ -349,7 +349,7 @@ func importDB(c *gin.Context) {
 	if dryRun {
 		token, err := signImportPreviewToken(previewDigest)
 		if err != nil {
-			resp.Error(c, http.StatusInternalServerError, fmt.Sprintf("sign import preview token: %v", err))
+			resp.Error(c, http.StatusInternalServerError, "failed to sign import preview token")
 			return
 		}
 		result.PreviewToken = token
