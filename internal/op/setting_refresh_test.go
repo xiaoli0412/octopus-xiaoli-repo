@@ -9,7 +9,7 @@ import (
 )
 
 func TestSettingRefreshCacheRepairsEmptyAuthTokenSecret(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Model(&model.Setting{Key: model.SettingKeyAuthTokenSecret}).Update("Value", "").Error; err != nil {
 		t.Fatalf("update auth token secret error = %v", err)

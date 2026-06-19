@@ -159,6 +159,7 @@ type LLMInfo struct {
 	CacheReason           string               `json:"cache_reason"`
 	UpstreamProviderType  string               `json:"upstream_provider_type"`
 	UpstreamSource        string               `json:"upstream_source"`
+	Disabled              bool                 `json:"disabled" gorm:"default:false"`
 	CacheSupported        *bool                `json:"cache_supported,omitempty" gorm:"-"`
 	ParsedVendor          string               `json:"parsed_vendor,omitempty" gorm:"-"`
 	ParsedVersion         string               `json:"parsed_version,omitempty" gorm:"-"`
@@ -249,4 +250,18 @@ type AnthropicModelList struct {
 	FirstID string           `json:"first_id"`
 	HasMore bool             `json:"has_more"`
 	LastID  string           `json:"last_id"`
+}
+
+type ModelTestRequest struct {
+	ChannelID int    `json:"channel_id" binding:"required"`
+	Model     string `json:"model" binding:"required"`
+	Message   string `json:"message,omitempty"`
+}
+
+type ModelTestResult struct {
+	Success      bool   `json:"success"`
+	LatencyMs    int64  `json:"latency_ms"`
+	ErrorMessage string `json:"error_message,omitempty"`
+	ResponseText string `json:"response_text,omitempty"`
+	PriceMatch   bool   `json:"price_match"`
 }

@@ -27,12 +27,14 @@ import {
     type ChannelProviderFilter,
     type GroupFilter,
     type ModelFilter,
+    type ToolbarModelSortBy,
 } from './view-options-store';
 
 const CHANNEL_FILTER_OPTIONS: ChannelFilter[] = ['all', 'enabled', 'disabled'];
 const CHANNEL_PROVIDER_FILTER_OPTIONS: ChannelProviderFilter[] = ['all', 'openai', 'anthropic', 'gemini', 'volcengine', 'github-copilot', 'antigravity', 'zen'];
 const GROUP_FILTER_OPTIONS: GroupFilter[] = ['all', 'with-members', 'empty'];
 const MODEL_FILTER_OPTIONS: ModelFilter[] = ['all', 'priced', 'free'];
+const MODEL_SORT_BY_OPTIONS: ToolbarModelSortBy[] = ['name', 'input', 'output'];
 
 function isToolbarPage(item: NavItem): item is ToolbarPage {
     return (TOOLBAR_PAGES as readonly NavItem[]).includes(item);
@@ -69,6 +71,10 @@ export function Toolbar() {
     const channelKeyKeyword = useToolbarViewOptionsStore((s) => s.channelKeyKeyword);
     const groupFilter = useToolbarViewOptionsStore((s) => s.groupFilter);
     const modelFilter = useToolbarViewOptionsStore((s) => s.modelFilter);
+    const modelSortBy = useToolbarViewOptionsStore((s) => s.modelSortBy);
+    const modelMinPrice = useToolbarViewOptionsStore((s) => s.modelMinPrice);
+    const modelMaxPrice = useToolbarViewOptionsStore((s) => s.modelMaxPrice);
+    const modelHasUpstreamPrice = useToolbarViewOptionsStore((s) => s.modelHasUpstreamPrice);
     const setChannelFilter = useToolbarViewOptionsStore((s) => s.setChannelFilter);
     const setChannelProviderFilter = useToolbarViewOptionsStore((s) => s.setChannelProviderFilter);
     const setChannelModelKeyword = useToolbarViewOptionsStore((s) => s.setChannelModelKeyword);
@@ -76,6 +82,10 @@ export function Toolbar() {
     const clearChannelDetailFilters = useToolbarViewOptionsStore((s) => s.clearChannelDetailFilters);
     const setGroupFilter = useToolbarViewOptionsStore((s) => s.setGroupFilter);
     const setModelFilter = useToolbarViewOptionsStore((s) => s.setModelFilter);
+    const setModelSortBy = useToolbarViewOptionsStore((s) => s.setModelSortBy);
+    const setModelMinPrice = useToolbarViewOptionsStore((s) => s.setModelMinPrice);
+    const setModelMaxPrice = useToolbarViewOptionsStore((s) => s.setModelMaxPrice);
+    const setModelHasUpstreamPrice = useToolbarViewOptionsStore((s) => s.setModelHasUpstreamPrice);
     const [expandedSearchItem, setExpandedSearchItem] = useState<ToolbarPage | null>(null);
     const searchExpanded = expandedSearchItem === toolbarItem;
 
@@ -348,6 +358,72 @@ export function Toolbar() {
                                     ))}
                                 </div>
                             </div>
+
+                            {toolbarItem === 'model' && (
+                                <div className="grid gap-2.5 border-t border-border/60 pt-2.5">
+                                    <div className="grid gap-2">
+                                        <p className="text-xs font-medium text-muted-foreground">{t('popover.sortBy.label')}</p>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {MODEL_SORT_BY_OPTIONS.map((value) => (
+                                                <button
+                                                    key={value}
+                                                    type="button"
+                                                    data-testid={`toolbar-model-sort-${value}`}
+                                                    onClick={() => setModelSortBy(value)}
+                                                    className={cn(
+                                                        'h-8 rounded-lg border px-1 text-center text-[11px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary/20 sm:text-xs',
+                                                        modelSortBy === value
+                                                            ? 'border-primary/30 bg-primary text-primary-foreground'
+                                                            : 'border-border bg-muted/20 text-foreground hover:bg-muted/30'
+                                                    )}
+                                                >
+                                                    <span className="block truncate">{t(`popover.sortBy.${value}`)}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid gap-2">
+                                        <p className="text-xs font-medium text-muted-foreground">{t('popover.priceRange.title')}</p>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                step={0.01}
+                                                data-testid="toolbar-model-min-price"
+                                                value={modelMinPrice}
+                                                onChange={(e) => setModelMinPrice(e.target.value)}
+                                                placeholder={t('popover.priceRange.min')}
+                                                className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/20"
+                                            />
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                step={0.01}
+                                                data-testid="toolbar-model-max-price"
+                                                value={modelMaxPrice}
+                                                onChange={(e) => setModelMaxPrice(e.target.value)}
+                                                placeholder={t('popover.priceRange.max')}
+                                                className="h-9 rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/20"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        data-testid="toolbar-model-has-upstream-price"
+                                        onClick={() => setModelHasUpstreamPrice(!modelHasUpstreamPrice)}
+                                        className={cn(
+                                            'h-8 rounded-lg border px-2 text-left text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary/20',
+                                            modelHasUpstreamPrice
+                                                ? 'border-primary/30 bg-primary text-primary-foreground'
+                                                : 'border-border bg-muted/20 text-foreground hover:bg-muted/30'
+                                        )}
+                                    >
+                                        {t('popover.hasUpstreamPrice')}
+                                    </button>
+                                </div>
+                            )}
 
                             {toolbarItem === 'channel' && (
                                 <div className="grid gap-2.5 border-t border-border/60 pt-2.5">

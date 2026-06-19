@@ -83,7 +83,29 @@ func dynamicRoutingMode() string {
 }
 
 func baseDynamicCandidates(group dbmodel.Group) []dbmodel.GroupItem {
-	return balancer.GetBalancer(group.Mode).Candidates(group.Items)
+	items := filterUpstreamSuppressedItems(group.Items)
+	return balancer.GetBalancer(group.Mode).Candidates(items)
+}
+
+// filterUpstreamSuppressedItems removes group items whose channel is linked to a
+// temporarily suppressed upstream site. This implements automatic multi-channel
+// failover without mutating persisted group configuration.
+func filterUpstreamSuppressedItems(items []dbmodel.GroupItem) []dbmodel.GroupItem {
+	if len(items) == 0 {
+		return nil
+	}
+	filtered := make([]dbmodel.GroupItem, 0, len(items))
+	for _, item := range items {
+		channel, err := op.ChannelGet(item.ChannelID, nil)
+		if err != nil {
+			continue
+		}
+		if channel.UpstreamSiteID > 0 && op.UpstreamSiteIsSuppressed(channel.UpstreamSiteID) {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered
 }
 
 func initAIDynamicModeState(group dbmodel.Group, requestModel string, requestCapability string) *dynamicRoutingModeState {

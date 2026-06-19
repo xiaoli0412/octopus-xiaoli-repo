@@ -12,7 +12,7 @@ import (
 )
 
 func TestGovernancePlanDetachesStaleItemFromOriginalGroup(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := SettingSetString(model.SettingKeyAIAutomationEnabled, "true"); err != nil {
 		t.Fatalf("SettingSetString(enabled) error = %v", err)
@@ -55,7 +55,7 @@ func TestGovernancePlanDetachesStaleItemFromOriginalGroup(t *testing.T) {
 }
 
 func TestGovernanceSessionApplyRollsBackTransactionScopedMutations(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := SettingSetString(model.SettingKeyAIAutomationEnabled, "true"); err != nil {
 		t.Fatalf("SettingSetString(enabled) error = %v", err)
@@ -171,7 +171,7 @@ func TestGovernanceSessionApplyRollsBackTransactionScopedMutations(t *testing.T)
 }
 
 func TestGovernanceSessionRollbackRestoresStrategyProfilesAndActiveSetting(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := SettingSetString(model.SettingKeyAIAutomationEnabled, "true"); err != nil {
 		t.Fatalf("SettingSetString(enabled) error = %v", err)
@@ -297,7 +297,7 @@ func TestGovernanceSessionRollbackRestoresStrategyProfilesAndActiveSetting(t *te
 }
 
 func TestStrategyProfileActivateDoesNotMutateStateWhenTargetMissing(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	original := model.StrategyProfile{Name: "original-active", Summary: "baseline", Status: model.StrategyProfileStatusActive}
 	if err := db.GetDB().WithContext(ctx).Create(&original).Error; err != nil {
@@ -330,7 +330,7 @@ func TestStrategyProfileActivateDoesNotMutateStateWhenTargetMissing(t *testing.T
 }
 
 func TestStrategyProfileActivateRollsBackWhenActiveSettingRowMissing(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	original := model.StrategyProfile{Name: "original-active", Summary: "baseline", Status: model.StrategyProfileStatusActive}
 	if err := db.GetDB().WithContext(ctx).Create(&original).Error; err != nil {

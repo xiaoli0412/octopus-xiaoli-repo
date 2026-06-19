@@ -1033,10 +1033,22 @@
       "normal": "標準",
       "compact": "コンパクト",
       "sort": "並び順",
+      "sortBy": {
+        "label": "並び替え基準",
+        "name": "名前",
+        "input": "入力価格",
+        "output": "出力価格"
+      },
       "grid": "グリッド",
       "list": "リスト",
       "asc": "昇順",
       "desc": "降順",
+      "priceRange": {
+        "title": "価格帯",
+        "min": "最小",
+        "max": "最大"
+      },
+      "hasUpstreamPrice": "ゲートウェイ価格あり",
       "filter": {
         "title": "フィルター",
         "channel": {
@@ -1967,13 +1979,21 @@
       "updated": "モデル価格を更新しました",
       "updateFailed": "更新に失敗しました",
       "deleted": "モデルを削除しました",
-      "deleteFailed": "削除に失敗しました"
+      "deleteFailed": "削除に失敗しました",
+      "disabled": "モデルを一時的に無効にしました",
+      "disableFailed": "無効化に失敗しました",
+      "enabled": "モデルを再有効化しました",
+      "enableFailed": "再有効化に失敗しました"
     },
     "card": {
       "inputCache": "入力 / キャッシュ",
       "outputCache": "出力 / キャッシュ",
+      "official": "公式",
+      "gateway": "ゲートウェイ",
       "edit": "編集",
-      "delete": "削除"
+      "delete": "削除",
+      "disable": "一時的に無効",
+      "enable": "再有効化"
     },
     "overlay": {
       "cancel": "キャンセル",
@@ -1984,6 +2004,26 @@
       "cacheRead": "キャッシュ読取",
       "cacheWrite": "キャッシュ書込",
       "save": "保存"
+    },
+    "test": {
+      "title": "接続テスト",
+      "description": "モデルとチャネルを選択し、最小リクエストで接続を確認します",
+      "modelLabel": "モデル",
+      "modelPlaceholder": "テストするモデルを選択",
+      "channelLabel": "チャネル",
+      "channelPlaceholder": "チャネルを選択",
+      "run": "テスト実行",
+      "status": "状態",
+      "passed": "成功",
+      "failed": "失敗",
+      "latency": "レイテンシ",
+      "priceMatch": "価格一致",
+      "matched": "一致",
+      "unmatched": "不一致",
+      "error": "エラー",
+      "response": "応答",
+      "success": "接続テストが成功しました",
+      "invalidSelection": "モデルとチャネルを選択してください"
     }
   },
   "doc": {

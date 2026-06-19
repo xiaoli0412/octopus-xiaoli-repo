@@ -13,32 +13,58 @@ const (
 )
 
 type UpstreamSite struct {
-	ID                  int       `json:"id" gorm:"primaryKey"`
-	Name                string    `json:"name" gorm:"not null;index"`
-	ProviderType        string    `json:"provider_type" gorm:"index"`
-	BaseURL             string    `json:"base_url"`
-	APIBaseURL          string    `json:"api_base_url"`
-	AuthMode            string    `json:"auth_mode"`
-	Enabled             bool      `json:"enabled" gorm:"default:true"`
-	AutoRefresh         bool      `json:"auto_refresh" gorm:"default:false"`
-	RefreshIntervalSecs int       `json:"refresh_interval_secs" gorm:"default:43200"`
-	SyncToChannel       bool      `json:"sync_to_channel" gorm:"default:false"`
-	LinkedChannelID     int       `json:"linked_channel_id" gorm:"index"`
-	LastRefreshAt       time.Time `json:"last_refresh_at,omitempty"`
-	LastRefreshStatus   string    `json:"last_refresh_status,omitempty"`
-	LastRefreshMessage  string    `json:"last_refresh_message,omitempty" gorm:"type:text"`
-	ModelCount          int       `json:"model_count"`
-	KeyCount            int       `json:"key_count"`
-	GroupCount          int       `json:"group_count"`
-	PriceCount          int       `json:"price_count"`
-	SubscriptionCount   int       `json:"subscription_count"`
-	BalanceAvailable    bool      `json:"balance_available"`
-	BalanceUsed         float64   `json:"balance_used"`
-	BalanceRemain       float64   `json:"balance_remain"`
-	BalanceUnlimited    bool      `json:"balance_unlimited"`
-	SourceLabel         string    `json:"source_label,omitempty"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
+	ID                    int       `json:"id" gorm:"primaryKey"`
+	Name                  string    `json:"name" gorm:"not null;index"`
+	ProviderType          string    `json:"provider_type" gorm:"index"`
+	BaseURL               string    `json:"base_url"`
+	APIBaseURL            string    `json:"api_base_url"`
+	AuthMode              string    `json:"auth_mode"`
+	Enabled               bool      `json:"enabled" gorm:"default:true"`
+	AutoRefresh           bool      `json:"auto_refresh" gorm:"default:false"`
+	RefreshIntervalSecs   int       `json:"refresh_interval_secs" gorm:"default:43200"`
+	AutoCheckin           bool      `json:"auto_checkin" gorm:"default:false"`
+	CheckinIntervalSecs   int       `json:"checkin_interval_secs" gorm:"default:86400"`
+	LastCheckinAt         time.Time `json:"last_checkin_at,omitempty"`
+	CheckinLog            string    `json:"checkin_log,omitempty" gorm:"type:text"`
+	SyncToChannel         bool      `json:"sync_to_channel" gorm:"default:false"`
+	LinkedChannelID       int       `json:"linked_channel_id" gorm:"index"`
+	LastRefreshAt         time.Time `json:"last_refresh_at,omitempty"`
+	LastRefreshStatus     string    `json:"last_refresh_status,omitempty"`
+	LastRefreshMessage    string    `json:"last_refresh_message,omitempty" gorm:"type:text"`
+	ModelCount            int       `json:"model_count"`
+	KeyCount              int       `json:"key_count"`
+	GroupCount            int       `json:"group_count"`
+	PriceCount            int       `json:"price_count"`
+	SubscriptionCount     int       `json:"subscription_count"`
+	BalanceAvailable      bool      `json:"balance_available"`
+	BalanceUsed           float64   `json:"balance_used"`
+	BalanceRemain         float64   `json:"balance_remain"`
+	BalanceUnlimited      bool      `json:"balance_unlimited"`
+	BalanceAlertThreshold float64   `json:"balance_alert_threshold" gorm:"default:0"`
+	LastBalanceCheckAt    time.Time `json:"last_balance_check_at,omitempty"`
+	LastBalanceValue      float64   `json:"last_balance_value"`
+	AutoCreateKey         bool      `json:"auto_create_key" gorm:"default:false"`
+	KeyQuotaLimit         float64   `json:"key_quota_limit" gorm:"default:0"`
+	KeyExpireDays         int       `json:"key_expire_days" gorm:"default:0"`
+	AutoSyncGroup         bool      `json:"auto_sync_group" gorm:"default:false"`
+	AutoSyncPrice         bool      `json:"auto_sync_price" gorm:"default:false"`
+	SourceLabel           string    `json:"source_label,omitempty"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
+}
+
+type UpstreamCheckinLogEntry struct {
+	Success bool      `json:"success"`
+	Amount  float64   `json:"amount,omitempty"`
+	Message string    `json:"message,omitempty"`
+	At      time.Time `json:"at"`
+}
+
+type UpstreamCheckinResult struct {
+	Success bool      `json:"success"`
+	Amount  float64   `json:"amount,omitempty"`
+	Message string    `json:"message,omitempty"`
+	At      time.Time `json:"at"`
 }
 
 type UpstreamCredential struct {
@@ -116,30 +142,52 @@ type UpstreamModelPrice struct {
 }
 
 type UpstreamSiteCreateRequest struct {
-	Name                string `json:"name"`
-	ProviderType        string `json:"provider_type"`
-	BaseURL             string `json:"base_url"`
-	AuthMode            string `json:"auth_mode"`
-	Token               string `json:"token,omitempty"`
-	AccessKey           string `json:"access_key,omitempty"`
-	UserID              string `json:"user_id,omitempty"`
-	Username            string `json:"username,omitempty"`
-	Password            string `json:"password,omitempty"`
-	AutoRefresh         bool   `json:"auto_refresh"`
-	RefreshIntervalSecs int    `json:"refresh_interval_secs"`
-	SyncToChannel       bool   `json:"sync_to_channel"`
-	ChannelName         string `json:"channel_name,omitempty"`
-	TargetChannelID     int    `json:"target_channel_id,omitempty"`
+	Name                string  `json:"name"`
+	ProviderType        string  `json:"provider_type"`
+	BaseURL             string  `json:"base_url"`
+	AuthMode            string  `json:"auth_mode"`
+	Token               string  `json:"token,omitempty"`
+	AccessKey           string  `json:"access_key,omitempty"`
+	UserID              string  `json:"user_id,omitempty"`
+	Username            string  `json:"username,omitempty"`
+	Password            string  `json:"password,omitempty"`
+	AutoRefresh         bool    `json:"auto_refresh"`
+	RefreshIntervalSecs int     `json:"refresh_interval_secs"`
+	AutoCheckin         bool    `json:"auto_checkin"`
+	CheckinIntervalSecs int     `json:"checkin_interval_secs"`
+	SyncToChannel       bool    `json:"sync_to_channel"`
+	AutoSyncGroup       bool    `json:"auto_sync_group"`
+	AutoSyncPrice       bool    `json:"auto_sync_price"`
+	AutoCreateKey       bool    `json:"auto_create_key"`
+	KeyQuotaLimit       float64 `json:"key_quota_limit"`
+	KeyExpireDays       int     `json:"key_expire_days"`
+	ChannelName         string  `json:"channel_name,omitempty"`
+	TargetChannelID     int     `json:"target_channel_id,omitempty"`
 }
 
 type UpstreamSiteUpdateRequest struct {
-	ID                  int     `json:"id" binding:"required"`
-	Name                *string `json:"name,omitempty"`
-	Enabled             *bool   `json:"enabled,omitempty"`
-	AutoRefresh         *bool   `json:"auto_refresh,omitempty"`
-	RefreshIntervalSecs *int    `json:"refresh_interval_secs,omitempty"`
-	SyncToChannel       *bool   `json:"sync_to_channel,omitempty"`
-	LinkedChannelID     *int    `json:"linked_channel_id,omitempty"`
+	ID                    int      `json:"id" binding:"required"`
+	Name                  *string  `json:"name,omitempty"`
+	Enabled               *bool    `json:"enabled,omitempty"`
+	AutoRefresh           *bool    `json:"auto_refresh,omitempty"`
+	RefreshIntervalSecs   *int     `json:"refresh_interval_secs,omitempty"`
+	AutoCheckin           *bool    `json:"auto_checkin,omitempty"`
+	CheckinIntervalSecs   *int     `json:"checkin_interval_secs,omitempty"`
+	SyncToChannel         *bool    `json:"sync_to_channel,omitempty"`
+	AutoSyncGroup         *bool    `json:"auto_sync_group,omitempty"`
+	AutoSyncPrice         *bool    `json:"auto_sync_price,omitempty"`
+	LinkedChannelID       *int     `json:"linked_channel_id,omitempty"`
+	BalanceAlertThreshold *float64 `json:"balance_alert_threshold,omitempty"`
+	AutoCreateKey         *bool    `json:"auto_create_key,omitempty"`
+	KeyQuotaLimit         *float64 `json:"key_quota_limit,omitempty"`
+	KeyExpireDays         *int     `json:"key_expire_days,omitempty"`
+}
+
+type UpstreamBalanceCheckResult struct {
+	Alert     bool    `json:"alert"`
+	Threshold float64 `json:"threshold"`
+	Remain    float64 `json:"remain"`
+	Message   string  `json:"message,omitempty"`
 }
 
 type UpstreamSiteDetail struct {
@@ -158,9 +206,68 @@ type UpstreamRefreshRequest struct {
 	Manual       bool `json:"manual"`
 }
 
+type UpstreamCreateKeyRequest struct {
+	SiteID    int      `json:"site_id" binding:"required"`
+	Name      string   `json:"name" binding:"required"`
+	Quota     float64  `json:"quota"`
+	ExpiresAt string   `json:"expires_at,omitempty"`
+	Models    []string `json:"models,omitempty"`
+	Groups    []string `json:"groups,omitempty"`
+}
+
+type UpstreamCreateKeyResult struct {
+	Name      string `json:"name"`
+	Key       string `json:"key"`
+	MaskedKey string `json:"masked_key"`
+}
+
 type UpstreamPriceSummary struct {
 	ModelName        string               `json:"model_name"`
 	OfficialPrice    OfficialLLMPrice     `json:"official_price"`
 	GatewayPrices    []UpstreamModelPrice `json:"gateway_prices"`
 	EffectiveGateway *UpstreamModelPrice  `json:"effective_gateway,omitempty"`
+}
+
+type UpstreamHealthStatus string
+
+const (
+	UpstreamHealthStatusHealthy   UpstreamHealthStatus = "healthy"
+	UpstreamHealthStatusDegraded  UpstreamHealthStatus = "degraded"
+	UpstreamHealthStatusUnhealthy UpstreamHealthStatus = "unhealthy"
+)
+
+type UpstreamHealthItem struct {
+	ID                int                  `json:"id"`
+	Name              string               `json:"name"`
+	Status            UpstreamHealthStatus `json:"status"`
+	Enabled           bool                 `json:"enabled"`
+	LastRefreshAt     time.Time            `json:"last_refresh_at,omitempty"`
+	LastRefreshStatus string               `json:"last_refresh_status,omitempty"`
+	ModelCount        int                  `json:"model_count"`
+	BalanceAvailable  bool                 `json:"balance_available"`
+	BalanceRemain     float64              `json:"balance_remain"`
+	BalanceUnlimited  bool                 `json:"balance_unlimited"`
+	BalanceAlert      bool                 `json:"balance_alert"`
+	ErrorRate         float64              `json:"error_rate"`
+	Suppressed        bool                 `json:"suppressed"`
+	Reasons           []string             `json:"reasons,omitempty"`
+}
+
+type UpstreamUsagePoint struct {
+	Date         string  `json:"date"`
+	Timestamp    int64   `json:"timestamp"`
+	RequestCount int64   `json:"request_count"`
+	InputTokens  int64   `json:"input_tokens"`
+	OutputTokens int64   `json:"output_tokens"`
+	TotalTokens  int64   `json:"total_tokens"`
+	Cost         float64 `json:"cost"`
+	SuccessCount int64   `json:"success_count"`
+	FailureCount int64   `json:"failure_count"`
+}
+
+type UpstreamUsageResponse struct {
+	SiteID     int                  `json:"site_id"`
+	Days       int                  `json:"days"`
+	Points     []UpstreamUsagePoint `json:"points"`
+	ChannelIDs []int                `json:"channel_ids,omitempty"`
 }

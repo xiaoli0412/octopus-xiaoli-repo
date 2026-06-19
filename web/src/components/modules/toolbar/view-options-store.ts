@@ -12,6 +12,7 @@ export type ChannelFilter = 'all' | 'enabled' | 'disabled';
 export type ChannelProviderFilter = 'all' | 'openai' | 'anthropic' | 'gemini' | 'volcengine' | 'github-copilot' | 'antigravity' | 'zen';
 export type GroupFilter = 'all' | 'with-members' | 'empty';
 export type ModelFilter = 'all' | 'priced' | 'free';
+export type ToolbarModelSortBy = 'name' | 'input' | 'output';
 
 interface ToolbarViewOptionsState {
     layouts: Partial<Record<ToolbarPage, ToolbarLayout>>;
@@ -24,6 +25,10 @@ interface ToolbarViewOptionsState {
     channelKeyKeyword: string;
     groupFilter: GroupFilter;
     modelFilter: ModelFilter;
+    modelSortBy: ToolbarModelSortBy;
+    modelMinPrice: string;
+    modelMaxPrice: string;
+    modelHasUpstreamPrice: boolean;
 
     getLayout: (item: ToolbarPage) => ToolbarLayout;
     setLayout: (item: ToolbarPage, value: ToolbarLayout) => void;
@@ -40,6 +45,10 @@ interface ToolbarViewOptionsState {
     clearChannelDetailFilters: () => void;
     setGroupFilter: (value: GroupFilter) => void;
     setModelFilter: (value: ModelFilter) => void;
+    setModelSortBy: (value: ToolbarModelSortBy) => void;
+    setModelMinPrice: (value: string) => void;
+    setModelMaxPrice: (value: string) => void;
+    setModelHasUpstreamPrice: (value: boolean) => void;
 }
 
 export const useToolbarViewOptionsStore = create<ToolbarViewOptionsState>()(
@@ -55,6 +64,10 @@ export const useToolbarViewOptionsStore = create<ToolbarViewOptionsState>()(
             channelKeyKeyword: '',
             groupFilter: 'all',
             modelFilter: 'all',
+            modelSortBy: 'name',
+            modelMinPrice: '',
+            modelMaxPrice: '',
+            modelHasUpstreamPrice: false,
 
             getLayout: (item) => get().layouts[item] || (item === 'model' ? 'list' : 'grid'),
             setLayout: (item, value) => {
@@ -79,6 +92,10 @@ export const useToolbarViewOptionsStore = create<ToolbarViewOptionsState>()(
             }),
             setGroupFilter: (value) => set({ groupFilter: value }),
             setModelFilter: (value) => set({ modelFilter: value }),
+            setModelSortBy: (value) => set({ modelSortBy: value }),
+            setModelMinPrice: (value) => set({ modelMinPrice: value }),
+            setModelMaxPrice: (value) => set({ modelMaxPrice: value }),
+            setModelHasUpstreamPrice: (value) => set({ modelHasUpstreamPrice: value }),
         }),
         {
             name: 'octopus-toolbar-view-options',

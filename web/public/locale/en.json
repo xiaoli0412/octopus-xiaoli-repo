@@ -632,6 +632,157 @@
       "learningSaveFailed": "Failed to save dynamic routing learning switch"
     }
   },
+  "aiAutomationV2": {
+    "hero": {
+      "title": "AI Automation Workbench",
+      "badge": "Single-chain"
+    },
+    "main": {
+      "goalTitle": "Task goal",
+      "goalDesc": "Enter a goal and create a task; AI will generate applicable configuration suggestions.",
+      "goalPlaceholder": "e.g. organize current groups and routing",
+      "scopeLabel": "Impact scope",
+      "riskLabel": "Risk note"
+    },
+    "actions": {
+      "create": "Create task",
+      "creating": "Creating",
+      "replan": "Replan",
+      "apply": "Apply",
+      "applying": "Applying",
+      "showDetails": "Show details",
+      "hideDetails": "Hide details",
+      "rollback": "Rollback"
+    },
+    "quickGoals": {
+      "global": "Global review",
+      "routing": "Organize routing",
+      "pricing": "Check pricing"
+    },
+    "summary": {
+      "currentGoal": "Current goal",
+      "goalEmpty": "Not set",
+      "activePlan": "Active plan",
+      "lastApply": "Last applied",
+      "notApplied": "Not applied"
+    },
+    "sidebar": {
+      "runtimePolicy": "Runtime policy",
+      "learningOn": "On",
+      "learningOff": "Off"
+    },
+    "runReport": {
+      "title": "Execution result",
+      "empty": "No execution result yet.",
+      "currentStatus": "Current status",
+      "sourceLabel": "Execution source",
+      "updatedAt": "Updated at",
+      "summaryLinesTitle": "Result summary",
+      "riskNotesTitle": "Risk notes",
+      "blockersTitle": "Apply blockers",
+      "mutationsTitle": "Planned changes",
+      "noMutations": "No planned changes."
+    },
+    "preview": {
+      "groups": "Groups",
+      "items": "Group items",
+      "overrides": "Route overrides",
+      "status": "Apply status",
+      "ready": "Ready",
+      "blocked": "Blocked"
+    },
+    "states": {
+      "idleSummary": "Waiting for a task",
+      "noRisk": "No explicit risk",
+      "noPreview": "No preview yet",
+      "noRollbackPoints": "No rollback points",
+      "noHistory": "No history"
+    },
+    "history": {
+      "learningTitle": "Dynamic routing learning",
+      "learningEnabled": "Learning switch",
+      "learningSamples": "Samples",
+      "learningTopTarget": "Top target",
+      "learningUpdated": "Latest sample",
+      "learningDesc": "Continuously learns the optimal routing target from real requests."
+    },
+    "workspace": {
+      "preview": "Preview",
+      "profiles": "Profiles",
+      "rollback": "Rollback",
+      "history": "History",
+      "expert": "Expert",
+      "detailsTitle": "Details"
+    },
+    "sessionDetail": {
+      "sessionInfo": "Session info",
+      "snapshotChecksum": "Snapshot checksum",
+      "presetReviewDepth": "Review depth",
+      "presetCleanup": "Cleanup stale",
+      "presetSyncBindings": "Sync bindings"
+    },
+    "profiles": {
+      "namePlaceholder": "Profile name",
+      "create": "Save profile",
+      "active": "Active",
+      "activate": "Activate",
+      "empty": "No profiles yet.",
+      "noSummary": "No summary"
+    },
+    "expert": {
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "settings": {
+      "open": "Settings",
+      "title": "Runtime settings",
+      "desc": "Configure the AI endpoint, model and runtime policy.",
+      "useLocalDefault": "Use local default endpoint",
+      "useLocalDefaultDesc": "Prefer the local Octopus OpenAI-compatible endpoint.",
+      "requestBaseUrl": "Base URL",
+      "requestBaseUrlDesc": "Custom AI endpoint base URL.",
+      "requestApiKey": "API key",
+      "requestApiKeyDesc": "Key used to call the AI endpoint.",
+      "requestModel": "Execution model",
+      "requestModelDesc": "Model used for automation tasks.",
+      "strategy": "Selection strategy",
+      "strategyOptions": {
+        "highest_success_rate": "Highest success rate",
+        "balanced_latency": "Balance latency and success",
+        "cost_first": "Cost first"
+      },
+      "dispatchMode": "Dispatch mode",
+      "dispatchOptions": {
+        "single_best": "Single best",
+        "bounded_parallel": "Bounded parallel",
+        "round_robin_review": "Round-robin review"
+      },
+      "maxParallelRuns": "Max parallel runs",
+      "doubleReview": "Double review",
+      "doubleReviewDesc": "Add an extra review before applying.",
+      "fallback": "Auto fallback",
+      "fallbackDesc": "Fall back to deterministic policy on anomalies.",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving",
+      "firstAvailableApiKeyHint": "first available",
+      "savedApiKey": "Saved",
+      "savedApiKeyHint": "from settings",
+      "noApiKey": "No available key"
+    },
+    "toast": {
+      "goalRequired": "Please enter a task goal.",
+      "createFailed": "Failed to create task",
+      "replanFailed": "Failed to replan",
+      "applyFailed": "Failed to apply",
+      "rollbackFailed": "Failed to rollback",
+      "profileNeedsSession": "Please select a session first.",
+      "profileNameRequired": "Please enter a profile name.",
+      "profileCreateFailed": "Failed to save profile",
+      "profileActivateFailed": "Failed to activate profile",
+      "runtimePolicySaveFailed": "Failed to save runtime settings"
+    }
+  },
   "channel": {
     "card": {
       "requestCount": "Requests",
@@ -1034,11 +1185,23 @@
       "density": "Density",
       "normal": "Comfort",
       "compact": "Compact",
-      "sort": "Sort",
+      "sort": "Direction",
+      "sortBy": {
+        "label": "Sort by",
+        "name": "Name",
+        "input": "Input price",
+        "output": "Output price"
+      },
       "grid": "Grid",
       "list": "List",
       "asc": "Asc",
       "desc": "Desc",
+      "priceRange": {
+        "title": "Price range",
+        "min": "Min",
+        "max": "Max"
+      },
+      "hasUpstreamPrice": "With gateway price",
       "filter": {
         "title": "Filter",
         "channel": {
@@ -1969,13 +2132,21 @@
       "updated": "Model price updated",
       "updateFailed": "Update failed",
       "deleted": "Model deleted",
-      "deleteFailed": "Delete failed"
+      "deleteFailed": "Delete failed",
+      "disabled": "Model temporarily disabled",
+      "disableFailed": "Disable failed",
+      "enabled": "Model re-enabled",
+      "enableFailed": "Enable failed"
     },
     "card": {
       "inputCache": "Input/Cache",
       "outputCache": "Output/Cache",
+      "official": "Official",
+      "gateway": "Gateway",
       "edit": "Edit",
-      "delete": "Delete"
+      "delete": "Delete",
+      "disable": "Disable",
+      "enable": "Enable"
     },
     "overlay": {
       "cancel": "Cancel",
@@ -1986,6 +2157,26 @@
       "cacheRead": "Cache Read",
       "cacheWrite": "Cache Write",
       "save": "Save"
+    },
+    "test": {
+      "title": "Test Connectivity",
+      "description": "Select a model and channel to verify connectivity with a minimal request",
+      "modelLabel": "Model",
+      "modelPlaceholder": "Select a model to test",
+      "channelLabel": "Channel",
+      "channelPlaceholder": "Select a channel",
+      "run": "Run Test",
+      "status": "Status",
+      "passed": "Passed",
+      "failed": "Failed",
+      "latency": "Latency",
+      "priceMatch": "Price Match",
+      "matched": "Matched",
+      "unmatched": "Unmatched",
+      "error": "Error",
+      "response": "Response",
+      "success": "Connectivity test passed",
+      "invalidSelection": "Please select a model and channel"
     }
   },
   "doc": {

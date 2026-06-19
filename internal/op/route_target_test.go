@@ -7,7 +7,7 @@ import (
 )
 
 func TestResolveRouteTargetPolicyPrecedence(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{Name: "route-target-policy-channel", Enabled: true, Model: "gpt-4o"}
 	if err := ChannelCreate(channel, ctx); err != nil {
@@ -90,7 +90,7 @@ func TestResolveRouteTargetPolicyPrecedence(t *testing.T) {
 }
 
 func TestRouteTargetOverrideDeleteByModels(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{Name: "route-target-delete-channel", Enabled: true, Model: "gpt-4o,claude-3-5-sonnet"}
 	if err := ChannelCreate(channel, ctx); err != nil {
@@ -125,7 +125,7 @@ func TestRouteTargetOverrideDeleteByModels(t *testing.T) {
 }
 
 func TestRouteTargetOverrideUpsertRejectsChannelKeyFromAnotherChannel(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channelA := createConfiguredTestChannel(t, ctx, "route-target-ownership-a", "gpt-4o", "")
 	channelB := createConfiguredTestChannel(t, ctx, "route-target-ownership-b", "gpt-4o", "")
@@ -150,7 +150,7 @@ func TestRouteTargetOverrideUpsertRejectsChannelKeyFromAnotherChannel(t *testing
 }
 
 func TestRouteTargetOverrideUpsertRejectsModelOutsideKeyScope(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{Name: "route-target-model-scope", Enabled: true, Model: "gpt-4o,claude-3-5-sonnet"}
 	if err := ChannelCreate(channel, ctx); err != nil {

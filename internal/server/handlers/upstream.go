@@ -19,8 +19,20 @@ func init() {
 				Handle(listUpstreamSites),
 		).
 		AddRoute(
+			router.NewRoute("/health", http.MethodGet).
+				Handle(getUpstreamSiteHealth),
+		).
+		AddRoute(
 			router.NewRoute("/detail/:id", http.MethodGet).
 				Handle(getUpstreamSiteDetail),
+		).
+		AddRoute(
+			router.NewRoute("/usage/:id", http.MethodGet).
+				Handle(getUpstreamSiteUsage),
+		).
+		AddRoute(
+			router.NewRoute("/restore-priority/:id", http.MethodPost).
+				Handle(restoreUpstreamSitePriority),
 		).
 		AddRoute(
 			router.NewRoute("/delete/:id", http.MethodDelete).
@@ -47,8 +59,16 @@ func init() {
 				Handle(refreshUpstreamSite),
 		).
 		AddRoute(
+			router.NewRoute("/checkin", http.MethodPost).
+				Handle(checkinUpstreamSite),
+		).
+		AddRoute(
 			router.NewRoute("/apply", http.MethodPost).
 				Handle(applyUpstreamSite),
+		).
+		AddRoute(
+			router.NewRoute("/create-key", http.MethodPost).
+				Handle(createUpstreamKey),
 		)
 }
 
@@ -142,6 +162,22 @@ func refreshUpstreamSite(c *gin.Context) {
 	resp.Success(c, detail)
 }
 
+func checkinUpstreamSite(c *gin.Context) {
+	var request struct {
+		ID int `json:"id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
+		return
+	}
+	result, err := op.UpstreamSiteCheckin(c.Request.Context(), request.ID)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	resp.Success(c, result)
+}
+
 func applyUpstreamSite(c *gin.Context) {
 	var request struct {
 		ID              int `json:"id" binding:"required"`
@@ -160,6 +196,47 @@ func applyUpstreamSite(c *gin.Context) {
 	resp.Success(c, result)
 }
 
+func getUpstreamSiteHealth(c *gin.Context) {
+	items, err := op.UpstreamSiteHealthList(c.Request.Context())
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, "failed to list upstream health")
+		return
+	}
+	resp.Success(c, items)
+}
+
+func getUpstreamSiteUsage(c *gin.Context) {
+	id, ok := parsePositivePathIDValue(c, "id")
+	if !ok {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidParam)
+		return
+	}
+	days, _, err := parseOptionalBoundedIntQuery(c, "days", 7, 1, 90)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	usage, err := op.UpstreamSiteUsage(c.Request.Context(), id, days)
+	if err != nil {
+		resp.Error(c, http.StatusNotFound, err.Error())
+		return
+	}
+	resp.Success(c, usage)
+}
+
+func restoreUpstreamSitePriority(c *gin.Context) {
+	id, ok := parsePositivePathIDValue(c, "id")
+	if !ok {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidParam)
+		return
+	}
+	if err := op.UpstreamSiteRestorePriority(c.Request.Context(), id); err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	resp.Success(c, nil)
+}
+
 func deleteUpstreamSite(c *gin.Context) {
 	id, ok := parsePositivePathIDValue(c, "id")
 	if !ok {
@@ -171,4 +248,18 @@ func deleteUpstreamSite(c *gin.Context) {
 		return
 	}
 	resp.Success(c, nil)
+}
+
+func createUpstreamKey(c *gin.Context) {
+	var request model.UpstreamCreateKeyRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.ErrInvalidJSON)
+		return
+	}
+	result, err := op.CreateUpstreamKey(c.Request.Context(), request)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	resp.Success(c, result)
 }

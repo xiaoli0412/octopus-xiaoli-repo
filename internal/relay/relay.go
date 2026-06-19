@@ -41,6 +41,12 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 	requestModel := internalRequest.Model
 	apiKeyID := c.GetInt("api_key_id")
 
+	// 已禁用的模型不再参与路由
+	if disabled, _ := op.IsModelDisabled(c.Request.Context(), requestModel); disabled {
+		resp.Error(c, http.StatusNotFound, "model disabled")
+		return
+	}
+
 	// 获取通道分组
 	group, err := op.GroupGetMap(requestModel, c.Request.Context())
 	if err != nil {

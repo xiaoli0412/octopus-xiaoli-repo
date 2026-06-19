@@ -143,19 +143,8 @@ func inferNewAPIRequestCapabilities(models []string) []string {
 
 func fetchNewAPITokenUsage(ctx context.Context, httpClient *http.Client, siteBase, token string) (model.NewAPITokenUsage, []string) {
 	for _, path := range []string{"/api/usage/token", "/api/usage/token/", "/api/token/self"} {
-		request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(siteBase, "/")+path, nil)
-		if err != nil {
-			continue
-		}
-		request.Header.Set("Authorization", "Bearer "+token)
-		request.Header.Set("Accept", "application/json")
-		response, err := httpClient.Do(request)
-		if err != nil {
-			continue
-		}
-		payload, readErr := io.ReadAll(io.LimitReader(response.Body, maxNewAPIInspectResponseBytes+1))
-		_ = response.Body.Close()
-		if readErr != nil || response.StatusCode < 200 || response.StatusCode >= 300 || int64(len(payload)) > maxNewAPIInspectResponseBytes {
+		payload, ok := fetchJSONWithBearerUserCached(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token, "")
+		if !ok {
 			continue
 		}
 		usage, ok := parseNewAPITokenUsage(payload)

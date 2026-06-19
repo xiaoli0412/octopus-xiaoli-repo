@@ -121,6 +121,11 @@ type UpstreamApplyRequest struct {
 	AppendKeys      *bool                  `json:"append_keys,omitempty"`
 	OverwriteModels *bool                  `json:"overwrite_models,omitempty"`
 	EnableChannel   *bool                  `json:"enable_channel,omitempty"`
+	AutoCreateKey   bool                   `json:"auto_create_key,omitempty"`
+	KeyQuotaLimit   float64                `json:"key_quota_limit,omitempty"`
+	KeyExpireDays   int                    `json:"key_expire_days,omitempty"`
+	AutoSyncGroup   bool                   `json:"auto_sync_group,omitempty"`
+	AutoSyncPrice   bool                   `json:"auto_sync_price,omitempty"`
 }
 
 type UpstreamAppliedChannel struct {

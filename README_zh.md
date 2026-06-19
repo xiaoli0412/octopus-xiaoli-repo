@@ -26,6 +26,7 @@
 
 ### ✨ 额外功能（相对上游项目）
 
+- 🔗 **上游深链接 V2** - 深度对接 New API / sub2API / OpenAI Compatible 上游：自动发现模型、Key、分组、订阅与余额；支持上游 Key 创建、自动签到、余额预警、模型连通性测试，并一键同步到本地渠道/分组/价格
 - 🤖 **GitHub Copilot OAuth** - 一键 GitHub Copilot OAuth Device Flow 登录，无需手动管理 token
 - 🌌 **Antigravity（Google Gemini Code Assist）** - OAuth Web Flow 集成，自动获取项目 ID 并封装 Gemini 请求
 - 🧪 **模型测试 UI** - 保存渠道前可先测试模型连通性；支持批量测试，429 视为通过
@@ -65,7 +66,7 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 如果所在网络对 GHCR 有限制，也可以显式指定一个可达的私有镜像或镜像代理：
 
 ```bash
-OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.19.11 bash install-octopus.sh
+OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.20.0 bash install-octopus.sh
 ```
 
 如果 GHCR 不通，且服务器侧源码 Docker 构建仍然失败，也可以直接提供一个已知可用的 Linux 二进制，再让安装脚本继续构建本地 Docker 镜像：
@@ -77,7 +78,7 @@ OCTOPUS_BINARY_PATH=/root/octopus-linux-amd64 bash install-octopus.sh
 只有在确认当前服务器可以拉取 GHCR 包时，才建议直接使用 `docker run`：
 
 ```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.19.11
+docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.20.0
 ```
 
 如果你仍然希望手动安装，也可以继续使用仓库内 compose：

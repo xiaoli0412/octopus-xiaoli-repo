@@ -73,6 +73,9 @@ func GroupList(ctx context.Context) ([]model.Group, error) {
 func GroupListModel(ctx context.Context) ([]string, error) {
 	models := []string{}
 	for _, group := range groupCache.Values() {
+		if disabled, _ := IsModelDisabled(ctx, group.Name); disabled {
+			continue
+		}
 		models = append(models, group.Name)
 	}
 	return models, nil

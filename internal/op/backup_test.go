@@ -21,7 +21,7 @@ import (
 )
 
 func TestDBExportAllIncludesSecretsByDefault(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	exportedUser := createTestUser(t, ctx, "backup-admin", "backup-secret")
 
 	proxyURL := "https://octopus:secret@example.com:8443"
@@ -91,7 +91,7 @@ func TestDBExportAllIncludesSecretsByDefault(t *testing.T) {
 }
 
 func TestDBExportAllRedactsUserPasswordsWhenSecretsExcluded(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	exportedUser := createTestUser(t, ctx, "backup-admin", "backup-secret")
 
 	proxyURL := "https://octopus:secret@example.com:8443"
@@ -161,7 +161,7 @@ func TestDBExportAllRedactsUserPasswordsWhenSecretsExcluded(t *testing.T) {
 }
 
 func TestDBExportAllExcludesInternalAuthTokenSecret(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	setTestSetting(t, ctx, model.SettingKeyAuthTokenSecret, "internal-signing-secret")
 
 	dump, err := DBExportAll(ctx, false, false, true)
@@ -176,7 +176,7 @@ func TestDBExportAllExcludesInternalAuthTokenSecret(t *testing.T) {
 }
 
 func TestDBExportAllIncludesAIAutomationStateAndRedactsSecretsWhenRequested(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	profile, err := AIProfileCreate(model.AIProfile{
 		Domain:      model.AIProfileDomainGrouping,
@@ -252,7 +252,7 @@ func TestDBExportAllIncludesAIAutomationStateAndRedactsSecretsWhenRequested(t *t
 }
 
 func TestDBExportAllIncludesGovernanceState(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	now := time.Now().UTC().Truncate(time.Second)
 	session := model.GovernanceSession{
@@ -330,7 +330,7 @@ func TestDBExportAllIncludesGovernanceState(t *testing.T) {
 }
 
 func TestChannelUpdateRemovesStaleGroupItemsWhenModelsShrink(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := createConfiguredTestChannel(t, ctx, "channel-model-shrink", "gpt-4o,o1-mini", "custom-a")
 
@@ -384,7 +384,7 @@ func TestChannelUpdateRemovesStaleGroupItemsWhenModelsShrink(t *testing.T) {
 }
 
 func TestLLMDeleteRemovesReferencedGroupItems(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := createConfiguredTestChannel(t, ctx, "channel-llm-delete", "gpt-4o,o1-mini", "")
 	group := &model.Group{Name: "group-llm-delete", Mode: model.GroupModeRoundRobin}
@@ -425,7 +425,7 @@ func TestLLMDeleteRemovesReferencedGroupItems(t *testing.T) {
 }
 
 func TestLLMBatchDeleteRemovesReferencedGroupItems(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := createConfiguredTestChannel(t, ctx, "channel-llm-batch-delete", "gpt-4o,o1-mini,claude-3-5-sonnet", "")
 	group := &model.Group{Name: "group-llm-batch-delete", Mode: model.GroupModeRoundRobin}
@@ -456,7 +456,7 @@ func TestLLMBatchDeleteRemovesReferencedGroupItems(t *testing.T) {
 }
 
 func TestDBImportIncrementalDryRunReportsRedactedCredentials(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	dump := &model.DBDump{
 		Version: dbDumpVersion,
@@ -527,7 +527,7 @@ func TestDBImportIncrementalDryRunReportsRedactedCredentials(t *testing.T) {
 }
 
 func TestDBImportIncrementalSkipsEmptyCredentialsOnApply(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	dump := &model.DBDump{
 		Version: dbDumpVersion,
@@ -588,7 +588,7 @@ func TestDBImportIncrementalSkipsEmptyCredentialsOnApply(t *testing.T) {
 }
 
 func TestDBImportIncrementalRejectsInvalidSettingValue(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	dump := &model.DBDump{
 		Version: dbDumpVersion,
@@ -606,7 +606,7 @@ func TestDBImportIncrementalRejectsInvalidSettingValue(t *testing.T) {
 }
 
 func TestDBImportIncrementalRejectsUnknownSettingKey(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	dump := &model.DBDump{
 		Version: dbDumpVersion,
@@ -624,7 +624,7 @@ func TestDBImportIncrementalRejectsUnknownSettingKey(t *testing.T) {
 }
 
 func TestDBImportIncrementalRejectsChannelProxyWithCredentials(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	proxyURL := "https://user:pass@example.com:8443"
 
 	_, err := DBImportIncremental(ctx, &model.DBDump{
@@ -646,7 +646,7 @@ func TestDBImportIncrementalRejectsChannelProxyWithCredentials(t *testing.T) {
 }
 
 func TestDBImportIncrementalDryRunReportsRedactedCredentialRouteContexts(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	dump := &model.DBDump{
 		Version: dbDumpVersion,
@@ -700,7 +700,7 @@ func TestDBImportIncrementalDryRunReportsRedactedCredentialRouteContexts(t *test
 }
 
 func TestDBImportIncrementalDryRunBuildsStructuredCompatibility(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	currentChannel := model.Channel{
 		Name:     "preview-channel",
@@ -826,7 +826,7 @@ func TestDBImportIncrementalDryRunBuildsStructuredCompatibility(t *testing.T) {
 }
 
 func TestDBImportIncrementalDryRunRoutePreviewDiffDetectsResolvedKeyChanges(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.LLMInfo{Name: "gpt-5.4-pro", CanonicalName: "gpt-5.4-pro"}).Error; err != nil {
 		t.Fatalf("create current llm info error = %v", err)
@@ -949,7 +949,7 @@ func TestDBImportIncrementalDryRunRoutePreviewDiffDetectsResolvedKeyChanges(t *t
 }
 
 func TestDBImportIncrementalDryRunBuildsModelPolicyDiffs(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.LLMInfo{
 		Name:                  "gpt-5.4-pro",
@@ -1013,7 +1013,7 @@ func TestDBImportIncrementalDryRunBuildsModelPolicyDiffs(t *testing.T) {
 }
 
 func TestDBImportIncrementalSkipModePreservesExistingRows(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	existingChannel := model.Channel{Name: "shared-channel", Enabled: true, Model: "existing-model"}
 	if err := db.GetDB().WithContext(ctx).Create(&existingChannel).Error; err != nil {
@@ -1098,7 +1098,7 @@ func TestDBImportIncrementalSkipModePreservesExistingRows(t *testing.T) {
 }
 
 func TestDBImportIncrementalMergeModeUpdatesExistingRouteItems(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := model.Channel{Name: "merge-channel", Enabled: true, Model: "gpt-4o"}
 	if err := db.GetDB().WithContext(ctx).Create(&channel).Error; err != nil {
@@ -1152,7 +1152,7 @@ func TestDBImportIncrementalMergeModeUpdatesExistingRouteItems(t *testing.T) {
 }
 
 func TestDBImportIncrementalReplaceModeRebuildsChannelKeysAndGroupItems(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := model.Channel{Name: "replace-channel", Enabled: true, Model: "gpt-4o,o1-mini"}
 	if err := db.GetDB().WithContext(ctx).Create(&channel).Error; err != nil {
@@ -1229,7 +1229,7 @@ func TestDBImportIncrementalReplaceModeRebuildsChannelKeysAndGroupItems(t *testi
 }
 
 func TestDBImportIncrementalReplaceModePrunesChannelsAndGroupsMissingFromSnapshot(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	keepChannel := model.Channel{Name: "keep-channel", Enabled: true, Model: "gpt-4o"}
 	if err := db.GetDB().WithContext(ctx).Create(&keepChannel).Error; err != nil {
@@ -1327,7 +1327,7 @@ func TestDBImportIncrementalReplaceModePrunesChannelsAndGroupsMissingFromSnapsho
 }
 
 func TestDBImportIncrementalReplaceModePrunesSettingsMissingFromSnapshot(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	setTestSetting(t, ctx, model.SettingKeyAPIBaseURL, "https://existing.example.com")
 	setTestSetting(t, ctx, model.SettingKeyProxyURL, "http://stale-proxy")
@@ -1370,7 +1370,7 @@ func TestDBImportIncrementalReplaceModePrunesSettingsMissingFromSnapshot(t *test
 }
 
 func TestDBImportIncrementalReplaceModePrunesLLMInfosMissingFromSnapshot(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.LLMInfo{Name: "existing-model", CanonicalName: "existing-model", BillingMode: model.BillingModePerToken}).Error; err != nil {
 		t.Fatalf("create existing llm info error = %v", err)
@@ -1413,7 +1413,7 @@ func TestDBImportIncrementalReplaceModePrunesLLMInfosMissingFromSnapshot(t *test
 }
 
 func TestDBImportIncrementalMergeModeReusesExistingChannelKeyIDAndRemapsStatsAndLogs(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	existingChannel := model.Channel{Name: "identity-channel", Enabled: true, Model: "gpt-4o"}
 	if err := db.GetDB().WithContext(ctx).Create(&existingChannel).Error; err != nil {
@@ -1569,7 +1569,7 @@ func TestDBImportIncrementalMergeModeReusesExistingChannelKeyIDAndRemapsStatsAnd
 }
 
 func TestDBImportIncrementalMergeModeReusesExistingAPIKeyIDAndRemapsStats(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	existingAPIKey := model.APIKey{
 		Name:            "local-client",
@@ -1661,7 +1661,7 @@ func TestDBImportIncrementalMergeModeReusesExistingAPIKeyIDAndRemapsStats(t *tes
 }
 
 func TestDBImportIncrementalDryRunReplacePreviewShowsPrunedObjects(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.Channel{Name: "keep-channel", Enabled: true, Model: "gpt-4o"}).Error; err != nil {
 		t.Fatalf("create keep channel error = %v", err)
@@ -1741,7 +1741,7 @@ func TestDBImportIncrementalDryRunReplacePreviewShowsPrunedObjects(t *testing.T)
 }
 
 func TestDBImportIncrementalDryRunReplacePreviewHonorsSelectiveScopes(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.Channel{Name: "stale-channel", Enabled: true, Model: "gpt-4o"}).Error; err != nil {
 		t.Fatalf("create stale channel error = %v", err)
@@ -1787,7 +1787,7 @@ func TestDBImportIncrementalDryRunReplacePreviewHonorsSelectiveScopes(t *testing
 }
 
 func TestDBImportIncrementalDryRunReplacePreviewShowsAPIKeyPruneWhenSecretsComeFromChannelConfig(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.APIKey{Name: "keep-client", APIKey: "sk-keep-client", Enabled: true}).Error; err != nil {
 		t.Fatalf("create keep api key error = %v", err)
@@ -1817,7 +1817,7 @@ func TestDBImportIncrementalDryRunReplacePreviewShowsAPIKeyPruneWhenSecretsComeF
 }
 
 func TestDBPreviewRollbackImportSnapshotRejectsEmptyImportScopes(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	snapshotName := createImportSnapshotForRollbackScopeTest(t, ctx)
 
 	preview, err := DBPreviewRollbackImportSnapshot(ctx, snapshotName, &model.DBImportScopes{})
@@ -1830,7 +1830,7 @@ func TestDBPreviewRollbackImportSnapshotRejectsEmptyImportScopes(t *testing.T) {
 }
 
 func TestDBRollbackImportSnapshotRejectsEmptyImportScopes(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	snapshotName := createImportSnapshotForRollbackScopeTest(t, ctx)
 
 	result, err := DBRollbackImportSnapshot(ctx, snapshotName, &model.DBImportScopes{})
@@ -1863,7 +1863,7 @@ func createImportSnapshotForRollbackScopeTest(t *testing.T, ctx context.Context)
 }
 
 func TestDBImportIncrementalMapModeAppliesModelMappingsToRoutePreviewAndImport(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.LLMInfo{Name: "gpt-4o", CanonicalName: "gpt-4o"}).Error; err != nil {
 		t.Fatalf("create llm info error = %v", err)
@@ -2015,7 +2015,7 @@ func TestDBImportIncrementalMapModeAppliesModelMappingsToRoutePreviewAndImport(t
 }
 
 func TestDBImportIncrementalWithOptionsRejectsBlankModelMappings(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	dump := &model.DBDump{
 		Version: dbDumpVersion,
 		Manifest: model.DBDumpManifest{
@@ -2045,7 +2045,7 @@ func TestDBImportIncrementalWithOptionsRejectsBlankModelMappings(t *testing.T) {
 }
 
 func TestDBImportIncrementalMapModeReportsUnusedAndMissingMappingTargets(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.LLMInfo{Name: "gpt-4o", CanonicalName: "gpt-4o"}).Error; err != nil {
 		t.Fatalf("create llm info error = %v", err)
@@ -2127,7 +2127,7 @@ func TestDBImportIncrementalMapModeReportsUnusedAndMissingMappingTargets(t *test
 }
 
 func TestDBImportIncrementalDryRunReportsInvalidRouteTargetForUndeclaredModel(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.LLMInfo{Name: "gpt-4o", CanonicalName: "gpt-4o"}).Error; err != nil {
 		t.Fatalf("create llm info error = %v", err)
@@ -2174,7 +2174,7 @@ func TestDBImportIncrementalDryRunReportsInvalidRouteTargetForUndeclaredModel(t 
 }
 
 func TestDBImportIncrementalDryRunReportsInvalidRouteTargetForMissingKey(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.LLMInfo{Name: "gpt-4o", CanonicalName: "gpt-4o"}).Error; err != nil {
 		t.Fatalf("create llm info error = %v", err)
@@ -2212,7 +2212,7 @@ func TestDBImportIncrementalDryRunReportsInvalidRouteTargetForMissingKey(t *test
 }
 
 func TestDBImportIncrementalDryRunReportsSkippedRouteTargetPreviewInSkipMode(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	existingChannel := model.Channel{Name: "skip-preview-channel", Enabled: true, Model: "gpt-4o"}
 	if err := db.GetDB().WithContext(ctx).Create(&existingChannel).Error; err != nil {
@@ -2267,7 +2267,7 @@ func TestDBImportIncrementalDryRunReportsSkippedRouteTargetPreviewInSkipMode(t *
 }
 
 func TestDBImportIncrementalApplySavesPreImportSnapshot(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	existingChannel := model.Channel{Name: "rollback-source-channel", Enabled: true, Model: "gpt-4o"}
 	if err := db.GetDB().WithContext(ctx).Create(&existingChannel).Error; err != nil {
@@ -2336,7 +2336,7 @@ func TestDBImportIncrementalApplySavesPreImportSnapshot(t *testing.T) {
 }
 
 func TestDBRollbackLatestImportSnapshotRestoresPreviousState(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := UserChangePassword("admin", "before-secret"); err != nil {
 		t.Fatalf("UserChangePassword(before import) error = %v", err)
 	}
@@ -2467,7 +2467,7 @@ func TestDBRollbackLatestImportSnapshotRestoresPreviousState(t *testing.T) {
 }
 
 func TestDBRollbackLatestImportSnapshotRestoresGovernanceState(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	now := time.Now().UTC().Truncate(time.Second)
 
 	originalSession := model.GovernanceSession{
@@ -2621,7 +2621,7 @@ func TestDBRollbackLatestImportSnapshotRestoresGovernanceState(t *testing.T) {
 }
 
 func TestLoadLatestImportSnapshotRejectsMetadataPathOutsideSnapshotDir(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	existingChannel := model.Channel{Name: "metadata-path-check-channel", Enabled: true, Model: "gpt-4o"}
 	if err := db.GetDB().WithContext(ctx).Create(&existingChannel).Error; err != nil {
@@ -2666,7 +2666,7 @@ func TestLoadLatestImportSnapshotRejectsMetadataPathOutsideSnapshotDir(t *testin
 }
 
 func TestDBPreviewRollbackImportSnapshotRowsSummaryIncludesUsersAndMigrationRecords(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	createTestUser(t, ctx, "preview-rollback-admin", "preview-secret")
 	if err := db.GetDB().WithContext(ctx).Create(&migrate.MigrationRecord{Version: 77, Status: migrate.MigrationRecordStatusSuccess}).Error; err != nil {
 		t.Fatalf("create migration record error = %v", err)
@@ -2720,7 +2720,7 @@ func dumpMigrationRecordVersionsContain(rows []model.DBDumpMigrationRecord, vers
 }
 
 func TestDBImportIncrementalSelectiveImportScopesOnlyApplyChosenDomains(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	existingChannel := model.Channel{Name: "existing-channel", Enabled: true, Model: "existing-model"}
 	if err := db.GetDB().WithContext(ctx).Create(&existingChannel).Error; err != nil {
@@ -2888,7 +2888,7 @@ func TestDBImportIncrementalSelectiveImportScopesOnlyApplyChosenDomains(t *testi
 }
 
 func TestDBImportIncrementalSelectiveReplaceDoesNotTouchMigrationRecords(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&migrate.MigrationRecord{Version: 101, Status: migrate.MigrationRecordStatusSuccess}).Error; err != nil {
 		t.Fatalf("create existing migration record error = %v", err)
@@ -2934,7 +2934,7 @@ func TestDBImportIncrementalSelectiveReplaceDoesNotTouchMigrationRecords(t *test
 }
 
 func TestDBImportIncrementalSelectiveSettingsReplaceOnlyTouchesSettingsScope(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	existingChannel := model.Channel{Name: "existing-channel", Enabled: true, Model: "existing-model"}
 	if err := db.GetDB().WithContext(ctx).Create(&existingChannel).Error; err != nil {
@@ -2995,7 +2995,7 @@ func TestDBImportIncrementalSelectiveSettingsReplaceOnlyTouchesSettingsScope(t *
 }
 
 func TestDBImportIncrementalSelectiveModelsReplaceOnlyTouchesModelScope(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	existingChannel := model.Channel{Name: "existing-channel", Enabled: true, Model: "existing-model"}
 	if err := db.GetDB().WithContext(ctx).Create(&existingChannel).Error; err != nil {
@@ -3056,7 +3056,7 @@ func TestDBImportIncrementalSelectiveModelsReplaceOnlyTouchesModelScope(t *testi
 }
 
 func TestDBImportIncrementalReplaceModePrunesAPIKeysWhenSnapshotContainsSecrets(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.APIKey{Name: "keep-client", APIKey: "sk-keep-client", Enabled: true, SupportedModels: "gpt-4o"}).Error; err != nil {
 		t.Fatalf("create keep api key error = %v", err)
@@ -3099,7 +3099,7 @@ func TestDBImportIncrementalReplaceModePrunesAPIKeysWhenSnapshotContainsSecrets(
 }
 
 func TestDBImportIncrementalReplaceModeDoesNotPruneAPIKeysForRedactedSnapshot(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.APIKey{Name: "existing-client", APIKey: "sk-existing-client", Enabled: true}).Error; err != nil {
 		t.Fatalf("create existing api key error = %v", err)
@@ -3136,7 +3136,7 @@ func TestDBImportIncrementalReplaceModeDoesNotPruneAPIKeysForRedactedSnapshot(t 
 }
 
 func TestDBImportIncrementalSelectiveAPIKeysReplaceOnlyTouchesAPIKeyScope(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	existingChannel := model.Channel{Name: "existing-channel", Enabled: true, Model: "existing-model"}
 	if err := db.GetDB().WithContext(ctx).Create(&existingChannel).Error; err != nil {
@@ -3194,7 +3194,7 @@ func TestDBImportIncrementalSelectiveAPIKeysReplaceOnlyTouchesAPIKeyScope(t *tes
 }
 
 func TestDBListImportSnapshotsReturnsLatestFirstAndMarksLatest(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.Channel{Name: "snapshot-source-a", Enabled: true, Model: "gpt-4o"}).Error; err != nil {
 		t.Fatalf("create source channel a error = %v", err)
@@ -3242,7 +3242,7 @@ func TestDBListImportSnapshotsReturnsLatestFirstAndMarksLatest(t *testing.T) {
 }
 
 func TestDBRollbackImportSnapshotRestoresSpecifiedHistoricalSnapshot(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.Channel{Name: "history-before-a", Enabled: true, Model: "gpt-4o"}).Error; err != nil {
 		t.Fatalf("create history-before-a error = %v", err)
@@ -3307,7 +3307,7 @@ func TestDBRollbackImportSnapshotRestoresSpecifiedHistoricalSnapshot(t *testing.
 }
 
 func TestDBRollbackImportSnapshotCanRestoreOnlySelectedScopes(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := model.Channel{Name: "rollback-scope-channel", Enabled: true, Model: "gpt-4o"}
 	if err := db.GetDB().WithContext(ctx).Create(&channel).Error; err != nil {
@@ -3367,7 +3367,7 @@ func TestDBRollbackImportSnapshotCanRestoreOnlySelectedScopes(t *testing.T) {
 }
 
 func TestDBRollbackImportSnapshotFullRestoreReplacesAIAutomationState(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.AIPromptTemplate{Name: "before-template", Source: model.AIPromptTemplateSourceCustom, TaskType: model.AIAutomationTaskTypeGroupSuggestion, Domain: model.AIProfileDomainGrouping, Prompt: "before", Enabled: true}).Error; err != nil {
 		t.Fatalf("create before prompt template error = %v", err)
@@ -3489,7 +3489,7 @@ func TestDBRollbackImportSnapshotFullRestoreReplacesAIAutomationState(t *testing
 }
 
 func TestDBRollbackImportSnapshotExplicitFullScopesRestoresUsersMigrationRecordsAndAIAutomationState(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	beforeUser := model.User{Username: "before-admin", Password: "before-hash"}
 	if err := db.GetDB().WithContext(ctx).Create(&beforeUser).Error; err != nil {
@@ -3602,7 +3602,7 @@ func TestDBRollbackImportSnapshotExplicitFullScopesRestoresUsersMigrationRecords
 }
 
 func TestDBRollbackLatestImportSnapshotKeepsExistingStateWhenRestoreFails(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.Channel{Name: "before-failed-rollback-channel", Enabled: true, Model: "gpt-4o"}).Error; err != nil {
 		t.Fatalf("create before channel error = %v", err)
@@ -3679,7 +3679,7 @@ func TestDBRollbackLatestImportSnapshotKeepsExistingStateWhenRestoreFails(t *tes
 }
 
 func TestDBPreviewRollbackImportSnapshotExplicitFullScopesMatchesFullRestoreWarnings(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	beforeUser := model.User{Username: "preview-before-admin", Password: "before-hash"}
 	if err := db.GetDB().WithContext(ctx).Create(&beforeUser).Error; err != nil {
@@ -3763,7 +3763,7 @@ func TestDBPreviewRollbackImportSnapshotExplicitFullScopesMatchesFullRestoreWarn
 }
 
 func TestDBRollbackImportSnapshotRejectsPathTraversal(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	_, err := DBRollbackImportSnapshot(ctx, "..\\outside.json", nil)
 	if err == nil {
@@ -3775,7 +3775,7 @@ func TestDBRollbackImportSnapshotRejectsPathTraversal(t *testing.T) {
 }
 
 func TestDBRollbackImportSnapshotRejectsSymlinkOutsideSnapshotDir(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	snapshotDir, err := importSnapshotDir()
 	if err != nil {
@@ -3813,7 +3813,7 @@ func TestDBRollbackImportSnapshotRejectsSymlinkOutsideSnapshotDir(t *testing.T) 
 }
 
 func TestDBPreviewRollbackImportSnapshotBuildsCompatibilityAndRowsSummary(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	currentChannel := model.Channel{
 		Name:     "preview-rollback-channel",
@@ -3933,7 +3933,7 @@ func TestDBPreviewRollbackImportSnapshotBuildsCompatibilityAndRowsSummary(t *tes
 }
 
 func TestDBImportIncrementalSkipsGroupItemsForUndeclaredChannelModels(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	dump := &model.DBDump{
 		Version: dbDumpVersion,
@@ -3994,7 +3994,7 @@ func TestDBImportIncrementalSkipsGroupItemsForUndeclaredChannelModels(t *testing
 }
 
 func TestDBImportIncrementalApplyReportsPostImportValidation(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	dump := &model.DBDump{
 		Version: dbDumpVersion,
@@ -4090,7 +4090,7 @@ func TestDBImportIncrementalApplyReportsPostImportValidation(t *testing.T) {
 }
 
 func TestDBImportIncrementalApplyReportsRouteWarningsForMixedExistingRoutes(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	legacyChannel := model.Channel{Name: "legacy-extra-channel", Enabled: true, Model: "gpt-4o"}
 	if err := db.GetDB().WithContext(ctx).Create(&legacyChannel).Error; err != nil {
@@ -4168,7 +4168,7 @@ func TestDBImportIncrementalApplyReportsRouteWarningsForMixedExistingRoutes(t *t
 }
 
 func TestDBImportIncrementalApplyReportsPriceRuleAndAliasValidation(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.LLMInfo{
 		Name:                  "gpt-5.4-pro",
@@ -4269,7 +4269,7 @@ func TestDBImportIncrementalApplyReportsPriceRuleAndAliasValidation(t *testing.T
 }
 
 func TestDBImportIncrementalApplyCleansHistoricalStaleGroupItems(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{
 		Name:     "historical-channel",
@@ -4361,7 +4361,7 @@ func TestDBImportIncrementalApplyCleansHistoricalStaleGroupItems(t *testing.T) {
 }
 
 func TestCheckChannelModelHealthTreats200And429AsReachable(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	modelName := "gpt-4o"
 
 	statusCode := http.StatusOK
@@ -4417,7 +4417,7 @@ func TestCheckChannelModelHealthTreats200And429AsReachable(t *testing.T) {
 }
 
 func TestCheckChannelModelHealthSkipsDisabledAndNoKey(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	modelName := "gpt-4o"
 	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -4469,7 +4469,7 @@ func TestCheckChannelModelHealthSkipsDisabledAndNoKey(t *testing.T) {
 }
 
 func TestCheckChannelModelHealthAppliesCustomHeader(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	modelName := "gpt-4o"
 	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodHead {
@@ -4520,7 +4520,7 @@ func TestCheckChannelModelHealthAppliesCustomHeader(t *testing.T) {
 }
 
 func TestDBImportIncrementalApplyAddsPostImportHealthCheck(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	modelName := "gpt-4o"
 
 	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -4582,7 +4582,7 @@ func TestDBImportIncrementalApplyAddsPostImportHealthCheck(t *testing.T) {
 }
 
 func TestDBImportIncrementalApplyHealthCheckTargetsOnlyImportedRoutes(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	modelName := "gpt-4o"
 
 	historicalServer := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -4686,7 +4686,7 @@ func TestDBImportIncrementalApplyHealthCheckTargetsOnlyImportedRoutes(t *testing
 }
 
 func TestRunImportHealthChecksHonorsConcurrencyLimit(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	modelName := "gpt-4o"
 
 	var inFlight int64
@@ -4763,7 +4763,7 @@ func TestRunImportHealthChecksHonorsConcurrencyLimit(t *testing.T) {
 }
 
 func TestDBImportIncrementalDryRunRoutePreviewDiffDetectsRouteTargetOverridePolicyChanges(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.LLMInfo{
 		Name:                  "gpt-4o",
@@ -4909,7 +4909,7 @@ func TestDBImportIncrementalDryRunRoutePreviewDiffDetectsRouteTargetOverridePoli
 }
 
 func TestDBImportIncrementalLegacyDumpPreservesRicherExistingFields(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := model.Channel{
 		Name:              "legacy-channel",

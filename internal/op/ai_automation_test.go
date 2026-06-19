@@ -22,7 +22,7 @@ func boolPtr(v bool) *bool {
 }
 
 func TestAIAutomationConfigGetUsesActiveProfileEffectiveConfig(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -77,7 +77,7 @@ func TestAIAutomationConfigGetUsesActiveProfileEffectiveConfig(t *testing.T) {
 }
 
 func TestAIAutomationConfigGetRedactsSecretsForResponseWhileRawConfigKeepsThem(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -125,7 +125,7 @@ func TestAIAutomationConfigGetRedactsSecretsForResponseWhileRawConfigKeepsThem(t
 }
 
 func TestAIAutomationConfigGetFallsBackToManualWhenActiveProfileInvalid(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -178,7 +178,7 @@ func TestAIAutomationConfigGetFallsBackToManualWhenActiveProfileInvalid(t *testi
 }
 
 func TestAIAutomationConfigGetFallsBackToManualWhenProfileContentInvalid(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -221,7 +221,7 @@ func TestAIAutomationConfigGetFallsBackToManualWhenProfileContentInvalid(t *test
 }
 
 func TestAIProfileCreatePersistsTypedPayloadAndDetail(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	content := `{"summary":"grouping typed summary","domain_payload":{"summary":"grouping typed summary","grouping_suggestions":[{"group_name":"free","item_count":2}],"candidate_channel_model_mappings":[{"channel_name":"alpha","models":["gpt-free"]}],"conflicts":[{"type":"empty_group"}],"typed_config":{"base_url":"https://typed.example/v1","channel_type":"openai","model":"typed-model","use_local_default":false}},"findings":[{"title":"coverage"}],"recommendations":["review groups"],"risks":["manual review"],"config":{"base_url":"https://typed.example/v1","channel_type":"openai","model":"typed-model","use_local_default":false},"groups":[{"name":"free"}]}`
 	profile, err := AIProfileCreate(model.AIProfile{Domain: model.AIProfileDomainGrouping, Name: "typed grouping", Status: model.AIProfileStatusReady, Confidence: 0.8}, content, ctx)
 	if err != nil {
@@ -254,7 +254,7 @@ func TestAIProfileCreatePersistsTypedPayloadAndDetail(t *testing.T) {
 }
 
 func TestAITaskListFiltersAndPaginates(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	older := time.Now().Add(-time.Hour)
 	tasks := []model.AITask{
 		{Type: model.AIAutomationTaskTypeNaturalLanguage, InputText: "first task", Status: model.AITaskStatusSucceeded, ResultSummary: "alpha", CreatedAt: older},
@@ -277,7 +277,7 @@ func TestAITaskListFiltersAndPaginates(t *testing.T) {
 }
 
 func TestAITaskRetryCreatesNewPendingTaskFromSnapshot(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := SettingSetString(model.SettingKeyAIAutomationEnabled, "true"); err != nil {
 		t.Fatalf("SettingSetString(enabled) error = %v", err)
 	}
@@ -323,7 +323,7 @@ func TestAITaskRetryCreatesNewPendingTaskFromSnapshot(t *testing.T) {
 }
 
 func TestAITaskGetRedactsConfigSnapshotSecrets(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	useLocalDefault := false
 	snapshotRaw, err := json.Marshal(model.AIAutomationTaskConfig{
 		BaseURL:         "https://redact.example/v1",
@@ -359,7 +359,7 @@ func TestAITaskGetRedactsConfigSnapshotSecrets(t *testing.T) {
 }
 
 func TestAITaskListRedactsConfigSnapshotSecrets(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	useLocalDefault := false
 	snapshotRaw, err := json.Marshal(model.AIAutomationTaskConfig{
 		BaseURL:         "https://list-redact.example/v1",
@@ -391,7 +391,7 @@ func TestAITaskListRedactsConfigSnapshotSecrets(t *testing.T) {
 }
 
 func TestAITaskArtifactsReturnsParsedPayloads(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	useLocalDefault := false
 	snapshotRaw, err := json.Marshal(model.AIAutomationTaskConfig{BaseURL: "https://artifact.example/v1", ChannelType: "anthropic", Model: "artifact-model", UseLocalDefault: &useLocalDefault})
 	if err != nil {
@@ -425,7 +425,7 @@ func TestAITaskArtifactsReturnsParsedPayloads(t *testing.T) {
 }
 
 func TestAITaskArtifactsRedactsConfigSnapshotSecrets(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	useLocalDefault := false
 	snapshotRaw, err := json.Marshal(model.AIAutomationTaskConfig{
 		BaseURL:         "https://artifact-redact.example/v1",
@@ -454,7 +454,7 @@ func TestAITaskArtifactsRedactsConfigSnapshotSecrets(t *testing.T) {
 }
 
 func TestRedactAIProfileForResponseRedactsVersionAndDomainPayloadSecrets(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	content := `{"summary":"grouping typed summary","domain_payload":{"summary":"grouping typed summary","typed_config":{"base_url":"https://typed.example/v1","api_key":"profile-secret-key","channel_type":"openai","model":"typed-model","use_local_default":false},"config":{"api_key":"profile-secret-key"},"findings":[],"recommendations":[],"risks":[]},"config":{"base_url":"https://typed.example/v1","api_key":"profile-secret-key","channel_type":"openai","model":"typed-model","use_local_default":false}}`
 	profile, err := AIProfileCreate(model.AIProfile{Domain: model.AIProfileDomainGrouping, Name: "typed grouping redacted", Status: model.AIProfileStatusReady, Confidence: 0.8}, content, ctx)
 	if err != nil {
@@ -488,7 +488,7 @@ func TestRedactAIProfileForResponseRedactsVersionAndDomainPayloadSecrets(t *test
 }
 
 func TestAITaskListRejectsOversizedPageSize(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if _, err := AITaskList(model.AITaskListRequest{Page: 1, PageSize: 101}, ctx); err == nil {
 		t.Fatal("AITaskList() expected invalid page_size error")
@@ -498,7 +498,7 @@ func TestAITaskListRejectsOversizedPageSize(t *testing.T) {
 }
 
 func TestAITaskListRejectsOversizedOffset(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if _, err := AITaskList(model.AITaskListRequest{Page: 1001, PageSize: 10}, ctx); err == nil {
 		t.Fatal("AITaskList() expected invalid page error")
@@ -508,7 +508,7 @@ func TestAITaskListRejectsOversizedOffset(t *testing.T) {
 }
 
 func TestAIAutomationFetchModelsPrefersRemoteFreeCandidate(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -563,7 +563,7 @@ func TestAIAutomationFetchModelsPrefersRemoteFreeCandidate(t *testing.T) {
 }
 
 func TestAIAutomationFetchModelsRejectsWhenDisabled(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -575,7 +575,7 @@ func TestAIAutomationFetchModelsRejectsWhenDisabled(t *testing.T) {
 }
 
 func TestAIAutomationFetchModelsReturnsRemoteErrorInsteadOfSilentLocalFallback(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -608,7 +608,7 @@ func TestAIAutomationFetchModelsReturnsRemoteErrorInsteadOfSilentLocalFallback(t
 }
 
 func TestAIAutomationFetchModelsFallsBackToLocalOnlyWhenRemoteNotRequested(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -678,7 +678,7 @@ func (r *oversizedReader) Read(p []byte) (int, error) {
 }
 
 func TestAITaskCreateExecutesAndSavesProfile(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -774,7 +774,7 @@ func TestAITaskCreateExecutesAndSavesProfile(t *testing.T) {
 }
 
 func TestAITaskCreateConfigSnapshotOverridesRuntimeOnly(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -886,7 +886,7 @@ func TestAITaskCreateConfigSnapshotOverridesRuntimeOnly(t *testing.T) {
 }
 
 func TestAITaskCreateToolKeysLimitContextAndSkipProfileWrite(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -993,7 +993,7 @@ func TestAITaskCreateToolKeysLimitContextAndSkipProfileWrite(t *testing.T) {
 }
 
 func TestAITaskCreateRejectsWhenDisabled(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -1005,7 +1005,7 @@ func TestAITaskCreateRejectsWhenDisabled(t *testing.T) {
 }
 
 func TestAIProfileActivateDoesNotOverwriteManualConfig(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -1070,7 +1070,7 @@ func TestAIProfileActivateDoesNotOverwriteManualConfig(t *testing.T) {
 }
 
 func TestAIProfileActivateResetsPreviousActiveProfile(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -1125,7 +1125,7 @@ func TestAIProfileActivateResetsPreviousActiveProfile(t *testing.T) {
 }
 
 func TestDynamicRouteLearningRecordHonorsEnabledSwitch(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -1169,7 +1169,7 @@ func TestDynamicRouteLearningRecordHonorsEnabledSwitch(t *testing.T) {
 }
 
 func TestAIAutomationConfigUpdateRejectsInvalidFieldWithoutPartialPersist(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -1212,7 +1212,7 @@ func TestAIAutomationConfigUpdateRejectsInvalidFieldWithoutPartialPersist(t *tes
 }
 
 func TestAIAutomationConfigUpdateRejectsExplicitPrivateBaseURLWithoutPartialPersist(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -1255,7 +1255,7 @@ func TestAIAutomationConfigUpdateRejectsExplicitPrivateBaseURLWithoutPartialPers
 }
 
 func TestAITaskCreateExecutesProtectedActionsWhenAuthorized(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -1381,7 +1381,7 @@ func TestAITaskCreateExecutesProtectedActionsWhenAuthorized(t *testing.T) {
 }
 
 func TestAIAutomationFetchModelsRejectsExplicitPrivateBaseURL(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -1403,7 +1403,7 @@ func TestAIAutomationFetchModelsRejectsExplicitPrivateBaseURL(t *testing.T) {
 }
 
 func TestAIAutomationFetchModelsRejectsBaseURLWithQueryOrFragment(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -1425,7 +1425,7 @@ func TestAIAutomationFetchModelsRejectsBaseURLWithQueryOrFragment(t *testing.T) 
 }
 
 func TestAIAutomationConfigGetFallsBackWhenActiveProfileUsesForbiddenBaseURL(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -1456,7 +1456,7 @@ func TestAIAutomationConfigGetFallsBackWhenActiveProfileUsesForbiddenBaseURL(t *
 }
 
 func TestAITaskCancelStopsInFlightExecution(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -1563,7 +1563,7 @@ func TestAITaskCancelStopsInFlightExecution(t *testing.T) {
 }
 
 func TestCancelAllAITasksCancelsRunningContext(t *testing.T) {
-	setupOpTestDB(t)
+	SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -1591,7 +1591,7 @@ func TestCancelAllAITasksCancelsRunningContext(t *testing.T) {
 }
 
 func TestCancelAllAITasksWaitsForStartGroupEntriesWithoutRegisteredCancel(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	task := model.AITask{Type: model.AIAutomationTaskTypeNaturalLanguage, InputText: "pending cleanup", Status: model.AITaskStatusPending}
 	if err := db.GetDB().WithContext(ctx).Create(&task).Error; err != nil {
@@ -1632,7 +1632,7 @@ func TestCancelAllAITasksWaitsForStartGroupEntriesWithoutRegisteredCancel(t *tes
 }
 
 func TestCancelAllAITasksReturnsErrorWhenTaskDoesNotStop(t *testing.T) {
-	setupOpTestDB(t)
+	SetupOpTestDB(t)
 	if err := InitCache(); err != nil {
 		t.Fatalf("InitCache() error = %v", err)
 	}
@@ -1670,7 +1670,7 @@ func TestCancelAllAITasksReturnsErrorWhenTaskDoesNotStop(t *testing.T) {
 }
 
 func TestInitCacheRecoversInterruptedAITasks(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	useLocalDefault := false
 	snapshot := model.AIAutomationTaskConfig{BaseURL: "http://127.0.0.1:1/v1", ChannelType: "openai", Model: "resume-model", UseLocalDefault: &useLocalDefault}

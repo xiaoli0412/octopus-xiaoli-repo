@@ -3,6 +3,7 @@ package op
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db"
@@ -52,10 +53,12 @@ func LLMUpdate(model model.LLMInfo, ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, ok := llmModelCache.Get(model.Name)
+	existing, ok := llmModelCache.Get(model.Name)
 	if !ok {
 		return fmt.Errorf("model not found")
 	}
+	// 禁用状态由专用接口管理，编辑价格时保持原状态不变
+	model.Disabled = existing.Disabled
 	if err := db.GetDB().WithContext(ctx).Save(model).Error; err != nil {
 		return err
 	}
@@ -194,6 +197,51 @@ func LLMGetByCanonical(canonicalName string) (model.LLMInfo, error) {
 		}
 	}
 	return model.LLMInfo{}, fmt.Errorf("model not found")
+}
+
+func setModelDisabled(ctx context.Context, modelName string, disabled bool) error {
+	modelName = strings.ToLower(strings.TrimSpace(modelName))
+	info, ok := llmModelCache.Get(modelName)
+	if !ok {
+		return fmt.Errorf("model not found")
+	}
+	if err := db.GetDB().WithContext(ctx).Model(&model.LLMInfo{}).Where("name = ?", info.Name).Update("disabled", disabled).Error; err != nil {
+		return err
+	}
+	info.Disabled = disabled
+	llmModelCache.Set(info.Name, info)
+	return nil
+}
+
+func DisableModel(ctx context.Context, modelName string) error {
+	return setModelDisabled(ctx, modelName, true)
+}
+
+func EnableModel(ctx context.Context, modelName string) error {
+	return setModelDisabled(ctx, modelName, false)
+}
+
+func IsModelDisabled(ctx context.Context, modelName string) (bool, error) {
+	modelName = strings.ToLower(strings.TrimSpace(modelName))
+	if modelName == "" {
+		return false, nil
+	}
+	info, ok := llmModelCache.Get(modelName)
+	if !ok {
+		return false, nil
+	}
+	return info.Disabled, nil
+}
+
+func ListDisabledModels(ctx context.Context) ([]string, error) {
+	models := make([]string, 0)
+	for _, info := range llmModelCache.Values() {
+		if info.Disabled {
+			models = append(models, info.Name)
+		}
+	}
+	sort.Strings(models)
+	return models, nil
 }
 
 func llmRefreshCache(ctx context.Context) error {

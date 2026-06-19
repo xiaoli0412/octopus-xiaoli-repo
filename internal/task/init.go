@@ -19,6 +19,7 @@ const (
 	TaskDynamicRoutingSummaryScan = "dynamic_routing_summary_scan"
 	TaskOpsCleanup                = "ops_cleanup"
 	TaskUpstreamRefresh           = "upstream_refresh"
+	TaskUpstreamCheckin           = "upstream_checkin"
 )
 
 func Init() {
@@ -55,6 +56,7 @@ func initTasks(getInt func(model.SettingKey) (int, error)) {
 		}
 	})
 	Register(TaskUpstreamRefresh, 1*time.Hour, false, UpstreamRefreshTask)
+	Register(TaskUpstreamCheckin, 1*time.Hour, false, UpstreamCheckinTask)
 
 	// 注册LLM同步任务
 	if syncLLMIntervalHours, err := getInt(model.SettingKeySyncLLMInterval); err != nil {

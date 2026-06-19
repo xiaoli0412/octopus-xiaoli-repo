@@ -29,12 +29,14 @@ import {
 } from 'recharts';
 
 import { type OpsEntitySummary, type OpsRecentDetail, type OpsScope, type OpsSeriesPoint, useOpsEntityList, useOpsEntitySeries, useOpsOverview, useOpsRecentDetails } from '@/api/endpoints/ops';
+import { useUpstreamSiteList, type UpstreamSite } from '@/api/endpoints/upstream';
 import { AnimatedNumber } from '@/components/common/AnimatedNumber';
 import { PageWrapper } from '@/components/common/PageWrapper';
 import { Tabs, TabsContent, TabsContents, TabsList, TabsTrigger } from '@/components/animate-ui/components/animate/tabs';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { cn } from '@/lib/utils';
 import { formatCount } from '@/lib/utils';
+import { UpstreamHealthPanel } from './upstream-health';
 
 type PrimaryTab = 'overview' | 'model' | 'channel' | 'key' | 'cache' | 'ip';
 type ChartType = 'line' | 'bar' | 'scatter';
@@ -208,6 +210,23 @@ function SummaryCard({ title, value, hint, icon: Icon }: { title: string; value:
             <div className="mt-1 text-base font-semibold text-foreground">{value}</div>
             <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{hint}</div>
         </div>
+    );
+}
+
+function upstreamBalanceLabel(site: UpstreamSite) {
+    if (!site.balance_available) return '无余额数据';
+    if (site.balance_unlimited) return '不限额';
+    const used = formatCount(site.balance_used ?? 0).formatted;
+    const remain = formatCount(site.balance_remain ?? 0).formatted;
+    return `${used.value}${used.unit} / ${remain.value}${remain.unit}`;
+}
+
+function isUpstreamBalanceAlert(site: UpstreamSite) {
+    return (
+        site.balance_available &&
+        !site.balance_unlimited &&
+        (site.balance_alert_threshold ?? 0) > 0 &&
+        (site.balance_remain ?? Number.POSITIVE_INFINITY) <= (site.balance_alert_threshold ?? 0)
     );
 }
 
@@ -592,6 +611,7 @@ function ScopeWorkspace({
 
 export function Ops() {
     const { data: overview } = useOpsOverview();
+    const { data: upstreamSites = [] } = useUpstreamSiteList();
     const [tab, setTab] = useState<PrimaryTab>('overview');
     const [keyScope, setKeyScope] = useState<OpsScope>('channel_key');
     const [cacheScope, setCacheScope] = useState<OpsScope>('model');
@@ -695,6 +715,41 @@ export function Ops() {
                                     })}
                                 </div>
                             </div>
+                            <div className="octo-section">
+                                <div className="octo-toolbar">
+                                    <div className="text-base font-semibold text-card-foreground">上游余额</div>
+                                    <div className="text-xs text-muted-foreground">余额低于预警阈值的站点会高亮显示</div>
+                                </div>
+                                <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                                    {upstreamSites.length === 0 ? (
+                                        <div className="octo-stat-card text-xs text-muted-foreground">暂无上游站点</div>
+                                    ) : (
+                                        upstreamSites.map((site) => (
+                                            <div
+                                                key={site.id}
+                                                className={cn(
+                                                    'octo-stat-card',
+                                                    isUpstreamBalanceAlert(site) && 'border-destructive/25 bg-destructive/5',
+                                                )}
+                                            >
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="truncate text-sm font-semibold text-card-foreground">{site.name}</div>
+                                                    {isUpstreamBalanceAlert(site) ? (
+                                                        <span className="shrink-0 rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] text-destructive">预警</span>
+                                                    ) : (
+                                                        <span className="shrink-0 rounded-full border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground">正常</span>
+                                                    )}
+                                                </div>
+                                                <div className="mt-2 truncate text-sm text-card-foreground">{upstreamBalanceLabel(site)}</div>
+                                                <div className="mt-1 text-xs text-muted-foreground">
+                                                    阈值 {(site.balance_alert_threshold ?? 0) > 0 ? `≤ ${shortNumber(site.balance_alert_threshold ?? 0)}` : '未设置'}
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                            <UpstreamHealthPanel />
                         </section>
                     </TabsContent>
 

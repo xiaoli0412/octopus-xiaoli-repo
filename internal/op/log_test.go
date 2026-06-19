@@ -122,7 +122,7 @@ func TestRelayLogStreamTokenCreateCapsDistinctEntries(t *testing.T) {
 }
 
 func TestRelayLogAddNotifiesSubscribers(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	ch := RelayLogSubscribe()
 	t.Cleanup(func() {
@@ -145,7 +145,7 @@ func TestRelayLogAddNotifiesSubscribers(t *testing.T) {
 }
 
 func TestRelayLogAddDoesNotBlockWhenSubscriberBufferIsFull(t *testing.T) {
-	setupOpTestDB(t)
+	SetupOpTestDB(t)
 
 	ch := RelayLogSubscribe()
 	t.Cleanup(func() {
@@ -172,7 +172,7 @@ func TestRelayLogAddDoesNotBlockWhenSubscriberBufferIsFull(t *testing.T) {
 }
 
 func TestRelayLogListDeduplicatesEntriesPresentInCacheAndDB(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	entries := []model.RelayLog{
 		{ID: 101, Time: 1700000001, RequestModelName: "dup-newest"},

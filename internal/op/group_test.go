@@ -8,7 +8,7 @@ import (
 )
 
 func TestGroupItemBatchAddDeduplicatesAndAppendsPriority(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	existingChannel := createConfiguredTestChannel(t, ctx, "group-batch-existing-channel", "existing", "")
 	gptChannel := createConfiguredTestChannel(t, ctx, "group-batch-gpt-channel", "gpt-4o", "")
 	claudeChannel := createConfiguredTestChannel(t, ctx, "group-batch-claude-channel", "claude-3-5-sonnet", "")
@@ -64,7 +64,7 @@ func TestGroupItemBatchAddDeduplicatesAndAppendsPriority(t *testing.T) {
 }
 
 func TestGroupUpdateRefreshesNameMapAndItems(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	firstChannel := createConfiguredTestChannel(t, ctx, "group-update-first-channel", "gpt-4o", "")
 	secondChannel := createConfiguredTestChannel(t, ctx, "group-update-second-channel", "claude-3-5-sonnet", "")
 	thirdChannel := createConfiguredTestChannel(t, ctx, "group-update-third-channel", "gemini-2.5-pro", "")
@@ -176,7 +176,7 @@ func TestGroupUpdateRefreshesNameMapAndItems(t *testing.T) {
 }
 
 func TestGroupCreateValidatesRuntimeConfig(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	invalid := &model.Group{
 		Name:            "group-invalid-runtime",
@@ -204,7 +204,7 @@ func TestGroupCreateValidatesRuntimeConfig(t *testing.T) {
 }
 
 func TestGroupCreatePersistsInitialItems(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	channel := createConfiguredTestChannel(t, ctx, "group-create-items-channel", "gpt-4o", "")
 
 	group := &model.Group{
@@ -251,7 +251,7 @@ func TestGroupCreatePersistsInitialItems(t *testing.T) {
 }
 
 func TestGroupCreateRejectsInvalidInitialItems(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	group := &model.Group{
 		Name: "group-create-invalid-items",
@@ -277,7 +277,7 @@ func TestGroupCreateRejectsInvalidInitialItems(t *testing.T) {
 }
 
 func TestGroupCreateNormalizesInitialItemModelNames(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	channel := createConfiguredTestChannel(t, ctx, "group-create-normalize-items-channel", "gpt-4o", "")
 
 	group := &model.Group{
@@ -345,7 +345,7 @@ func TestGroupCreateNormalizesInitialItemModelNames(t *testing.T) {
 }
 
 func TestGroupItemUpdateNormalizesAndValidatesModelName(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	channel := createConfiguredTestChannel(t, ctx, "group-item-update-normalize-channel", "gpt-4o", "")
 	group := &model.Group{Name: "group-item-update-normalize", Mode: model.GroupModeRoundRobin}
 	if err := GroupCreate(group, ctx); err != nil {
@@ -390,7 +390,7 @@ func TestGroupItemUpdateNormalizesAndValidatesModelName(t *testing.T) {
 }
 
 func TestGroupUpdateValidatesRuntimeConfig(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	group := &model.Group{Name: "group-update-validate-runtime", Mode: model.GroupModeFailover}
 	if err := GroupCreate(group, ctx); err != nil {
@@ -419,7 +419,7 @@ func TestGroupUpdateValidatesRuntimeConfig(t *testing.T) {
 }
 
 func TestGroupRefreshCacheRemovesDeletedGroupFromCache(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	group := &model.Group{Name: "group-refresh-delete", Mode: model.GroupModeFailover}
 	if err := GroupCreate(group, ctx); err != nil {

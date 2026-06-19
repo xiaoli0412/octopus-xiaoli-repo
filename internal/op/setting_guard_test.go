@@ -9,7 +9,7 @@ import (
 )
 
 func TestSettingSetStringRejectsInvalidValueBeforePersisting(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	var before model.Setting
 	if err := db.GetDB().WithContext(ctx).First(&before, "key = ?", model.SettingKeyDynamicRoutingMode).Error; err != nil {
@@ -31,7 +31,7 @@ func TestSettingSetStringRejectsInvalidValueBeforePersisting(t *testing.T) {
 }
 
 func TestSettingSetIntRejectsNegativeValueBeforePersisting(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	var before model.Setting
 	if err := db.GetDB().WithContext(ctx).First(&before, "key = ?", model.SettingKeyStatsSaveInterval).Error; err != nil {
@@ -53,7 +53,7 @@ func TestSettingSetIntRejectsNegativeValueBeforePersisting(t *testing.T) {
 }
 
 func TestSettingSetIntCanRepairCorruptedCachedValue(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	settingCache.Set(model.SettingKeyStatsSaveInterval, "broken")
 	if err := SettingSetInt(model.SettingKeyStatsSaveInterval, 15); err != nil {
 		t.Fatalf("SettingSetInt() error = %v, want nil", err)

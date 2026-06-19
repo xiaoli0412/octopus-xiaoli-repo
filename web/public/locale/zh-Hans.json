@@ -632,6 +632,157 @@
       "learningSaveFailed": "动态路由学习开关保存失败"
     }
   },
+  "aiAutomationV2": {
+    "hero": {
+      "title": "AI 自动化工作台",
+      "badge": "单链执行"
+    },
+    "main": {
+      "goalTitle": "任务目标",
+      "goalDesc": "输入目标后创建任务，AI 会生成可应用的配置建议。",
+      "goalPlaceholder": "例如：整理当前分组与路由",
+      "scopeLabel": "影响范围",
+      "riskLabel": "风险提示"
+    },
+    "actions": {
+      "create": "创建任务",
+      "creating": "创建中",
+      "replan": "重新规划",
+      "apply": "应用",
+      "applying": "应用中",
+      "showDetails": "展开详情",
+      "hideDetails": "收起详情",
+      "rollback": "回滚"
+    },
+    "quickGoals": {
+      "global": "全局整理",
+      "routing": "整理路由",
+      "pricing": "检查价格"
+    },
+    "summary": {
+      "currentGoal": "当前目标",
+      "goalEmpty": "未填写",
+      "activePlan": "当前方案",
+      "lastApply": "最近应用",
+      "notApplied": "未应用"
+    },
+    "sidebar": {
+      "runtimePolicy": "运行时策略",
+      "learningOn": "开启",
+      "learningOff": "关闭"
+    },
+    "runReport": {
+      "title": "执行结果",
+      "empty": "暂无执行结果。",
+      "currentStatus": "当前状态",
+      "sourceLabel": "执行来源",
+      "updatedAt": "更新时间",
+      "summaryLinesTitle": "结果摘要",
+      "riskNotesTitle": "风险提示",
+      "blockersTitle": "应用阻塞",
+      "mutationsTitle": "拟议变更",
+      "noMutations": "没有拟议变更。"
+    },
+    "preview": {
+      "groups": "分组",
+      "items": "分组项",
+      "overrides": "路由覆盖",
+      "status": "应用状态",
+      "ready": "可应用",
+      "blocked": "被阻塞"
+    },
+    "states": {
+      "idleSummary": "等待创建任务",
+      "noRisk": "无显式风险",
+      "noPreview": "暂无预览",
+      "noRollbackPoints": "无回滚点",
+      "noHistory": "无历史记录"
+    },
+    "history": {
+      "learningTitle": "动态路由学习",
+      "learningEnabled": "学习开关",
+      "learningSamples": "样本数",
+      "learningTopTarget": "Top 目标",
+      "learningUpdated": "最近样本",
+      "learningDesc": "基于实际请求持续学习最优路由目标。"
+    },
+    "workspace": {
+      "preview": "预览",
+      "profiles": "方案",
+      "rollback": "回滚",
+      "history": "历史",
+      "expert": "专家",
+      "detailsTitle": "详情"
+    },
+    "sessionDetail": {
+      "sessionInfo": "会话信息",
+      "snapshotChecksum": "快照校验",
+      "presetReviewDepth": "审阅深度",
+      "presetCleanup": "清理过期",
+      "presetSyncBindings": "同步绑定"
+    },
+    "profiles": {
+      "namePlaceholder": "方案名称",
+      "create": "保存方案",
+      "active": "已启用",
+      "activate": "启用",
+      "empty": "暂无方案。",
+      "noSummary": "无摘要"
+    },
+    "expert": {
+      "enabled": "已启用",
+      "disabled": "未启用"
+    },
+    "settings": {
+      "open": "设置",
+      "title": "运行时设置",
+      "desc": "配置 AI 执行端点、模型与运行时策略。",
+      "useLocalDefault": "使用本地默认端点",
+      "useLocalDefaultDesc": "优先使用本机 Octopus OpenAI 兼容地址。",
+      "requestBaseUrl": "接口地址",
+      "requestBaseUrlDesc": "自定义 AI 接口 Base URL。",
+      "requestApiKey": "API 密钥",
+      "requestApiKeyDesc": "用于调用 AI 接口的密钥。",
+      "requestModel": "执行模型",
+      "requestModelDesc": "用于执行自动化任务的模型。",
+      "strategy": "选择策略",
+      "strategyOptions": {
+        "highest_success_rate": "成功率优先",
+        "balanced_latency": "时延与成功率平衡",
+        "cost_first": "成本优先"
+      },
+      "dispatchMode": "分发模式",
+      "dispatchOptions": {
+        "single_best": "单一最优",
+        "bounded_parallel": "有限并发",
+        "round_robin_review": "轮发复核"
+      },
+      "maxParallelRuns": "最大并行数",
+      "doubleReview": "双重审阅",
+      "doubleReviewDesc": "执行前增加一次复核。",
+      "fallback": "自动回退",
+      "fallbackDesc": "异常时回退到确定性策略。",
+      "cancel": "取消",
+      "save": "保存",
+      "saving": "保存中",
+      "firstAvailableApiKeyHint": "首个可用",
+      "savedApiKey": "已保存",
+      "savedApiKeyHint": "来自设置",
+      "noApiKey": "无可用密钥"
+    },
+    "toast": {
+      "goalRequired": "请输入任务目标。",
+      "createFailed": "创建任务失败",
+      "replanFailed": "重新规划失败",
+      "applyFailed": "应用失败",
+      "rollbackFailed": "回滚失败",
+      "profileNeedsSession": "请先选择会话。",
+      "profileNameRequired": "请输入方案名称。",
+      "profileCreateFailed": "保存方案失败",
+      "profileActivateFailed": "启用方案失败",
+      "runtimePolicySaveFailed": "保存运行时设置失败"
+    }
+  },
   "channel": {
     "card": {
       "requestCount": "请求次数",
@@ -1047,11 +1198,23 @@
       "density": "密度",
       "normal": "普通",
       "compact": "紧凑",
-      "sort": "排序",
+      "sort": "排序方向",
+      "sortBy": {
+        "label": "排序依据",
+        "name": "名称",
+        "input": "输入价格",
+        "output": "输出价格"
+      },
       "grid": "网格",
       "list": "列表",
       "asc": "升序",
       "desc": "降序",
+      "priceRange": {
+        "title": "价格范围",
+        "min": "最小",
+        "max": "最大"
+      },
+      "hasUpstreamPrice": "仅显示有中转价格",
       "filter": {
         "title": "筛选",
         "channel": {
@@ -2009,13 +2172,21 @@
       "updated": "模型价格已更新",
       "updateFailed": "更新失败",
       "deleted": "模型已删除",
-      "deleteFailed": "删除失败"
+      "deleteFailed": "删除失败",
+      "disabled": "模型已临时关闭",
+      "disableFailed": "关闭失败",
+      "enabled": "模型已重新启用",
+      "enableFailed": "启用失败"
     },
     "card": {
       "inputCache": "输入/缓存",
       "outputCache": "输出/缓存",
+      "official": "官方",
+      "gateway": "中转",
       "edit": "编辑",
-      "delete": "删除"
+      "delete": "删除",
+      "disable": "临时关闭",
+      "enable": "重新启用"
     },
     "overlay": {
       "cancel": "取消",
@@ -2026,6 +2197,26 @@
       "cacheRead": "缓存读取",
       "cacheWrite": "缓存写入",
       "save": "保存"
+    },
+    "test": {
+      "title": "测试连通性",
+      "description": "选择模型和渠道，发送最小请求验证连通性",
+      "modelLabel": "模型",
+      "modelPlaceholder": "选择要测试的模型",
+      "channelLabel": "渠道",
+      "channelPlaceholder": "选择渠道",
+      "run": "开始测试",
+      "status": "状态",
+      "passed": "成功",
+      "failed": "失败",
+      "latency": "延迟",
+      "priceMatch": "价格匹配",
+      "matched": "匹配",
+      "unmatched": "不匹配",
+      "error": "错误信息",
+      "response": "响应内容",
+      "success": "连通性测试成功",
+      "invalidSelection": "请选择模型和渠道"
     }
   },
   "doc": {

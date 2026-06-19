@@ -1,10 +1,10 @@
 'use client';
 
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Pencil, Trash2, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
+import { Pencil, Trash2, ArrowDownToLine, ArrowUpFromLine, Power, PowerOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslations } from 'next-intl';
-import { useUpdateModel, useDeleteModel, type LLMInfo, type UpstreamPriceSummary } from '@/api/endpoints/model';
+import { useUpdateModel, useDeleteModel, useDisableModel, useEnableModel, type LLMInfo, type UpstreamPriceSummary } from '@/api/endpoints/model';
 import { getModelIcon } from '@/lib/model-icons';
 import { getBillingModeKey } from '@/lib/ui-labels';
 import { toast } from '@/components/common/Toast';
@@ -19,6 +19,47 @@ interface ModelItemProps {
     upstreamPrice?: UpstreamPriceSummary;
     density: ModelCardDensity;
     index: number;
+}
+
+interface PriceRowProps {
+    isCompact: boolean;
+    label: string;
+    labelClass: string;
+    input?: number;
+    output?: number;
+    cacheRead?: number;
+    cacheWrite?: number;
+    brandColor: string;
+}
+
+function PriceRow({ isCompact, label, labelClass, input, output, cacheRead, cacheWrite, brandColor }: PriceRowProps) {
+    const t = useTranslations('model');
+    const formatPrice = (value?: number) => (typeof value === 'number' ? value.toFixed(2) : '-');
+    const values = [input, output, cacheRead, cacheWrite];
+    const isEmpty = values.every((v) => typeof v !== 'number' || v === 0);
+
+    return (
+        <div className={cn('flex min-w-0 items-center gap-1.5', isCompact ? 'text-[11px]' : 'text-[13px]')}>
+            <span className={cn('shrink-0 font-medium', labelClass)}>{label}</span>
+            {isEmpty ? (
+                <span className="text-muted-foreground">-</span>
+            ) : (
+                <span className="min-w-0 truncate tabular-nums text-muted-foreground">
+                    <span className="inline-flex items-center gap-1" style={{ color: brandColor }}>
+                        <ArrowDownToLine className={cn(isCompact ? 'size-3' : 'size-3.5')} />
+                        {t('card.inputCache')}
+                    </span>
+                    <span className="ml-0.5">{formatPrice(input)}/{formatPrice(cacheRead)}$</span>
+                    <span className="mx-1 text-border">·</span>
+                    <span className="inline-flex items-center gap-1" style={{ color: brandColor }}>
+                        <ArrowUpFromLine className={cn(isCompact ? 'size-3' : 'size-3.5')} />
+                        {t('card.outputCache')}
+                    </span>
+                    <span className="ml-0.5">{formatPrice(output)}/{formatPrice(cacheWrite)}$</span>
+                </span>
+            )}
+        </div>
+    );
 }
 
 export const ModelItem = memo(function ModelItem({ model, upstreamPrice, density, index }: ModelItemProps) {
@@ -43,10 +84,13 @@ export const ModelItem = memo(function ModelItem({ model, upstreamPrice, density
 
     const updateModel = useUpdateModel();
     const deleteModel = useDeleteModel();
+    const disableModel = useDisableModel();
+    const enableModel = useEnableModel();
 
     const { Avatar: ModelAvatar, color: brandColor } = useMemo(() => getModelIcon(model.name), [model.name]);
 
     const formatPrice = (value?: number) => (typeof value === 'number' ? value.toFixed(2) : '-');
+
     const metaItems = [
         {
             key: 'canonical',
@@ -58,15 +102,12 @@ export const ModelItem = memo(function ModelItem({ model, upstreamPrice, density
             label: tSetting('billingMode'),
             value: tSetting(`billingModeOptions.${getBillingModeKey(model.billing_mode)}`),
         },
-        {
-            key: 'official',
-            label: tSetting('officialPricePair'),
-            value: model.official_input || model.official_output || model.official_cache_read || model.official_cache_write
-                ? `${formatPrice(model.official_input)}/${formatPrice(model.official_output)} / ${formatPrice(model.official_cache_read)}/${formatPrice(model.official_cache_write)}`
-                : '-'
-        },
     ];
     const gatewayPrices = upstreamPrice?.gateway_prices ?? [];
+    const effectiveGateway = upstreamPrice?.effective_gateway;
+    const gatewayPrice = effectiveGateway ?? model;
+    const gatewaySourceLabel = effectiveGateway?.source_label;
+    const extraGatewayCount = gatewayPrices.length > 1 ? gatewayPrices.length - 1 : 0;
 
     const updateOverlayRect = useCallback(() => {
         const card = cardRef.current;
@@ -137,6 +178,20 @@ export const ModelItem = memo(function ModelItem({ model, upstreamPrice, density
         });
     };
 
+    const handleToggleDisable = () => {
+        if (model.disabled) {
+            enableModel.mutate(model.name, {
+                onSuccess: () => toast.success(t('toast.enabled')),
+                onError: (error) => toast.error(t('toast.enableFailed'), { description: error.message }),
+            });
+        } else {
+            disableModel.mutate(model.name, {
+                onSuccess: () => toast.success(t('toast.disabled')),
+                onError: (error) => toast.error(t('toast.disableFailed'), { description: error.message }),
+            });
+        }
+    };
+
     useEffect(() => {
         if (!isEditOpen) return;
 
@@ -181,7 +236,8 @@ export const ModelItem = memo(function ModelItem({ model, upstreamPrice, density
                 isCompact
                     ? 'min-h-[6.25rem] gap-2.5 rounded-[1.6rem] px-3 py-3'
                     : 'min-h-[7.25rem] gap-3 rounded-3xl px-3.5 py-3.5',
-                (isEditOpen || confirmDelete) && 'z-50'
+                (isEditOpen || confirmDelete) && 'z-50',
+                model.disabled && 'opacity-70'
             )}
         >
             <ModelAvatar size={isCompact ? 40 : 46} />
@@ -196,17 +252,64 @@ export const ModelItem = memo(function ModelItem({ model, upstreamPrice, density
                     </TooltipContent>
                 </Tooltip>
 
-                <p className={cn('flex items-center text-muted-foreground', isCompact ? 'gap-1 text-[11px]' : 'gap-1.5 text-[13px]')}>
-                    <ArrowDownToLine className={cn(isCompact ? 'size-3' : 'size-3.5')} style={{ color: brandColor }} />
-                    {t('card.inputCache')}
-                    <span className="tabular-nums">{model.input.toFixed(2)}/{model.cache_read.toFixed(2)}$</span>
-                </p>
+                <PriceRow
+                    isCompact={isCompact}
+                    label={t('card.official')}
+                    labelClass="text-muted-foreground"
+                    input={model.official_input}
+                    output={model.official_output}
+                    cacheRead={model.official_cache_read}
+                    cacheWrite={model.official_cache_write}
+                    brandColor={brandColor}
+                />
 
-                <p className={cn('flex items-center text-muted-foreground', isCompact ? 'gap-1 text-[11px]' : 'gap-1.5 text-[13px]')}>
-                    <ArrowUpFromLine className={cn(isCompact ? 'size-3' : 'size-3.5')} style={{ color: brandColor }} />
-                    {t('card.outputCache')}
-                    <span className="tabular-nums">{model.output.toFixed(2)}/{model.cache_write.toFixed(2)}$</span>
-                </p>
+                <div className="flex items-center gap-1.5 min-w-0">
+                    <PriceRow
+                        isCompact={isCompact}
+                        label={t('card.gateway')}
+                        labelClass="text-cyan-700 dark:text-cyan-300"
+                        input={gatewayPrice.input}
+                        output={gatewayPrice.output}
+                        cacheRead={gatewayPrice.cache_read}
+                        cacheWrite={gatewayPrice.cache_write}
+                        brandColor={brandColor}
+                    />
+                    {gatewaySourceLabel ? (
+                        <span
+                            className={cn(
+                                'shrink-0 truncate rounded-full border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 text-cyan-700 dark:text-cyan-300',
+                                isCompact ? 'max-w-[4.5rem] text-[9px]' : 'max-w-[6rem] text-[10px]'
+                            )}
+                            title={gatewaySourceLabel}
+                        >
+                            {gatewaySourceLabel}
+                        </span>
+                    ) : null}
+                    {extraGatewayCount > 0 ? (
+                        <Tooltip side="top" align="center">
+                            <TooltipTrigger asChild>
+                                <span
+                                    className={cn(
+                                        'shrink-0 cursor-help rounded-full border border-border/60 bg-muted/25 px-1.5 py-0.5 text-muted-foreground',
+                                        isCompact ? 'text-[9px]' : 'text-[10px]'
+                                    )}
+                                >
+                                    +{extraGatewayCount}
+                                </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                                <div className="grid gap-1">
+                                    {gatewayPrices.slice(1).map((item) => (
+                                        <div key={item.id} className="text-xs">
+                                            <span className="text-muted-foreground">{item.source_label || `#${item.upstream_site_id}`}:</span>{' '}
+                                            <span className="tabular-nums">{formatPrice(item.input)}/{formatPrice(item.cache_read)} · {formatPrice(item.output)}/{formatPrice(item.cache_write)}$</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </TooltipContent>
+                        </Tooltip>
+                    ) : null}
+                </div>
 
                 <div
                     data-slot={isCompact ? 'model-card-meta-compact' : 'model-card-meta'}
@@ -227,19 +330,6 @@ export const ModelItem = memo(function ModelItem({ model, upstreamPrice, density
                         </span>
                     ))}
                 </div>
-
-                {gatewayPrices.length > 0 ? (
-                    <div className={cn('flex flex-wrap gap-1 text-muted-foreground', isCompact ? 'text-[9px]' : 'text-[10px]')}>
-                        {gatewayPrices.slice(0, 2).map((item) => (
-                            <span key={item.id} className="max-w-full truncate rounded-full border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 text-cyan-700 dark:text-cyan-300">
-                                中转 {item.source_label || `#${item.upstream_site_id}`}: {formatPrice(item.input)}/{formatPrice(item.output)}
-                            </span>
-                        ))}
-                        {gatewayPrices.length > 2 ? (
-                            <span className="rounded-full border border-border/60 bg-muted/25 px-1.5 py-0.5">+{gatewayPrices.length - 2}</span>
-                        ) : null}
-                    </div>
-                ) : null}
             </div>
 
             <div
@@ -261,6 +351,22 @@ export const ModelItem = memo(function ModelItem({ model, upstreamPrice, density
                     title={t('card.edit')}
                 >
                     <Pencil className={cn(isCompact ? 'size-3.5' : 'size-4')} />
+                </motion.button>
+
+                <motion.button
+                    type="button"
+                    onClick={handleToggleDisable}
+                    disabled={isEditOpen || confirmDelete || disableModel.isPending || enableModel.isPending}
+                    className={cn(
+                        'flex items-center justify-center transition-colors disabled:opacity-50',
+                        model.disabled
+                            ? 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white'
+                            : 'bg-orange-500/10 text-orange-600 hover:bg-orange-500 hover:text-white',
+                        isCompact ? 'h-7 w-7 rounded-lg' : 'h-8 w-8 rounded-lg'
+                    )}
+                    title={model.disabled ? t('card.enable') : t('card.disable')}
+                >
+                    <Power className={cn(isCompact ? 'size-3.5' : 'size-4')} />
                 </motion.button>
 
                 <motion.button

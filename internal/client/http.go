@@ -9,11 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
-	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/xurl"
 	"golang.org/x/net/proxy"
 )
+
+// ProxyURLProvider returns the current system proxy URL. It is injected by the
+// op package during initialization to avoid an import cycle.
+var ProxyURLProvider func() (string, error)
 
 var (
 	systemDirectClient *http.Client
@@ -29,7 +31,10 @@ const defaultResponseHeaderTimeout = 30 * time.Second
 // - useProxy=true: use proxy settings from system/app settings (setting key: proxy_url)
 func GetHTTPClientSystemProxy(useProxy bool) (*http.Client, error) {
 	if useProxy {
-		currentProxyURL, err := op.SettingGetString(model.SettingKeyProxyURL)
+		if ProxyURLProvider == nil {
+			return nil, fmt.Errorf("proxy url provider not initialized")
+		}
+		currentProxyURL, err := ProxyURLProvider()
 		if err != nil {
 			return nil, err
 		}

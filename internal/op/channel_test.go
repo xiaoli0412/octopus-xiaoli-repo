@@ -9,7 +9,7 @@ import (
 )
 
 func TestChannelUpdateRefreshesCacheAndNormalizesKeys(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{
 		Name:              "channel-before",
@@ -124,7 +124,7 @@ func TestChannelUpdateRefreshesCacheAndNormalizesKeys(t *testing.T) {
 }
 
 func TestChannelBaseUrlUpdateCopiesInputAndChannelKeySaveDBPersistsCacheUpdates(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{Name: "channel-copy-test", Enabled: true}
 	if err := ChannelCreate(channel, ctx); err != nil {
@@ -202,7 +202,7 @@ func TestChannelBaseUrlUpdateCopiesInputAndChannelKeySaveDBPersistsCacheUpdates(
 }
 
 func TestChannelBaseUrlUpdateRejectsInvalidURL(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{Name: "channel-invalid-base-url-update", Enabled: true}
 	if err := ChannelCreate(channel, ctx); err != nil {
@@ -223,7 +223,7 @@ func TestChannelBaseUrlUpdateRejectsInvalidURL(t *testing.T) {
 }
 
 func TestChannelRefreshCacheRemovesDeletedChannelFromCache(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{Name: "channel-refresh-delete", Enabled: true}
 	if err := ChannelCreate(channel, ctx); err != nil {
@@ -242,7 +242,7 @@ func TestChannelRefreshCacheRemovesDeletedChannelFromCache(t *testing.T) {
 }
 
 func TestChannelDelRemovesDependentGroupItemsAndCaches(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{Name: "channel-delete", Enabled: true}
 	if err := ChannelCreate(channel, ctx); err != nil {
@@ -312,7 +312,7 @@ func TestChannelDelRemovesDependentGroupItemsAndCaches(t *testing.T) {
 }
 
 func TestChannelCreateNormalizesAndValidatesKeyRoutingSettings(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{
 		Name:              "channel-create-normalize",
@@ -347,7 +347,7 @@ func TestChannelCreateNormalizesAndValidatesKeyRoutingSettings(t *testing.T) {
 }
 
 func TestChannelUpdateValidatesAndNormalizesKeyRoutingSettings(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{
 		Name:              "channel-update-validate",
@@ -398,7 +398,7 @@ func TestChannelUpdateValidatesAndNormalizesKeyRoutingSettings(t *testing.T) {
 }
 
 func TestChannelCreateAndUpdateValidateChannelKeySourceType(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{
 		Name:              "channel-source-type-validate",
@@ -457,7 +457,7 @@ func TestChannelCreateAndUpdateValidateChannelKeySourceType(t *testing.T) {
 }
 
 func TestChannelCreateAndUpdateRejectUnsupportedBaseURLScheme(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	invalid := &model.Channel{
 		Name:     "channel-invalid-base-url",
@@ -488,7 +488,7 @@ func TestChannelCreateAndUpdateRejectUnsupportedBaseURLScheme(t *testing.T) {
 }
 
 func TestChannelCreateAndUpdateRejectChannelProxyWithCredentials(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	proxy := "https://user:pass@example.com:8443"
 	invalid := &model.Channel{
@@ -520,7 +520,7 @@ func TestChannelCreateAndUpdateRejectChannelProxyWithCredentials(t *testing.T) {
 }
 
 func TestChannelCreateAndUpdatePersistAllowedModelsInBothModes(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	classified := &model.Channel{
 		Name:              "channel-allowed-models-classified",
@@ -581,7 +581,7 @@ func TestChannelCreateAndUpdatePersistAllowedModelsInBothModes(t *testing.T) {
 }
 
 func TestChannelUpdateRemovesGroupItemsWhenDeletingLastEligibleKeyForModel(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{
 		Name:        "channel-delete-last-key",
@@ -631,7 +631,7 @@ func TestChannelUpdateRemovesGroupItemsWhenDeletingLastEligibleKeyForModel(t *te
 }
 
 func TestChannelUpdateKeepsGroupItemsWhenAnotherKeyStillServesModel(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{Name: "channel-keep-group-item", Enabled: true, Model: "gpt-4o"}
 	if err := ChannelCreate(channel, ctx); err != nil {
@@ -673,7 +673,7 @@ func TestChannelUpdateKeepsGroupItemsWhenAnotherKeyStillServesModel(t *testing.T
 }
 
 func TestChannelLLMListUsesKeyLimitedCapabilityInventory(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{
 		Name:    "channel-key-inventory",
@@ -712,7 +712,7 @@ func TestChannelLLMListUsesKeyLimitedCapabilityInventory(t *testing.T) {
 }
 
 func TestCapabilityInventoryDoesNotPromoteStaleAPIKeyBindings(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{
 		Name:    "capability-inventory-serviceable",
@@ -754,7 +754,7 @@ func TestCapabilityInventoryDoesNotPromoteStaleAPIKeyBindings(t *testing.T) {
 }
 
 func TestGroupItemAddAllowsUndeclaredKeyLimitedModel(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{
 		Name:    "channel-undeclared-key-model",
@@ -779,7 +779,7 @@ func TestGroupItemAddAllowsUndeclaredKeyLimitedModel(t *testing.T) {
 }
 
 func TestGroupItemAddRejectsProtocolMismatchedKey(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := &model.Channel{
 		Name:    "channel-protocol-mismatch",

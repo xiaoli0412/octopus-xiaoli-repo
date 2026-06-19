@@ -7,7 +7,7 @@ import (
 )
 
 func TestAPIKeyCreateAndUpdateNormalizeSupportedModels(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	apiKey := &model.APIKey{
 		Name:            "client-normalize-supported-models",

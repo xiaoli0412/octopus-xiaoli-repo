@@ -4,11 +4,17 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/client"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 )
 
 func InitCache() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	client.ProxyURLProvider = func() (string, error) {
+		return SettingGetString(model.SettingKeyProxyURL)
+	}
 	if err := UserInit(); err != nil {
 		return fmt.Errorf("user init error: %v", err)
 	}

@@ -632,6 +632,157 @@
       "learningSaveFailed": "動態路由學習開關儲存失敗"
     }
   },
+  "aiAutomationV2": {
+    "hero": {
+      "title": "AI 自動化工作台",
+      "badge": "單鏈執行"
+    },
+    "main": {
+      "goalTitle": "任務目標",
+      "goalDesc": "輸入目標後建立任務，AI 會生成可套用的配置建議。",
+      "goalPlaceholder": "例如：整理目前分組與路由",
+      "scopeLabel": "影響範圍",
+      "riskLabel": "風險提示"
+    },
+    "actions": {
+      "create": "建立任務",
+      "creating": "建立中",
+      "replan": "重新規劃",
+      "apply": "套用",
+      "applying": "套用中",
+      "showDetails": "展開詳情",
+      "hideDetails": "收起詳情",
+      "rollback": "回滾"
+    },
+    "quickGoals": {
+      "global": "全域整理",
+      "routing": "整理路由",
+      "pricing": "檢查價格"
+    },
+    "summary": {
+      "currentGoal": "目前目標",
+      "goalEmpty": "未填寫",
+      "activePlan": "目前方案",
+      "lastApply": "最近套用",
+      "notApplied": "未套用"
+    },
+    "sidebar": {
+      "runtimePolicy": "執行階段策略",
+      "learningOn": "開啟",
+      "learningOff": "關閉"
+    },
+    "runReport": {
+      "title": "執行結果",
+      "empty": "暫無執行結果。",
+      "currentStatus": "目前狀態",
+      "sourceLabel": "執行來源",
+      "updatedAt": "更新時間",
+      "summaryLinesTitle": "結果摘要",
+      "riskNotesTitle": "風險提示",
+      "blockersTitle": "套用阻塞",
+      "mutationsTitle": "擬議變更",
+      "noMutations": "沒有擬議變更。"
+    },
+    "preview": {
+      "groups": "分組",
+      "items": "分組項",
+      "overrides": "路由覆蓋",
+      "status": "套用狀態",
+      "ready": "可套用",
+      "blocked": "被阻塞"
+    },
+    "states": {
+      "idleSummary": "等待建立任務",
+      "noRisk": "無顯式風險",
+      "noPreview": "暫無預覽",
+      "noRollbackPoints": "無回滾點",
+      "noHistory": "無歷史記錄"
+    },
+    "history": {
+      "learningTitle": "動態路由學習",
+      "learningEnabled": "學習開關",
+      "learningSamples": "樣本數",
+      "learningTopTarget": "Top 目標",
+      "learningUpdated": "最近樣本",
+      "learningDesc": "基於實際請求持續學習最佳路由目標。"
+    },
+    "workspace": {
+      "preview": "預覽",
+      "profiles": "方案",
+      "rollback": "回滾",
+      "history": "歷史",
+      "expert": "專家",
+      "detailsTitle": "詳情"
+    },
+    "sessionDetail": {
+      "sessionInfo": "會話資訊",
+      "snapshotChecksum": "快照校驗",
+      "presetReviewDepth": "審閱深度",
+      "presetCleanup": "清理過期",
+      "presetSyncBindings": "同步繫結"
+    },
+    "profiles": {
+      "namePlaceholder": "方案名稱",
+      "create": "儲存方案",
+      "active": "已啟用",
+      "activate": "啟用",
+      "empty": "暫無方案。",
+      "noSummary": "無摘要"
+    },
+    "expert": {
+      "enabled": "已啟用",
+      "disabled": "未啟用"
+    },
+    "settings": {
+      "open": "設定",
+      "title": "執行階段設定",
+      "desc": "設定 AI 執行端點、模型與執行階段策略。",
+      "useLocalDefault": "使用本機預設端點",
+      "useLocalDefaultDesc": "優先使用本機 Octopus OpenAI 相容地址。",
+      "requestBaseUrl": "介面地址",
+      "requestBaseUrlDesc": "自訂 AI 介面 Base URL。",
+      "requestApiKey": "API 金鑰",
+      "requestApiKeyDesc": "用於呼叫 AI 介面的金鑰。",
+      "requestModel": "執行模型",
+      "requestModelDesc": "用於執行自動化任務的模型。",
+      "strategy": "選擇策略",
+      "strategyOptions": {
+        "highest_success_rate": "成功率優先",
+        "balanced_latency": "延遲與成功率平衡",
+        "cost_first": "成本優先"
+      },
+      "dispatchMode": "分發模式",
+      "dispatchOptions": {
+        "single_best": "單一最優",
+        "bounded_parallel": "有限並行",
+        "round_robin_review": "輪發覆核"
+      },
+      "maxParallelRuns": "最大並行數",
+      "doubleReview": "雙重審閱",
+      "doubleReviewDesc": "執行前增加一次覆核。",
+      "fallback": "自動回退",
+      "fallbackDesc": "異常時回退到確定性策略。",
+      "cancel": "取消",
+      "save": "儲存",
+      "saving": "儲存中",
+      "firstAvailableApiKeyHint": "首個可用",
+      "savedApiKey": "已儲存",
+      "savedApiKeyHint": "來自設定",
+      "noApiKey": "無可用金鑰"
+    },
+    "toast": {
+      "goalRequired": "請輸入任務目標。",
+      "createFailed": "建立任務失敗",
+      "replanFailed": "重新規劃失敗",
+      "applyFailed": "套用失敗",
+      "rollbackFailed": "回滾失敗",
+      "profileNeedsSession": "請先選擇會話。",
+      "profileNameRequired": "請輸入方案名稱。",
+      "profileCreateFailed": "儲存方案失敗",
+      "profileActivateFailed": "啟用方案失敗",
+      "runtimePolicySaveFailed": "儲存執行階段設定失敗"
+    }
+  },
   "channel": {
     "card": {
       "requestCount": "請求次數",
@@ -1034,11 +1185,23 @@
       "density": "密度",
       "normal": "一般",
       "compact": "緊湊",
-      "sort": "排序",
+      "sort": "排序方向",
+      "sortBy": {
+        "label": "排序依據",
+        "name": "名稱",
+        "input": "輸入價格",
+        "output": "輸出價格"
+      },
       "grid": "網格",
       "list": "清單",
       "asc": "升序",
       "desc": "降序",
+      "priceRange": {
+        "title": "價格範圍",
+        "min": "最小",
+        "max": "最大"
+      },
+      "hasUpstreamPrice": "僅顯示有中轉價格",
       "filter": {
         "title": "篩選",
         "channel": {
@@ -1969,13 +2132,21 @@
       "updated": "模型價格已更新",
       "updateFailed": "更新失敗",
       "deleted": "模型已刪除",
-      "deleteFailed": "刪除失敗"
+      "deleteFailed": "刪除失敗",
+      "disabled": "模型已暫時關閉",
+      "disableFailed": "關閉失敗",
+      "enabled": "模型已重新啟用",
+      "enableFailed": "啟用失敗"
     },
     "card": {
       "inputCache": "輸入/快取",
       "outputCache": "輸出/快取",
+      "official": "官方",
+      "gateway": "中轉",
       "edit": "編輯",
-      "delete": "刪除"
+      "delete": "刪除",
+      "disable": "暫時關閉",
+      "enable": "重新啟用"
     },
     "overlay": {
       "cancel": "取消",
@@ -1986,6 +2157,26 @@
       "cacheRead": "快取讀取",
       "cacheWrite": "快取寫入",
       "save": "儲存"
+    },
+    "test": {
+      "title": "測試連通性",
+      "description": "選擇模型與渠道，發送最小請求驗證連通性",
+      "modelLabel": "模型",
+      "modelPlaceholder": "選擇要測試的模型",
+      "channelLabel": "渠道",
+      "channelPlaceholder": "選擇渠道",
+      "run": "開始測試",
+      "status": "狀態",
+      "passed": "成功",
+      "failed": "失敗",
+      "latency": "延遲",
+      "priceMatch": "價格匹配",
+      "matched": "匹配",
+      "unmatched": "不匹配",
+      "error": "錯誤資訊",
+      "response": "回應內容",
+      "success": "連通性測試成功",
+      "invalidSelection": "請選擇模型與渠道"
     }
   },
   "doc": {

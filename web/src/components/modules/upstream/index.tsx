@@ -1,14 +1,18 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Loader2, PlugZap, RefreshCw, Search, ShieldCheck, Waypoints } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { CalendarCheck, Gift, History, KeyRound, Loader2, PlugZap, RefreshCw, Search, ShieldCheck, Waypoints } from 'lucide-react';
 import {
     useApplyUpstreamSite,
+    useCheckinUpstreamSite,
+    useCreateUpstreamKey,
     useCreateUpstreamSite,
     useInspectUpstreamSite,
     useRefreshUpstreamSite,
+    useUpdateUpstreamSite,
     useUpstreamSiteDetail,
     useUpstreamSiteList,
+    type UpstreamCheckinLogEntry,
     type UpstreamSite,
 } from '@/api/endpoints/upstream';
 import { useChannelList, type UpstreamAuthMode, type UpstreamInspectRequest, type UpstreamProviderType } from '@/api/endpoints/channel';
@@ -30,7 +34,7 @@ const AUTH_MODES: Array<{ value: UpstreamAuthMode; label: string }> = [
     { value: 'account_password', label: '账号密码' },
 ];
 
-type DetailTab = 'overview' | 'keys' | 'groups' | 'prices';
+type DetailTab = 'overview' | 'keys' | 'groups' | 'prices' | 'checkin' | 'config';
 
 function splitList(value?: string) {
     return (value ?? '').split(',').map((item) => item.trim()).filter(Boolean);
@@ -61,6 +65,25 @@ function statusLabel(value?: string) {
     }
 }
 
+function formatDateTime(value?: string) {
+    if (!value) return '-';
+    try {
+        return new Date(value).toLocaleString('zh-CN');
+    } catch {
+        return '-';
+    }
+}
+
+function parseCheckinLog(value?: string): UpstreamCheckinLogEntry[] {
+    if (!value) return [];
+    try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
 function PriceCell({ label, value }: { label: string; value?: number }) {
     return (
         <span className="rounded-lg bg-background/70 px-2 py-1 text-[10px] text-muted-foreground">
@@ -76,6 +99,9 @@ export function Upstream() {
     const inspectSite = useInspectUpstreamSite();
     const refreshSite = useRefreshUpstreamSite();
     const applySite = useApplyUpstreamSite();
+    const createKey = useCreateUpstreamKey();
+    const updateSite = useUpdateUpstreamSite();
+    const checkinSite = useCheckinUpstreamSite();
 
     const [selectedID, setSelectedID] = useState<number | undefined>();
     const [provider, setProvider] = useState<UpstreamProviderType>('newapi');
@@ -92,11 +118,51 @@ export function Upstream() {
     const [tab, setTab] = useState<DetailTab>('overview');
     const [detailSearch, setDetailSearch] = useState('');
     const [preview, setPreview] = useState<{ model_count: number; key_count: number; group_count: number; price_count: number } | null>(null);
+    const [newKeyName, setNewKeyName] = useState('');
+    const [newKeyQuota, setNewKeyQuota] = useState('');
+    const [newKeyExpiresAt, setNewKeyExpiresAt] = useState('');
+    const [newKeyModels, setNewKeyModels] = useState('');
+    const [newKeyGroups, setNewKeyGroups] = useState('');
+    const [alertThreshold, setAlertThreshold] = useState('');
+    const [checkinAuto, setCheckinAuto] = useState(false);
+    const [checkinInterval, setCheckinInterval] = useState('86400');
+    const [configAutoCreateKey, setConfigAutoCreateKey] = useState(false);
+    const [configKeyQuotaLimit, setConfigKeyQuotaLimit] = useState('');
+    const [configKeyExpireDays, setConfigKeyExpireDays] = useState('');
+    const [configAutoSyncGroup, setConfigAutoSyncGroup] = useState(false);
+    const [configAutoSyncPrice, setConfigAutoSyncPrice] = useState(false);
     const hasSites = (sites.data?.length ?? 0) > 0;
 
     const activeID = selectedID ?? sites.data?.[0]?.id;
     const detail = useUpstreamSiteDetail(activeID);
     const activeSite = detail.data?.site ?? sites.data?.find((item) => item.id === activeID);
+
+    useEffect(() => {
+        if (activeSite?.balance_alert_threshold !== undefined) {
+            setAlertThreshold(String(activeSite.balance_alert_threshold));
+        } else {
+            setAlertThreshold('');
+        }
+    }, [activeSite?.balance_alert_threshold]);
+
+    useEffect(() => {
+        setCheckinAuto(activeSite?.auto_checkin ?? false);
+        setCheckinInterval(String(activeSite?.checkin_interval_secs ?? 86400));
+    }, [activeSite?.auto_checkin, activeSite?.checkin_interval_secs]);
+
+    useEffect(() => {
+        setConfigAutoCreateKey(activeSite?.auto_create_key ?? false);
+        setConfigKeyQuotaLimit(activeSite?.key_quota_limit !== undefined ? String(activeSite.key_quota_limit) : '');
+        setConfigKeyExpireDays(activeSite?.key_expire_days !== undefined ? String(activeSite.key_expire_days) : '');
+        setConfigAutoSyncGroup(activeSite?.auto_sync_group ?? false);
+        setConfigAutoSyncPrice(activeSite?.auto_sync_price ?? false);
+    }, [
+        activeSite?.auto_create_key,
+        activeSite?.key_quota_limit,
+        activeSite?.key_expire_days,
+        activeSite?.auto_sync_group,
+        activeSite?.auto_sync_price,
+    ]);
 
     const inspectRequest = useMemo<UpstreamInspectRequest>(() => {
         const req: UpstreamInspectRequest = {
@@ -199,6 +265,91 @@ export function Upstream() {
             toast.error('应用失败', { description: error instanceof Error ? error.message : undefined });
         }
     };
+
+    const handleCreateKey = async () => {
+        if (!activeID || !newKeyName.trim()) return;
+        try {
+            const result = await createKey.mutateAsync({
+                site_id: activeID,
+                name: newKeyName.trim(),
+                quota: newKeyQuota.trim() ? Number(newKeyQuota.trim()) : undefined,
+                expires_at: newKeyExpiresAt.trim() || undefined,
+                models: newKeyModels.split(',').map((item) => item.trim()).filter(Boolean),
+                groups: newKeyGroups.split(',').map((item) => item.trim()).filter(Boolean),
+            });
+            setNewKeyName('');
+            setNewKeyQuota('');
+            setNewKeyExpiresAt('');
+            setNewKeyModels('');
+            setNewKeyGroups('');
+            toast.success('已创建上游 Key', { description: `${result.name} · ${result.masked_key}` });
+        } catch (error) {
+            toast.error('创建 Key 失败', { description: error instanceof Error ? error.message : undefined });
+        }
+    };
+
+    const canCreateKey = Boolean(activeID && newKeyName.trim());
+
+    const handleSaveConfig = async () => {
+        if (!activeID) return;
+        const threshold = alertThreshold.trim() === '' ? 0 : Number(alertThreshold.trim());
+        const interval = Number(checkinInterval.trim());
+        const keyQuotaLimit = configKeyQuotaLimit.trim() === '' ? 0 : Number(configKeyQuotaLimit.trim());
+        const keyExpireDays = configKeyExpireDays.trim() === '' ? 0 : Number(configKeyExpireDays.trim());
+        if (Number.isNaN(threshold) || threshold < 0) {
+            toast.error('预警阈值必须是大于等于 0 的数字');
+            return;
+        }
+        if (Number.isNaN(interval) || interval < 3600) {
+            toast.error('签到间隔不能小于 3600 秒');
+            return;
+        }
+        if (Number.isNaN(keyQuotaLimit) || keyQuotaLimit < 0) {
+            toast.error('Key 配额限制必须是大于等于 0 的数字');
+            return;
+        }
+        if (Number.isNaN(keyExpireDays) || keyExpireDays < 0) {
+            toast.error('Key 过期天数必须是大于等于 0 的数字');
+            return;
+        }
+        try {
+            await updateSite.mutateAsync({
+                id: activeID,
+                auto_checkin: checkinAuto,
+                checkin_interval_secs: interval,
+                balance_alert_threshold: threshold,
+                auto_create_key: configAutoCreateKey,
+                key_quota_limit: keyQuotaLimit,
+                key_expire_days: keyExpireDays,
+                auto_sync_group: configAutoSyncGroup,
+                auto_sync_price: configAutoSyncPrice,
+            });
+            toast.success('已保存配置');
+        } catch (error) {
+            toast.error('保存配置失败', { description: error instanceof Error ? error.message : undefined });
+        }
+    };
+
+    const handleCheckin = async () => {
+        if (!activeID) return;
+        try {
+            const result = await checkinSite.mutateAsync(activeID);
+            if (result.success) {
+                toast.success('签到成功', { description: `获得额度 ${formatNumber(result.amount, '0')}${result.message ? ` · ${result.message}` : ''}` });
+            } else {
+                toast.error('签到失败', { description: result.message });
+            }
+        } catch (error) {
+            toast.error('签到失败', { description: error instanceof Error ? error.message : undefined });
+        }
+    };
+
+    const isBalanceAlert = Boolean(
+        activeSite?.balance_available &&
+        !activeSite?.balance_unlimited &&
+        (activeSite?.balance_alert_threshold ?? 0) > 0 &&
+        (activeSite?.balance_remain ?? Number.POSITIVE_INFINITY) <= (activeSite?.balance_alert_threshold ?? 0),
+    );
 
     return (
         <div
@@ -381,6 +532,10 @@ export function Upstream() {
                                 {refreshSite.isPending ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
                                 刷新
                             </Button>
+                            <Button type="button" variant="secondary" onClick={() => handleRefresh(true)} disabled={!activeID || refreshSite.isPending} className="h-8 rounded-xl px-3">
+                                {refreshSite.isPending ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                                立即同步
+                            </Button>
                             <Button type="button" onClick={handleApply} disabled={!activeID || applySite.isPending} className="h-8 rounded-xl px-3">
                                 {applySite.isPending ? <Loader2 className="size-4 animate-spin" /> : <PlugZap className="size-4" />}
                                 应用渠道
@@ -410,6 +565,8 @@ export function Upstream() {
                             ['keys', 'Key'],
                             ['groups', '分组'],
                             ['prices', '中转价格'],
+                            ['checkin', '签到'],
+                            ['config', '配置'],
                         ].map(([key, label]) => (
                             <button
                                 key={key}
@@ -428,7 +585,7 @@ export function Upstream() {
                     </div>
 
                     {tab === 'overview' ? (
-                        <div className="mt-2.5 grid gap-2 xl:grid-cols-3">
+                        <div className="mt-2.5 grid gap-2 xl:grid-cols-4">
                             <div className="octo-subsection text-xs">
                                 <div className="font-medium text-card-foreground">终端</div>
                                 <div className="mt-2 space-y-1 text-muted-foreground">
@@ -452,11 +609,35 @@ export function Upstream() {
                                     {detail.data?.linked_channel ? `${detail.data.linked_channel.name} / Key ${detail.data.linked_channel.key_count}` : '尚未应用到渠道'}
                                 </div>
                             </div>
+                            <div className="octo-subsection text-xs">
+                                <div className="flex items-center gap-2 font-medium text-card-foreground">
+                                    余额预警
+                                    {isBalanceAlert ? <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] text-destructive">已触发</span> : null}
+                                </div>
+                                <div className="mt-2 space-y-1 text-muted-foreground">
+                                    <div>当前：{formatBalance(activeSite)}</div>
+                                    <div>阈值：{formatNumber(activeSite?.balance_alert_threshold, '未设置')}</div>
+                                </div>
+                            </div>
                         </div>
                     ) : null}
 
                     {tab === 'keys' ? (
                         <div className="mt-2.5 max-h-[24rem] overflow-y-auto pr-1">
+                            <div className="octo-subsection mb-3 text-xs">
+                                <div className="font-medium text-card-foreground">新建 Key</div>
+                                <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                                    <Input value={newKeyName} onChange={(event) => setNewKeyName(event.target.value)} placeholder="名称 *" className="h-8 rounded-xl text-xs" />
+                                    <Input value={newKeyQuota} onChange={(event) => setNewKeyQuota(event.target.value)} placeholder="配额" className="h-8 rounded-xl text-xs" />
+                                    <Input value={newKeyExpiresAt} onChange={(event) => setNewKeyExpiresAt(event.target.value)} placeholder="过期时间" className="h-8 rounded-xl text-xs" />
+                                    <Input value={newKeyModels} onChange={(event) => setNewKeyModels(event.target.value)} placeholder="模型（逗号分隔）" className="h-8 rounded-xl text-xs" />
+                                    <Input value={newKeyGroups} onChange={(event) => setNewKeyGroups(event.target.value)} placeholder="分组（逗号分隔）" className="h-8 rounded-xl text-xs" />
+                                    <Button type="button" onClick={handleCreateKey} disabled={!canCreateKey || createKey.isPending} className="h-8 rounded-xl px-3 text-xs md:col-span-1 xl:col-span-3">
+                                        {createKey.isPending ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
+                                        创建 Key
+                                    </Button>
+                                </div>
+                            </div>
                             <div className="grid gap-2 xl:grid-cols-2">
                                 {filteredKeys.map((item) => (
                                     <div key={item.id} className="octo-subsection text-xs">
@@ -523,6 +704,184 @@ export function Upstream() {
                                         </div>
                                     ))}
                                 </div>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {tab === 'checkin' ? (
+                        <div className="mt-2.5 grid gap-2 xl:grid-cols-2">
+                            <div className="octo-subsection text-xs">
+                                <div className="flex items-center gap-2 font-medium text-card-foreground">
+                                    <CalendarCheck className="size-3.5 text-primary" />
+                                    手动签到
+                                </div>
+                                <div className="mt-2 space-y-3">
+                                    <div className="text-[11px] text-muted-foreground">
+                                        上次签到：{formatDateTime(activeSite?.last_checkin_at)}
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        onClick={handleCheckin}
+                                        disabled={!activeID || checkinSite.isPending}
+                                        className="h-8 rounded-xl px-3 text-xs"
+                                    >
+                                        {checkinSite.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Gift className="size-3.5" />}
+                                        立即签到
+                                    </Button>
+                                </div>
+                            </div>
+                            <div className="octo-subsection text-xs">
+                                <div className="flex items-center gap-2 font-medium text-card-foreground">
+                                    <History className="size-3.5 text-primary" />
+                                    签到历史
+                                </div>
+                                <div className="mt-2 max-h-[24rem] overflow-y-auto pr-1">
+                                    {(() => {
+                                        const logs = parseCheckinLog(activeSite?.checkin_log).slice().reverse();
+                                        if (logs.length === 0) {
+                                            return <div className="text-muted-foreground">暂无签到记录</div>;
+                                        }
+                                        return (
+                                            <div className="grid gap-2">
+                                                {logs.map((entry, index) => (
+                                                    <div key={index} className="flex items-start justify-between gap-2 rounded-lg border border-border/70 bg-background/50 p-2">
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={cn('rounded-full px-2 py-0.5 text-[10px]', entry.success ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive')}>
+                                                                    {entry.success ? '成功' : '失败'}
+                                                                </span>
+                                                                {entry.amount !== undefined ? <span className="text-[10px] text-muted-foreground">+{formatNumber(entry.amount)}</span> : null}
+                                                            </div>
+                                                            {entry.message ? <div className="mt-1 truncate text-[11px] text-muted-foreground">{entry.message}</div> : null}
+                                                        </div>
+                                                        <div className="shrink-0 text-[10px] text-muted-foreground">{formatDateTime(entry.at)}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {tab === 'config' ? (
+                        <div className="mt-2.5 grid gap-2 xl:grid-cols-2">
+                            <div className="octo-subsection text-xs">
+                                <div className="flex items-center gap-2 font-medium text-card-foreground">
+                                    <CalendarCheck className="size-3.5 text-primary" />
+                                    自动签到
+                                </div>
+                                <div className="mt-2 space-y-3">
+                                    <label className="flex items-center gap-2 text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={checkinAuto}
+                                            onChange={(event) => setCheckinAuto(event.target.checked)}
+                                        />
+                                        启用自动签到
+                                    </label>
+                                    <Input
+                                        type="number"
+                                        min={3600}
+                                        step={1}
+                                        value={checkinInterval}
+                                        onChange={(event) => setCheckinInterval(event.target.value)}
+                                        placeholder="间隔秒数（默认 86400）"
+                                        className="h-8 rounded-xl text-xs"
+                                    />
+                                </div>
+                            </div>
+                            <div className="octo-subsection text-xs">
+                                <div className="flex items-center gap-2 font-medium text-card-foreground">
+                                    余额预警
+                                    {isBalanceAlert ? <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] text-destructive">已触发</span> : null}
+                                </div>
+                                <div className="mt-2 space-y-2">
+                                    <div className="text-muted-foreground">
+                                        当前：{formatBalance(activeSite)}
+                                    </div>
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        step="any"
+                                        value={alertThreshold}
+                                        onChange={(event) => setAlertThreshold(event.target.value)}
+                                        placeholder="阈值（0 为关闭）"
+                                        className="h-8 rounded-xl text-xs"
+                                    />
+                                </div>
+                            </div>
+                            <div className="octo-subsection text-xs">
+                                <div className="font-medium text-card-foreground">Key 创建策略</div>
+                                <div className="mt-2 space-y-3">
+                                    <label className="flex items-center gap-2 text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={configAutoCreateKey}
+                                            onChange={(event) => setConfigAutoCreateKey(event.target.checked)}
+                                        />
+                                        自动创建 Key
+                                    </label>
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        step="any"
+                                        value={configKeyQuotaLimit}
+                                        onChange={(event) => setConfigKeyQuotaLimit(event.target.value)}
+                                        placeholder="默认配额限制（0 为无限制）"
+                                        className="h-8 rounded-xl text-xs"
+                                    />
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        step={1}
+                                        value={configKeyExpireDays}
+                                        onChange={(event) => setConfigKeyExpireDays(event.target.value)}
+                                        placeholder="默认过期天数（0 为不过期）"
+                                        className="h-8 rounded-xl text-xs"
+                                    />
+                                </div>
+                            </div>
+                            <div className="octo-subsection text-xs">
+                                <div className="font-medium text-card-foreground">同步策略</div>
+                                <div className="mt-2 space-y-3">
+                                    <label className="flex items-center gap-2 text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={activeSite?.sync_to_channel}
+                                            disabled
+                                        />
+                                        同步到渠道
+                                    </label>
+                                    <label className="flex items-center gap-2 text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={configAutoSyncGroup}
+                                            onChange={(event) => setConfigAutoSyncGroup(event.target.checked)}
+                                        />
+                                        自动同步分组
+                                    </label>
+                                    <label className="flex items-center gap-2 text-muted-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={configAutoSyncPrice}
+                                            onChange={(event) => setConfigAutoSyncPrice(event.target.checked)}
+                                        />
+                                        自动同步价格
+                                    </label>
+                                </div>
+                            </div>
+                            <div className="octo-subsection flex items-center justify-end gap-2 xl:col-span-2">
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={handleSaveConfig}
+                                    disabled={updateSite.isPending}
+                                    className="h-8 rounded-xl px-4 text-xs"
+                                >
+                                    {updateSite.isPending ? <Loader2 className="size-3.5 animate-spin" /> : '保存配置'}
+                                </Button>
                             </div>
                         </div>
                     ) : null}

@@ -10,7 +10,7 @@ import (
 )
 
 func TestOpsRecordRelayAndQueryOverview(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channel := createConfiguredTestChannel(t, ctx, "ops-channel", "gpt-4o", "")
 	channelKey := channel.Keys[0]
@@ -111,7 +111,7 @@ func TestOpsRecordRelayAndQueryOverview(t *testing.T) {
 }
 
 func TestOpsRecentDetailsFiltersByIPAndChannelKey(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	if err := db.GetDB().WithContext(ctx).Create(&model.RelayLog{
 		ID:               101,
@@ -165,7 +165,7 @@ func TestOpsRecentDetailsFiltersByIPAndChannelKey(t *testing.T) {
 }
 
 func TestOpsCleanupDeletesExpiredBuckets(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	expired := model.OpsMetricBucket{
 		Scope:        model.OpsScopeOverall,

@@ -8,7 +8,7 @@ import (
 )
 
 func TestClientIPFromRequestOnlyTrustsConfiguredProxy(t *testing.T) {
-	setupOpTestDB(t)
+	SetupOpTestDB(t)
 
 	req := &http.Request{
 		RemoteAddr: "10.0.0.2:4567",

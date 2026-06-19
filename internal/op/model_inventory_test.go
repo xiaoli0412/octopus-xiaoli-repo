@@ -8,7 +8,7 @@ import (
 )
 
 func TestReferencedModelNamesCollectsAllConfiguredSources(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 
 	channelA := createConfiguredTestChannel(t, ctx, "inventory-a", "gpt-4o,deepseek-v3.1", "glm-4.7")
 	keyA := model.ChannelKey{

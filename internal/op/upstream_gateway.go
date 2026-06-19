@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,14 +12,146 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/llmname"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	transformerOutbound "github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/outbound"
 )
 
-const upstreamInspectTimeout = 25 * time.Second
+const (
+	upstreamInspectTimeout    = 25 * time.Second
+	upstreamPerRequestTimeout = 15 * time.Second
+	upstreamMaxRetries        = 3
+	upstreamRetryBaseDelay    = 500 * time.Millisecond
+	upstreamRetryMaxDelay     = 5 * time.Second
+	upstreamBalanceCacheTTL   = 5 * time.Minute
+)
+
+const (
+	upstreamAuthModeBearer  = "bearer"
+	upstreamAuthModeXAPIKey = "x-api-key"
+)
+
+// upstreamResponseCache holds short-lived cached responses for upstream balance
+// and usage endpoints to avoid hammering the upstream on frequent refreshes.
+type upstreamResponseCache struct {
+	mu      sync.RWMutex
+	entries map[string]upstreamResponseCacheEntry
+	ttl     time.Duration
+}
+
+type upstreamResponseCacheEntry struct {
+	payload []byte
+	expires time.Time
+}
+
+var upstreamBalanceCache = &upstreamResponseCache{
+	entries: make(map[string]upstreamResponseCacheEntry),
+	ttl:     upstreamBalanceCacheTTL,
+}
+
+func (c *upstreamResponseCache) cacheKey(method, authMode, endpoint, credential, userID string) string {
+	return method + "|" + authMode + "|" + endpoint + "|" + credential + "|" + userID
+}
+
+func (c *upstreamResponseCache) get(key string) ([]byte, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	entry, ok := c.entries[key]
+	if !ok || time.Now().After(entry.expires) {
+		return nil, false
+	}
+	return entry.payload, true
+}
+
+func (c *upstreamResponseCache) set(key string, payload []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries[key] = upstreamResponseCacheEntry{payload: payload, expires: time.Now().Add(c.ttl)}
+}
+
+func upstreamRetryDelay(attempt int) time.Duration {
+	if attempt <= 0 {
+		return 0
+	}
+	delay := upstreamRetryBaseDelay * time.Duration(1<<(attempt-1))
+	if delay > upstreamRetryMaxDelay {
+		delay = upstreamRetryMaxDelay
+	}
+	return delay
+}
+
+// callUpstreamWithRetry executes an upstream HTTP request and retries on
+// network errors or 5xx responses up to upstreamMaxRetries times.
+func callUpstreamWithRetry(ctx context.Context, httpClient *http.Client, method, endpoint string, body []byte, authMode, credential, userID string) ([]byte, bool) {
+	var lastErr error
+	for attempt := 0; attempt <= upstreamMaxRetries; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, false
+			case <-time.After(upstreamRetryDelay(attempt)):
+			}
+		}
+
+		perReqCtx, cancel := context.WithTimeout(ctx, upstreamPerRequestTimeout)
+		var bodyReader io.Reader
+		if len(body) > 0 {
+			bodyReader = bytes.NewReader(body)
+		}
+		req, err := http.NewRequestWithContext(perReqCtx, method, endpoint, bodyReader)
+		if err != nil {
+			cancel()
+			return nil, false
+		}
+		switch authMode {
+		case upstreamAuthModeBearer:
+			req.Header.Set("Authorization", "Bearer "+credential)
+		case upstreamAuthModeXAPIKey:
+			req.Header.Set("x-api-key", credential)
+		}
+		if strings.TrimSpace(userID) != "" {
+			req.Header.Set("New-Api-User", strings.TrimSpace(userID))
+		}
+		if method != http.MethodGet {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		req.Header.Set("Accept", "application/json")
+
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			cancel()
+			lastErr = err
+			if errors.Is(err, context.Canceled) {
+				return nil, false
+			}
+			continue
+		}
+		payload, readErr := io.ReadAll(io.LimitReader(resp.Body, maxNewAPIInspectResponseBytes+1))
+		_ = resp.Body.Close()
+		cancel()
+		if readErr != nil {
+			lastErr = readErr
+			continue
+		}
+		if int64(len(payload)) > maxNewAPIInspectResponseBytes {
+			return nil, false
+		}
+		if resp.StatusCode >= 500 && resp.StatusCode < 600 {
+			lastErr = fmt.Errorf("upstream request failed: %s", resp.Status)
+			continue
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return nil, false
+		}
+		return payload, true
+	}
+	_ = lastErr
+	return nil, false
+}
 
 func normalizeUpstreamProvider(input string) string {
 	switch strings.ToLower(strings.TrimSpace(input)) {
@@ -175,6 +308,9 @@ func InspectUpstreamGateway(ctx context.Context, req model.UpstreamInspectReques
 		keys, warnings := fetchNewAPIKeys(ctx, httpClient, siteBase, managementToken, managementUserID)
 		result.Keys = keys
 		result.Warnings = append(result.Warnings, warnings...)
+		if gatewayKey == "" && managementToken != "" {
+			gatewayKey = managementToken
+		}
 	}
 
 	if gatewayKey != "" {
@@ -232,47 +368,22 @@ func upstreamGatewayAuthProbeOrder(providerType, authMode string) []string {
 
 func fetchUpstreamGatewayModels(ctx context.Context, httpClient *http.Client, apiBase, token, providerType, authMode string) ([]string, error) {
 	endpoint := strings.TrimRight(apiBase, "/") + "/models"
-	var lastErr error
 	for _, mode := range upstreamGatewayAuthProbeOrder(providerType, authMode) {
-		request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-		if err != nil {
-			return nil, err
-		}
-		request.Header.Set("Accept", "application/json")
+		auth := upstreamAuthModeBearer
 		if mode == "x-api-key" {
-			request.Header.Set("x-api-key", token)
-		} else {
-			request.Header.Set("Authorization", "Bearer "+token)
+			auth = upstreamAuthModeXAPIKey
 		}
-		response, err := httpClient.Do(request)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		payload, readErr := io.ReadAll(io.LimitReader(response.Body, maxNewAPIInspectResponseBytes+1))
-		_ = response.Body.Close()
-		if readErr != nil {
-			lastErr = readErr
-			continue
-		}
-		if int64(len(payload)) > maxNewAPIInspectResponseBytes {
-			return nil, fmt.Errorf("upstream models response too large")
-		}
-		if response.StatusCode < 200 || response.StatusCode >= 300 {
-			lastErr = fmt.Errorf("upstream models request failed with %s auth: %s", mode, response.Status)
+		payload, ok := callUpstreamWithRetry(ctx, httpClient, http.MethodGet, endpoint, nil, auth, token, "")
+		if !ok {
 			continue
 		}
 		models := parseOpenAIModelList(payload)
 		if len(models) == 0 {
-			lastErr = fmt.Errorf("upstream models response does not contain model ids")
 			continue
 		}
 		return normalizeModelNames(models), nil
 	}
-	if lastErr == nil {
-		lastErr = fmt.Errorf("upstream models request failed")
-	}
-	return nil, lastErr
+	return nil, fmt.Errorf("upstream models request failed")
 }
 
 func upstreamGatewayLogin(ctx context.Context, httpClient *http.Client, providerType, siteBase, username, password string) (string, string, []string) {
@@ -291,22 +402,8 @@ func upstreamGatewayLogin(ctx context.Context, httpClient *http.Client, provider
 		paths = []string{"/api/user/login", "/api/auth/login", "/api/v1/auth/login", "/auth/login"}
 	}
 	for _, path := range paths {
-		request, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(siteBase, "/")+path, bytes.NewReader(body))
-		if err != nil {
-			continue
-		}
-		request.Header.Set("Content-Type", "application/json")
-		request.Header.Set("Accept", "application/json")
-		response, err := httpClient.Do(request)
-		if err != nil {
-			continue
-		}
-		payload, readErr := io.ReadAll(io.LimitReader(response.Body, maxNewAPIInspectResponseBytes+1))
-		_ = response.Body.Close()
-		if readErr != nil || int64(len(payload)) > maxNewAPIInspectResponseBytes {
-			continue
-		}
-		if response.StatusCode < 200 || response.StatusCode >= 300 {
+		payload, ok := callUpstreamWithRetry(ctx, httpClient, http.MethodPost, strings.TrimRight(siteBase, "/")+path, body, "", "", "")
+		if !ok {
 			continue
 		}
 		if token, requires2FA := parseAccessToken(payload); token != "" {
@@ -357,7 +454,7 @@ func parseUpstreamUserID(payload []byte) string {
 
 func fetchSub2APIProfileUsage(ctx context.Context, httpClient *http.Client, siteBase, token string) (model.NewAPITokenUsage, []model.UpstreamSubscription, []string) {
 	for _, path := range []string{"/api/v1/user/profile", "/api/v1/auth/me"} {
-		payload, ok := fetchJSONWithBearer(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token)
+		payload, ok := fetchJSONWithBearerUserCached(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token, "")
 		if !ok {
 			continue
 		}
@@ -432,26 +529,122 @@ func fetchJSONWithBearer(ctx context.Context, httpClient *http.Client, endpoint,
 	return fetchJSONWithBearerUser(ctx, httpClient, endpoint, token, "")
 }
 
+func postJSONWithBearerUser(ctx context.Context, httpClient *http.Client, endpoint, token, userID string, body any) ([]byte, bool) {
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, false
+	}
+	return callUpstreamWithRetry(ctx, httpClient, http.MethodPost, endpoint, bodyBytes, upstreamAuthModeBearer, token, userID)
+}
+
+func createNewAPIKey(ctx context.Context, httpClient *http.Client, siteBase, token, userID string, req model.UpstreamCreateKeyRequest) ([]byte, bool) {
+	modelsValue := strings.Join(normalizeUpstreamModelList(req.Models), ",")
+	groups := compactStrings(req.Groups)
+	group := ""
+	if len(groups) > 0 {
+		group = groups[0]
+	}
+	var expiredAt any
+	if strings.TrimSpace(req.ExpiresAt) != "" {
+		if ts, err := strconv.ParseInt(strings.TrimSpace(req.ExpiresAt), 10, 64); err == nil && ts > 0 {
+			expiredAt = ts
+		} else {
+			expiredAt = req.ExpiresAt
+		}
+	} else {
+		expiredAt = -1
+	}
+	body := map[string]any{
+		"name":         strings.TrimSpace(req.Name),
+		"remain_quota": req.Quota,
+		"expired_at":   expiredAt,
+	}
+	if modelsValue != "" {
+		body["models"] = modelsValue
+	}
+	if group != "" {
+		body["group"] = group
+	}
+	for _, path := range []string{"/api/token", "/api/token/"} {
+		payload, ok := postJSONWithBearerUser(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token, userID, body)
+		if ok {
+			return payload, true
+		}
+	}
+	return nil, false
+}
+
+func createSub2APIKey(ctx context.Context, httpClient *http.Client, siteBase, token string, req model.UpstreamCreateKeyRequest) ([]byte, bool) {
+	modelsValue := strings.Join(normalizeUpstreamModelList(req.Models), ",")
+	groupsValue := strings.Join(compactStrings(req.Groups), ",")
+	var expiredAt any = strings.TrimSpace(req.ExpiresAt)
+	if expiredAt == "" {
+		expiredAt = nil
+	}
+	body := map[string]any{
+		"name":       strings.TrimSpace(req.Name),
+		"quota":      req.Quota,
+		"expires_at": expiredAt,
+	}
+	if modelsValue != "" {
+		body["models"] = modelsValue
+	}
+	if groupsValue != "" {
+		body["groups"] = groupsValue
+	}
+	for _, path := range []string{"/api/v1/api-keys", "/api/v1/keys"} {
+		payload, ok := postJSONWithBearerUser(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token, "", body)
+		if ok {
+			return payload, true
+		}
+	}
+	return nil, false
+}
+
+func parseCreatedUpstreamKey(payload []byte) (key, name, maskedKey string) {
+	var raw any
+	if err := json.Unmarshal(payload, &raw); err != nil {
+		return "", "", ""
+	}
+	records := flattenObjectRecords(raw)
+	for _, record := range records {
+		if value, ok := stringField(record, "key", "api_key", "apiKey", "token", "value"); ok {
+			key = strings.TrimSpace(value)
+		}
+		if value, ok := stringField(record, "name", "remark", "description"); ok && value != "" {
+			name = strings.TrimSpace(value)
+		}
+		if key != "" {
+			break
+		}
+	}
+	if name == "" {
+		name = "新建 Key"
+	}
+	maskedKey = safeMaskedGatewayKeyLabel(key)
+	if maskedKey == "" && key != "" {
+		maskedKey = maskSecret(key)
+	}
+	return key, name, maskedKey
+}
+
 func fetchJSONWithBearerUser(ctx context.Context, httpClient *http.Client, endpoint, token, userID string) ([]byte, bool) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, false
+	return callUpstreamWithRetry(ctx, httpClient, http.MethodGet, endpoint, nil, upstreamAuthModeBearer, token, userID)
+}
+
+// fetchJSONWithBearerUserCached is a cached variant intended for balance/usage
+// endpoints that are queried frequently. Cached entries expire after
+// upstreamBalanceCacheTTL.
+func fetchJSONWithBearerUserCached(ctx context.Context, httpClient *http.Client, endpoint, token, userID string) ([]byte, bool) {
+	cacheKey := upstreamBalanceCache.cacheKey(http.MethodGet, upstreamAuthModeBearer, endpoint, token, userID)
+	if payload, ok := upstreamBalanceCache.get(cacheKey); ok {
+		return payload, true
 	}
-	request.Header.Set("Authorization", "Bearer "+token)
-	if strings.TrimSpace(userID) != "" {
-		request.Header.Set("New-Api-User", strings.TrimSpace(userID))
+	payload, ok := fetchJSONWithBearerUser(ctx, httpClient, endpoint, token, userID)
+	if ok {
+		upstreamBalanceCache.set(cacheKey, payload)
 	}
-	request.Header.Set("Accept", "application/json")
-	response, err := httpClient.Do(request)
-	if err != nil {
-		return nil, false
-	}
-	defer response.Body.Close()
-	payload, err := io.ReadAll(io.LimitReader(response.Body, maxNewAPIInspectResponseBytes+1))
-	if err != nil || response.StatusCode < 200 || response.StatusCode >= 300 || int64(len(payload)) > maxNewAPIInspectResponseBytes {
-		return nil, false
-	}
-	return payload, true
+	return payload, ok
 }
 
 func fetchPagedJSONWithBearer(ctx context.Context, httpClient *http.Client, siteBase, path, token, userID string, maxPages, pageSize int) [][]byte {
@@ -488,8 +681,8 @@ func fetchPagedJSONWithBearer(ctx context.Context, httpClient *http.Client, site
 }
 
 func fetchNewAPIAccountUsage(ctx context.Context, httpClient *http.Client, siteBase, token, userID string) (model.NewAPITokenUsage, []string) {
-	for _, path := range []string{"/api/user/self", "/api/user/self/", "/api/user/profile", "/api/user"} {
-		payload, ok := fetchJSONWithBearerUser(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token, userID)
+	for _, path := range []string{"/api/user/self", "/api/user/self/", "/api/user/profile", "/api/user/quota", "/api/user/subscription", "/api/user"} {
+		payload, ok := fetchJSONWithBearerUserCached(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token, userID)
 		if !ok {
 			continue
 		}
@@ -515,7 +708,7 @@ func fetchNewAPIUserModels(ctx context.Context, httpClient *http.Client, siteBas
 }
 
 func fetchNewAPIGroups(ctx context.Context, httpClient *http.Client, siteBase, token, userID string) ([]model.UpstreamGroup, []string) {
-	for _, path := range []string{"/api/user/self/groups", "/api/user/groups", "/api/groups"} {
+	for _, path := range []string{"/api/user/self/groups", "/api/user/groups", "/api/group", "/api/groups"} {
 		payload, ok := fetchJSONWithBearerUser(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token, userID)
 		if !ok {
 			continue
@@ -973,27 +1166,23 @@ func splitLooseModelList(values ...any) []string {
 func fetchSub2APIUsage(ctx context.Context, httpClient *http.Client, siteBase, token string) (model.NewAPITokenUsage, []string) {
 	endpoint := strings.TrimRight(siteBase, "/") + "/v1/usage"
 	for _, mode := range []string{"x-api-key", "bearer"} {
-		request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-		if err != nil {
-			continue
-		}
-		request.Header.Set("Accept", "application/json")
+		auth := upstreamAuthModeBearer
 		if mode == "x-api-key" {
-			request.Header.Set("x-api-key", token)
-		} else {
-			request.Header.Set("Authorization", "Bearer "+token)
+			auth = upstreamAuthModeXAPIKey
 		}
-		response, err := httpClient.Do(request)
-		if err != nil {
+		cacheKey := upstreamBalanceCache.cacheKey(http.MethodGet, auth, endpoint, token, "")
+		if payload, ok := upstreamBalanceCache.get(cacheKey); ok {
+			if usage, ok := parseSub2APIUsage(payload); ok {
+				return usage, nil
+			}
 			continue
 		}
-		payload, readErr := io.ReadAll(io.LimitReader(response.Body, maxNewAPIInspectResponseBytes+1))
-		_ = response.Body.Close()
-		if readErr != nil || response.StatusCode < 200 || response.StatusCode >= 300 || int64(len(payload)) > maxNewAPIInspectResponseBytes {
+		payload, ok := callUpstreamWithRetry(ctx, httpClient, http.MethodGet, endpoint, nil, auth, token, "")
+		if !ok {
 			continue
 		}
-		usage, ok := parseSub2APIUsage(payload)
-		if ok {
+		if usage, ok := parseSub2APIUsage(payload); ok {
+			upstreamBalanceCache.set(cacheKey, payload)
 			return usage, nil
 		}
 	}
@@ -1216,6 +1405,14 @@ func ApplyUpstreamGateway(ctx context.Context, req model.UpstreamApplyRequest) (
 		return model.UpstreamApplyResult{}, fmt.Errorf("upstream has no importable models")
 	}
 	keys := upstreamKeysForApply(inspect, req.Inspect, req.UpstreamSiteID)
+	if len(keys) == 0 && req.AutoCreateKey && req.UpstreamSiteID > 0 {
+		createdKey, createErr := autoCreateUpstreamGatewayKey(ctx, req.UpstreamSiteID, inspect)
+		if createErr != nil {
+			return model.UpstreamApplyResult{}, fmt.Errorf("auto create upstream key failed: %w", createErr)
+		}
+		inspect.Keys = append(inspect.Keys, createdKey)
+		keys = upstreamKeysForApply(inspect, req.Inspect, req.UpstreamSiteID)
+	}
 	if len(keys) == 0 {
 		return model.UpstreamApplyResult{}, fmt.Errorf("upstream has no importable gateway key")
 	}
@@ -1283,8 +1480,13 @@ func ApplyUpstreamGateway(ctx context.Context, req model.UpstreamApplyRequest) (
 		channel = &newChannel
 		created = true
 	}
-	if err := upsertUpstreamLLMInfos(upstreamLLMInfos(inspect), ctx); err != nil {
+	if err := upsertUpstreamLLMInfos(upstreamLLMInfos(inspect), req.AutoSyncPrice, ctx); err != nil {
 		return model.UpstreamApplyResult{}, err
+	}
+	if req.AutoSyncGroup && req.UpstreamSiteID > 0 && channel != nil && channel.ID > 0 {
+		if err := syncUpstreamGroupsToChannel(ctx, req.UpstreamSiteID, channel.ID, inspect.Groups); err != nil {
+			return model.UpstreamApplyResult{}, err
+		}
 	}
 	return model.UpstreamApplyResult{Channel: *channel, Summary: appliedChannelSummary(*channel), Inspect: inspect, Created: created}, nil
 }
@@ -1399,30 +1601,135 @@ func upstreamLLMInfos(inspect model.UpstreamInspectResult) []model.LLMInfo {
 	return out
 }
 
-func upsertUpstreamLLMInfos(infos []model.LLMInfo, ctx context.Context) error {
+func upsertUpstreamLLMInfos(infos []model.LLMInfo, syncPrice bool, ctx context.Context) error {
 	toCreate := make([]model.LLMInfo, 0, len(infos))
 	for _, info := range infos {
-		existing, err := LLMGet(strings.ToLower(strings.TrimSpace(info.Name)))
+		normalized := info
+		if !syncPrice {
+			normalized.LLMPrice = model.LLMPrice{}
+		}
+		existing, err := LLMGet(strings.ToLower(strings.TrimSpace(normalized.Name)))
 		if err != nil {
-			toCreate = append(toCreate, info)
+			toCreate = append(toCreate, normalized)
 			continue
 		}
 		if existing.CachePolicy == "" || existing.CachePolicy == model.CachePolicyUnknown {
-			existing.CachePolicy = info.CachePolicy
+			existing.CachePolicy = normalized.CachePolicy
 		}
 		if strings.TrimSpace(existing.CacheReason) == "" {
-			existing.CacheReason = info.CacheReason
+			existing.CacheReason = normalized.CacheReason
 		}
-		if existing.LLMPrice.IsZero() && !info.LLMPrice.IsZero() {
-			existing.LLMPrice = info.LLMPrice
+		if syncPrice && existing.LLMPrice.IsZero() && !normalized.LLMPrice.IsZero() {
+			existing.LLMPrice = normalized.LLMPrice
 		}
-		existing.UpstreamProviderType = info.UpstreamProviderType
-		existing.UpstreamSource = info.UpstreamSource
+		existing.UpstreamProviderType = normalized.UpstreamProviderType
+		existing.UpstreamSource = normalized.UpstreamSource
 		if err := LLMUpdate(existing, ctx); err != nil {
 			return err
 		}
 	}
 	return LLMBatchCreate(toCreate, ctx)
+}
+
+func autoCreateUpstreamGatewayKey(ctx context.Context, upstreamSiteID int, inspect model.UpstreamInspectResult) (model.UpstreamGatewayKey, error) {
+	var site model.UpstreamSite
+	if err := db.GetDB().WithContext(ctx).First(&site, upstreamSiteID).Error; err != nil {
+		return model.UpstreamGatewayKey{}, fmt.Errorf("upstream site not found")
+	}
+	name := "auto-" + time.Now().UTC().Format("20060102-150405")
+	var expiresAt string
+	if site.KeyExpireDays > 0 {
+		expiresAt = time.Now().AddDate(0, 0, site.KeyExpireDays).Format(time.DateOnly)
+	}
+	result, err := CreateUpstreamKey(ctx, model.UpstreamCreateKeyRequest{
+		SiteID:    upstreamSiteID,
+		Name:      name,
+		Quota:     site.KeyQuotaLimit,
+		ExpiresAt: expiresAt,
+		Models:    inspect.Models,
+		Groups:    upstreamGroupNames(inspect.Groups),
+	})
+	if err != nil {
+		return model.UpstreamGatewayKey{}, err
+	}
+	return model.UpstreamGatewayKey{
+		Name:          name,
+		Key:           result.Key,
+		MaskedKey:     result.MaskedKey,
+		AllowedModels: inspect.Models,
+		Importable:    true,
+		SourceType:    model.ChannelKeySourceTypePaidMetered,
+	}, nil
+}
+
+func upstreamGroupNames(groups []model.UpstreamGroup) []string {
+	out := make([]string, 0, len(groups))
+	seen := make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		name := strings.TrimSpace(group.Name)
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		out = append(out, name)
+	}
+	return out
+}
+
+func syncUpstreamGroupsToChannel(ctx context.Context, upstreamSiteID, channelID int, groups []model.UpstreamGroup) error {
+	if len(groups) == 0 || channelID <= 0 {
+		return nil
+	}
+	for _, upstreamGroup := range groups {
+		if strings.TrimSpace(upstreamGroup.Name) == "" {
+			continue
+		}
+		group, err := findOrCreateGroupByName(ctx, upstreamGroup.Name)
+		if err != nil {
+			return err
+		}
+		for _, modelName := range normalizeUpstreamModelList(upstreamGroup.Models) {
+			if modelName == "" {
+				continue
+			}
+			item := model.GroupItem{
+				GroupID:   group.ID,
+				ChannelID: channelID,
+				ModelName: modelName,
+				Priority:  1,
+				Weight:    1,
+			}
+			if err := GroupItemAdd(&item, ctx); err != nil {
+				// 单个模型不可用时跳过，不影响其他模型
+				continue
+			}
+		}
+	}
+	return nil
+}
+
+func findOrCreateGroupByName(ctx context.Context, name string) (model.Group, error) {
+	name = strings.TrimSpace(name)
+	groups, err := GroupList(ctx)
+	if err != nil {
+		return model.Group{}, err
+	}
+	for _, group := range groups {
+		if strings.EqualFold(strings.TrimSpace(group.Name), name) {
+			return group, nil
+		}
+	}
+	group := model.Group{
+		Name: name,
+		Mode: model.GroupModeRoundRobin,
+	}
+	if err := GroupCreate(&group, ctx); err != nil {
+		return model.Group{}, err
+	}
+	return group, nil
 }
 
 func defaultUpstreamChannelName(inspect model.UpstreamInspectResult) string {

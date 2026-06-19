@@ -9,6 +9,7 @@ import (
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/helper"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op/connectivity"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/price"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/resp"
@@ -48,12 +49,28 @@ func init() {
 				Handle(deleteLLM),
 		).
 		AddRoute(
+			router.NewRoute("/disable", http.MethodPost).
+				Handle(disableLLM),
+		).
+		AddRoute(
+			router.NewRoute("/enable", http.MethodPost).
+				Handle(enableLLM),
+		).
+		AddRoute(
+			router.NewRoute("/disabled", http.MethodGet).
+				Handle(listDisabledLLMs),
+		).
+		AddRoute(
 			router.NewRoute("/update-price", http.MethodPost).
 				Handle(updateLLMPrice),
 		).
 		AddRoute(
 			router.NewRoute("/last-update-time", http.MethodGet).
 				Handle(getLastUpdateTime),
+		).
+		AddRoute(
+			router.NewRoute("/test", http.MethodPost).
+				Handle(testModelConnectivity),
 		)
 	router.NewGroupRouter("/v1").
 		Use(middleware.APIKeyAuth()).
@@ -220,6 +237,45 @@ func deleteLLM(c *gin.Context) {
 	resp.Success(c, nil)
 }
 
+func disableLLM(c *gin.Context) {
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := op.DisableModel(c.Request.Context(), req.Name); err != nil {
+		resp.Error(c, http.StatusInternalServerError, "failed to disable model")
+		return
+	}
+	resp.Success(c, nil)
+}
+
+func enableLLM(c *gin.Context) {
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := op.EnableModel(c.Request.Context(), req.Name); err != nil {
+		resp.Error(c, http.StatusInternalServerError, "failed to enable model")
+		return
+	}
+	resp.Success(c, nil)
+}
+
+func listDisabledLLMs(c *gin.Context) {
+	models, err := op.ListDisabledModels(c.Request.Context())
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, "failed to list disabled models")
+		return
+	}
+	resp.Success(c, models)
+}
+
 func updateLLMPrice(c *gin.Context) {
 	err := price.UpdateLLMPrice(c.Request.Context())
 	if err != nil {
@@ -232,4 +288,20 @@ func updateLLMPrice(c *gin.Context) {
 func getLastUpdateTime(c *gin.Context) {
 	time := price.GetLastUpdateTime()
 	resp.Success(c, time)
+}
+
+func testModelConnectivity(c *gin.Context) {
+	var req model.ModelTestRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		resp.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	result, err := connectivity.TestModelConnectivity(c.Request.Context(), req)
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, "failed to test model connectivity")
+		return
+	}
+
+	resp.Success(c, result)
 }

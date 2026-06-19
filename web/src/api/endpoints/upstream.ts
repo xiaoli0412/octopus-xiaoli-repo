@@ -12,6 +12,13 @@ import type {
 } from './channel';
 import type { UpstreamModelPrice } from './model';
 
+export type UpstreamCheckinLogEntry = {
+    success: boolean;
+    amount?: number;
+    message?: string;
+    at: string;
+};
+
 export type UpstreamSite = {
     id: number;
     name: string;
@@ -22,6 +29,10 @@ export type UpstreamSite = {
     enabled: boolean;
     auto_refresh: boolean;
     refresh_interval_secs: number;
+    auto_checkin: boolean;
+    checkin_interval_secs: number;
+    last_checkin_at?: string;
+    checkin_log?: string;
     sync_to_channel: boolean;
     linked_channel_id?: number;
     last_refresh_at?: string;
@@ -36,6 +47,14 @@ export type UpstreamSite = {
     balance_used?: number;
     balance_remain?: number;
     balance_unlimited?: boolean;
+    balance_alert_threshold?: number;
+    last_balance_check_at?: string;
+    last_balance_value?: number;
+    auto_create_key?: boolean;
+    key_quota_limit?: number;
+    key_expire_days?: number;
+    auto_sync_group?: boolean;
+    auto_sync_price?: boolean;
     source_label?: string;
 };
 
@@ -110,7 +129,14 @@ export type UpstreamSiteCreateRequest = {
     password?: string;
     auto_refresh?: boolean;
     refresh_interval_secs?: number;
+    auto_checkin?: boolean;
+    checkin_interval_secs?: number;
     sync_to_channel?: boolean;
+    auto_sync_group?: boolean;
+    auto_sync_price?: boolean;
+    auto_create_key?: boolean;
+    key_quota_limit?: number;
+    key_expire_days?: number;
     channel_name?: string;
     target_channel_id?: number;
 };
@@ -121,8 +147,16 @@ export type UpstreamSiteUpdateRequest = {
     enabled?: boolean;
     auto_refresh?: boolean;
     refresh_interval_secs?: number;
+    auto_checkin?: boolean;
+    checkin_interval_secs?: number;
     sync_to_channel?: boolean;
+    auto_sync_group?: boolean;
+    auto_sync_price?: boolean;
     linked_channel_id?: number;
+    balance_alert_threshold?: number;
+    auto_create_key?: boolean;
+    key_quota_limit?: number;
+    key_expire_days?: number;
 };
 
 export type UpstreamRefreshRequest = {
@@ -133,6 +167,66 @@ export type UpstreamRefreshRequest = {
 export type UpstreamApplyRequest = {
     id: number;
     target_channel_id?: number;
+};
+
+export type UpstreamCreateKeyRequest = {
+    site_id: number;
+    name: string;
+    quota?: number;
+    expires_at?: string;
+    models?: string[];
+    groups?: string[];
+};
+
+export type UpstreamCheckinResult = {
+    success: boolean;
+    amount?: number;
+    message?: string;
+    at: string;
+};
+
+export type UpstreamCreateKeyResult = {
+    name: string;
+    key: string;
+    masked_key: string;
+};
+
+export type UpstreamHealthStatus = 'healthy' | 'degraded' | 'unhealthy';
+
+export type UpstreamHealthItem = {
+    id: number;
+    name: string;
+    status: UpstreamHealthStatus;
+    enabled: boolean;
+    last_refresh_at?: string;
+    last_refresh_status?: string;
+    model_count: number;
+    balance_available: boolean;
+    balance_remain: number;
+    balance_unlimited: boolean;
+    balance_alert: boolean;
+    error_rate: number;
+    suppressed: boolean;
+    reasons?: string[];
+};
+
+export type UpstreamUsagePoint = {
+    date: string;
+    timestamp: number;
+    request_count: number;
+    input_tokens: number;
+    output_tokens: number;
+    total_tokens: number;
+    cost: number;
+    success_count: number;
+    failure_count: number;
+};
+
+export type UpstreamUsageResponse = {
+    site_id: number;
+    days: number;
+    points: UpstreamUsagePoint[];
+    channel_ids?: number[];
 };
 
 export type UpstreamInspectPreview = UpstreamInspectResult & {
@@ -200,6 +294,16 @@ export function useRefreshUpstreamSite() {
     });
 }
 
+export function useCheckinUpstreamSite() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: number) => apiClient.post<UpstreamCheckinResult>('/api/v1/upstream/checkin', { id }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['upstream'] });
+        },
+    });
+}
+
 export function useApplyUpstreamSite() {
     const queryClient = useQueryClient();
     return useMutation({
@@ -219,6 +323,46 @@ export function useDeleteUpstreamSite() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['upstream'] });
             queryClient.invalidateQueries({ queryKey: ['models'] });
+        },
+    });
+}
+
+export function useCreateUpstreamKey() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (data: UpstreamCreateKeyRequest) => apiClient.post<UpstreamCreateKeyResult>('/api/v1/upstream/create-key', data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['upstream', 'detail', String(variables.site_id)] });
+            queryClient.invalidateQueries({ queryKey: ['upstream', 'list'] });
+        },
+    });
+}
+
+export function useUpstreamSiteHealth() {
+    return useQuery({
+        queryKey: ['upstream', 'health'],
+        queryFn: async () => apiClient.get<UpstreamHealthItem[]>('/api/v1/upstream/health'),
+        refetchInterval: 30000,
+        refetchOnMount: 'always',
+    });
+}
+
+export function useUpstreamSiteUsage(id?: number, days = 7) {
+    return useQuery({
+        queryKey: ['upstream', 'usage', id ?? 'none', days],
+        queryFn: async () => apiClient.get<UpstreamUsageResponse>(`/api/v1/upstream/usage/${id}?days=${days}`),
+        enabled: Boolean(id),
+        refetchInterval: 60000,
+        refetchOnMount: 'always',
+    });
+}
+
+export function useRestoreUpstreamPriority() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: number) => apiClient.post<null>(`/api/v1/upstream/restore-priority/${id}`),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['upstream'] });
         },
     });
 }

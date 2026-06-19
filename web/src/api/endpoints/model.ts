@@ -41,6 +41,7 @@ export interface LLMInfo extends LLMPrice, OfficialLLMPrice {
     cache_supported?: boolean;
     upstream_provider_type?: string;
     upstream_source?: string;
+    disabled?: boolean;
     upstream_price_count?: number;
     upstream_price_preview?: UpstreamModelPrice[];
 }
@@ -109,6 +110,20 @@ export interface CapabilityInventory {
     serviceable_models: ServiceableModelInventoryItem[];
     selectable_models: SelectableGroupModelInventoryItem[];
     routable_models?: RoutableModelInventoryItem[];
+}
+
+export interface ModelTestRequest {
+    channel_id: number;
+    model: string;
+    message?: string;
+}
+
+export interface ModelTestResult {
+    success: boolean;
+    latency_ms: number;
+    error_message?: string;
+    response_text?: string;
+    price_match: boolean;
 }
 
 /**
@@ -265,6 +280,46 @@ export function useDeleteModel() {
 }
 
 /**
+ * 临时关闭 LLM 模型 Hook
+ */
+export function useDisableModel() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (name: string) => {
+            return apiClient.post<null>('/api/v1/model/disable', { name });
+        },
+        onSuccess: () => {
+            logger.log('模型已临时关闭');
+            queryClient.invalidateQueries({ queryKey: ['models', 'list'] });
+        },
+        onError: (error) => {
+            logger.error('模型关闭失败:', error);
+        },
+    });
+}
+
+/**
+ * 重新启用 LLM 模型 Hook
+ */
+export function useEnableModel() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (name: string) => {
+            return apiClient.post<null>('/api/v1/model/enable', { name });
+        },
+        onSuccess: () => {
+            logger.log('模型已重新启用');
+            queryClient.invalidateQueries({ queryKey: ['models', 'list'] });
+        },
+        onError: (error) => {
+            logger.error('模型启用失败:', error);
+        },
+    });
+}
+
+/**
  * 更新 LLM 模型价格 Hook
  * 
  * @example
@@ -306,5 +361,24 @@ export function useLastUpdateTime() {
             return apiClient.get<string>('/api/v1/model/last-update-time');
         },
         refetchInterval: 30000,
+    });
+}
+
+/**
+ * 测试模型连通性 Hook
+ *
+ * @example
+ * const testModel = useTestModelConnectivity();
+ *
+ * testModel.mutate({ channel_id: 1, model: 'gpt-4' });
+ */
+export function useTestModelConnectivity() {
+    return useMutation({
+        mutationFn: async (data: ModelTestRequest) => {
+            return apiClient.post<ModelTestResult>('/api/v1/model/test', data);
+        },
+        onError: (error) => {
+            logger.error('模型连通性测试失败:', error);
+        },
     });
 }

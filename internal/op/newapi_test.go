@@ -250,7 +250,7 @@ func TestInspectUpstreamGatewayNewAPIManagementReadsCatalog(t *testing.T) {
 }
 
 func TestApplyUpstreamGatewayCreatesChannelAndPriceMetadata(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -311,7 +311,7 @@ func TestApplyUpstreamGatewayCreatesChannelAndPriceMetadata(t *testing.T) {
 }
 
 func TestApplyUpstreamGatewayRejectsManagementTokenAsChannelKey(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -341,7 +341,7 @@ func TestApplyUpstreamGatewayRejectsManagementTokenAsChannelKey(t *testing.T) {
 }
 
 func TestOpsCacheUnsupportedModelsExcludedFromCacheRateDenominator(t *testing.T) {
-	ctx := setupOpTestDB(t)
+	ctx := SetupOpTestDB(t)
 	if err := LLMCreate(model.LLMInfo{Name: "gpt-4o", CachePolicy: model.CachePolicySupported}, ctx); err != nil {
 		t.Fatalf("LLMCreate(gpt-4o) error = %v", err)
 	}
@@ -398,4 +398,331 @@ func newAPITestContainsString(items []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func TestInspectUpstreamNewAPIAccountPasswordFullFlow(t *testing.T) {
+	var sawLogin, sawModels, sawToken bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/user/login":
+			sawLogin = true
+			_, _ = w.Write([]byte(`{"data":{"access_token":"newapi-jwt","user":{"id":99,"username":"admin"}}}`))
+		case "/api/user/self":
+			_, _ = w.Write([]byte(`{"data":{"username":"admin","remain_quota":500,"used_quota":100,"group":"default"}}`))
+		case "/api/user/quota", "/api/user/subscription":
+			_, _ = w.Write([]byte(`{"data":{"quota":600,"used_quota":100,"remain_quota":500}}`))
+		case "/api/user/self/groups":
+			_, _ = w.Write([]byte(`{"data":[{"name":"default","models":["gpt-4o"],"rate_multiplier":1.0,"status":"active"}]}`))
+		case "/api/group":
+			_, _ = w.Write([]byte(`{"data":[{"name":"admin-group","models":["gpt-4o","claude-3-5-sonnet"],"rate_multiplier":0.5,"status":"active"}]}`))
+		case "/api/user/models":
+			_, _ = w.Write([]byte(`{"data":[{"id":"gpt-4o"},{"id":"claude-3-5-sonnet"}]}`))
+		case "/api/token/search":
+			sawToken = true
+			_, _ = w.Write([]byte(`{"data":[{"id":1,"name":"key1","key":"sk-ma********ed","status":"enabled","remain_quota":0,"used_quota":0}]}`))
+		case "/api/pricing":
+			_, _ = w.Write([]byte(`{"model_ratio":{"gpt-4o":0.5,"claude-3-5-sonnet":3},"completion_ratio":{"gpt-4o":2,"claude-3-5-sonnet":5}}`))
+		case "/v1/models":
+			sawModels = true
+			_, _ = w.Write([]byte(`{"data":[{"id":"gpt-4o"},{"id":"claude-3-5-sonnet"},{"id":"text-embedding-3-small"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	result, err := InspectUpstreamGateway(context.Background(), model.UpstreamInspectRequest{
+		ProviderType: model.UpstreamProviderNewAPI,
+		BaseURL:      server.URL,
+		AuthMode:     model.UpstreamAuthModeAccountPassword,
+		Username:     "admin",
+		Password:     "secret",
+	})
+	if err != nil {
+		t.Fatalf("InspectUpstreamGateway() error = %v", err)
+	}
+	if !sawLogin {
+		t.Fatal("expected login request to /api/user/login")
+	}
+	if result.ManagementToken != "newapi-jwt" {
+		t.Fatalf("ManagementToken = %q, want 'newapi-jwt'", result.ManagementToken)
+	}
+	if !sawModels {
+		t.Fatal("expected /v1/models probe after account login with management token fallback")
+	}
+	if !sawToken {
+		t.Fatal("expected /api/token/search to be tried")
+	}
+	if result.ModelCount < 3 {
+		t.Fatalf("ModelCount = %d, want >= 3 (management catalog + gateway probe)", result.ModelCount)
+	}
+	if !newAPITestContainsString(result.Models, "gpt-4o") || !newAPITestContainsString(result.Models, "claude-3-5-sonnet") {
+		t.Fatalf("Models = %#v, want management models included", result.Models)
+	}
+	if !newAPITestContainsString(result.Models, "text-embedding-3-small") {
+		t.Fatalf("Models = %#v, want gateway probe models included", result.Models)
+	}
+	if !newAPITestContainsString(result.RequestCapabilities, model.RequestCapabilityAnthropicMessages) {
+		t.Fatalf("RequestCapabilities = %#v, want anthropic from claude model", result.RequestCapabilities)
+	}
+	if !newAPITestContainsString(result.RequestCapabilities, model.RequestCapabilityOpenAIEmbeddings) {
+		t.Fatalf("RequestCapabilities = %#v, want embeddings from gateway probe", result.RequestCapabilities)
+	}
+	if !result.TokenUsage.Available || result.TokenUsage.RemainQuota != 500 || result.TokenUsage.UsedQuota != 100 {
+		t.Fatalf("TokenUsage = %#v, want account balance from /api/user/self", result.TokenUsage)
+	}
+	if len(result.Groups) < 1 {
+		t.Fatalf("Groups = %#v, want at least one group", result.Groups)
+	}
+	payload, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal error = %v", err)
+	}
+	if strings.Contains(string(payload), "newapi-jwt") {
+		t.Fatalf("serialized result leaked management token: %s", payload)
+	}
+}
+
+func TestInspectUpstreamNewAPIFallbackQuotaEndpoints(t *testing.T) {
+	var sawSubscription, sawGroup bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/user/login":
+			_, _ = w.Write([]byte(`{"data":{"access_token":"jwt-fb"}}`))
+		case "/api/user/self", "/api/user/self/", "/api/user/profile", "/api/user/quota":
+			http.NotFound(w, r)
+		case "/api/user/subscription":
+			sawSubscription = true
+			_, _ = w.Write([]byte(`{"data":{"remain_quota":300,"used_quota":50,"name":"pro","plan":"pro","status":"active"}}`))
+		case "/api/user/self/groups", "/api/user/groups":
+			http.NotFound(w, r)
+		case "/api/group":
+			sawGroup = true
+			_, _ = w.Write([]byte(`{"data":[{"name":"fallback-group","models":["gpt-4o"],"status":"active"}]}`))
+		case "/api/user/models":
+			_, _ = w.Write([]byte(`{"data":[{"id":"gpt-4o"}]}`))
+		case "/api/token/search", "/api/token/":
+			_, _ = w.Write([]byte(`{"data":[]}`))
+		case "/v1/models":
+			_, _ = w.Write([]byte(`{"data":[{"id":"gpt-4o"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	result, err := InspectUpstreamGateway(context.Background(), model.UpstreamInspectRequest{
+		ProviderType: model.UpstreamProviderNewAPI,
+		BaseURL:      server.URL,
+		AuthMode:     model.UpstreamAuthModeAccountPassword,
+		Username:     "admin",
+		Password:     "secret",
+	})
+	if err != nil {
+		t.Fatalf("InspectUpstreamGateway() error = %v", err)
+	}
+	if !sawSubscription {
+		t.Fatal("expected /api/user/subscription fallback when earlier quota endpoints unavailable")
+	}
+	if !sawGroup {
+		t.Fatal("expected /api/group fallback when standard group endpoints unavailable")
+	}
+	if !result.TokenUsage.Available || result.TokenUsage.RemainQuota != 300 {
+		t.Fatalf("TokenUsage = %#v, want quota from /api/user/subscription fallback", result.TokenUsage)
+	}
+}
+
+func TestInspectUpstreamSub2APIFullFlow(t *testing.T) {
+	var sawLogin, sawProfile, sawKeys, sawGroups, sawSubscriptions, sawPricing bool
+	var sawModelsXAPIKey, sawUsage bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/auth/login":
+			sawLogin = true
+			if r.Method != http.MethodPost {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			_, _ = w.Write([]byte(`{"data":{"access_token":"sub2-jwt","user":{"id":5,"email":"user@sub2api.org"}}}`))
+		case "/api/v1/user/profile":
+			sawProfile = true
+			if r.Header.Get("Authorization") != "Bearer sub2-jwt" {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			_, _ = w.Write([]byte(`{"data":{"quota":200,"used":20}}`))
+		case "/api/v1/keys":
+			sawKeys = true
+			if r.Header.Get("Authorization") != "Bearer sub2-jwt" {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			_, _ = w.Write([]byte(`{"data":[{"name":"main-key","key":"sk-sub2-test-key-001","models":["gpt-4o","deepseek-chat"],"groups":["vip"],"status":"enabled"}]}`))
+		case "/api/v1/groups":
+			sawGroups = true
+			_, _ = w.Write([]byte(`{"data":[{"name":"vip","models":["gpt-4o","deepseek-chat"],"rate_multiplier":0.8,"status":"active"}]}`))
+		case "/api/v1/subscriptions":
+			sawSubscriptions = true
+			_, _ = w.Write([]byte(`{"data":[{"name":"premium","plan":"pro","status":"active","balance":180,"expires_at":"2026-12-31"}]}`))
+		case "/api/v1/pricing":
+			sawPricing = true
+			_, _ = w.Write([]byte(`{"data":[{"name":"gpt-4o","input_price":2.5,"output_price":10}]}`))
+		case "/v1/models":
+			if r.Header.Get("x-api-key") == "sk-sub2-test-key-001" {
+				sawModelsXAPIKey = true
+			}
+			_, _ = w.Write([]byte(`{"data":[{"id":"gpt-4o"},{"id":"deepseek-chat"}]}`))
+		case "/v1/usage":
+			sawUsage = true
+			_, _ = w.Write([]byte(`{"remaining":180,"used":20}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	result, err := InspectUpstreamGateway(context.Background(), model.UpstreamInspectRequest{
+		ProviderType: model.UpstreamProviderSub2API,
+		BaseURL:      server.URL,
+		AuthMode:     model.UpstreamAuthModeAccountPassword,
+		Username:     "user@sub2api.org",
+		Password:     "secret",
+	})
+	if err != nil {
+		t.Fatalf("InspectUpstreamGateway() error = %v", err)
+	}
+	if !sawLogin {
+		t.Fatal("expected sub2API login to /api/v1/auth/login")
+	}
+	if !sawProfile {
+		t.Fatal("expected sub2API profile fetch /api/v1/user/profile")
+	}
+	if !sawKeys {
+		t.Fatal("expected sub2API key list /api/v1/keys")
+	}
+	if !sawGroups {
+		t.Fatal("expected sub2API groups /api/v1/groups")
+	}
+	if !sawSubscriptions {
+		t.Fatal("expected sub2API subscriptions /api/v1/subscriptions")
+	}
+	if !sawPricing {
+		t.Fatal("expected sub2API pricing /api/v1/pricing")
+	}
+	if !sawModelsXAPIKey {
+		t.Fatal("expected /v1/models probe with x-api-key header from imported gateway key")
+	}
+	if !sawUsage {
+		t.Fatal("expected /v1/usage probe with gateway key")
+	}
+	if result.ManagementToken != "sub2-jwt" {
+		t.Fatalf("ManagementToken = %q, want 'sub2-jwt'", result.ManagementToken)
+	}
+	if result.ProviderType != model.UpstreamProviderSub2API {
+		t.Fatalf("ProviderType = %q, want sub2api", result.ProviderType)
+	}
+	if result.ModelCount < 2 {
+		t.Fatalf("ModelCount = %d, want >= 2", result.ModelCount)
+	}
+	if !newAPITestContainsString(result.Models, "gpt-4o") || !newAPITestContainsString(result.Models, "deepseek-chat") {
+		t.Fatalf("Models = %#v, want both models from gateway probe", result.Models)
+	}
+	if len(result.Keys) < 1 || result.Keys[0].Key != "sk-sub2-test-key-001" {
+		t.Fatalf("Keys = %#v, want imported gateway key", result.Keys)
+	}
+	if len(result.Groups) < 1 || result.Groups[0].Name != "vip" {
+		t.Fatalf("Groups = %#v, want vip group from /api/v1/groups", result.Groups)
+	}
+	if len(result.Subscriptions) < 1 {
+		t.Fatalf("Subscriptions = %#v, want at least one subscription", result.Subscriptions)
+	}
+	if !result.TokenUsage.Available {
+		t.Fatalf("TokenUsage = %#v, want available usage from /v1/usage", result.TokenUsage)
+	}
+	if result.TokenUsage.RemainQuota != 180 || result.TokenUsage.UsedQuota != 20 {
+		t.Fatalf("TokenUsage = %#v, want gateway usage (remaining=180, used=20)", result.TokenUsage)
+	}
+	if len(result.PriceCandidates) < 1 {
+		t.Fatalf("PriceCandidates = %#v, want at least one price candidate", result.PriceCandidates)
+	}
+	var gpt4oPrice model.UpstreamPriceCandidate
+	for _, item := range result.PriceCandidates {
+		if item.Name == "gpt-4o" {
+			gpt4oPrice = item
+			break
+		}
+	}
+	if gpt4oPrice.Input != 2.5 || gpt4oPrice.Output != 10 {
+		t.Fatalf("gpt-4o price = %#v, want upstream price from /api/v1/pricing", gpt4oPrice)
+	}
+	payload, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal error = %v", err)
+	}
+	if strings.Contains(string(payload), "sub2-jwt") {
+		t.Fatalf("serialized result leaked management token: %s", payload)
+	}
+	if strings.Contains(string(payload), "sk-sub2-test-key-001") {
+		t.Fatalf("serialized result leaked raw gateway key: %s", payload)
+	}
+}
+
+func TestInspectUpstreamOpenAICompatibleAccessKey(t *testing.T) {
+	var sawModelsWithBearer, sawModelsWithXAPIKey bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/models":
+			if r.Header.Get("Authorization") == "Bearer sk-openai-test-key" {
+				sawModelsWithBearer = true
+			}
+			if r.Header.Get("x-api-key") == "sk-openai-test-key" {
+				sawModelsWithXAPIKey = true
+			}
+			_, _ = w.Write([]byte(`{"data":[{"id":"gpt-4o"},{"id":"gpt-4o-mini"},{"id":"text-embedding-3-large"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	result, err := InspectUpstreamGateway(context.Background(), model.UpstreamInspectRequest{
+		ProviderType: model.UpstreamProviderOpenAICompatible,
+		BaseURL:      server.URL,
+		AuthMode:     model.UpstreamAuthModeAccessKey,
+		AccessKey:    "sk-openai-test-key",
+	})
+	if err != nil {
+		t.Fatalf("InspectUpstreamGateway() error = %v", err)
+	}
+	if !sawModelsWithBearer && !sawModelsWithXAPIKey {
+		t.Fatal("expected /v1/models probe with either bearer or x-api-key auth")
+	}
+	if result.ProviderType != model.UpstreamProviderOpenAICompatible {
+		t.Fatalf("ProviderType = %q, want openai_compatible", result.ProviderType)
+	}
+	if result.AuthMode != model.UpstreamAuthModeAccessKey {
+		t.Fatalf("AuthMode = %q, want access_key", result.AuthMode)
+	}
+	if result.ModelCount != 3 {
+		t.Fatalf("ModelCount = %d, want 3", result.ModelCount)
+	}
+	if !newAPITestContainsString(result.Models, "gpt-4o") || !newAPITestContainsString(result.Models, "text-embedding-3-large") {
+		t.Fatalf("Models = %#v, want all 3 models from /v1/models", result.Models)
+	}
+	if !newAPITestContainsString(result.RequestCapabilities, model.RequestCapabilityOpenAIEmbeddings) {
+		t.Fatalf("RequestCapabilities = %#v, want embedding capability from text-embedding model", result.RequestCapabilities)
+	}
+	if !newAPITestContainsString(result.RequestCapabilities, model.RequestCapabilityOpenAIChat) {
+		t.Fatalf("RequestCapabilities = %#v, want chat capability", result.RequestCapabilities)
+	}
+	if result.APIBaseURL != server.URL+"/v1" {
+		t.Fatalf("APIBaseURL = %q, want %s/v1", result.APIBaseURL, server.URL)
+	}
+	if result.BaseURL != server.URL {
+		t.Fatalf("BaseURL = %q, want %s", result.BaseURL, server.URL)
+	}
 }

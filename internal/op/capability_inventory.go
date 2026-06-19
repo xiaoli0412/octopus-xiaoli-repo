@@ -80,7 +80,7 @@ func declaredChannelModels(channel model.Channel) []string {
 	return splitModelNames(channel.Model, channel.CustomModel)
 }
 
-func serviceableModelsForChannel(channel model.Channel) []model.ServiceableModelInventoryItem {
+func serviceableModelsForChannel(ctx context.Context, channel model.Channel) []model.ServiceableModelInventoryItem {
 	declaredModels := declaredChannelModels(channel)
 	declaredSet := make(map[string]struct{}, len(declaredModels))
 	for _, name := range declaredModels {
@@ -139,6 +139,9 @@ func serviceableModelsForChannel(channel model.Channel) []model.ServiceableModel
 			if !channel.KeyCanServeRequest(key, trimmed, requestCapability) {
 				continue
 			}
+			if disabled, _ := IsModelDisabled(ctx, trimmed); disabled {
+				continue
+			}
 			acc := ensure(trimmed)
 			if acc == nil {
 				continue
@@ -173,9 +176,12 @@ func serviceableModelsForChannel(channel model.Channel) []model.ServiceableModel
 	return items
 }
 
-func addSelectable(selectable map[string]*selectableAccumulator, name string, source string) *selectableAccumulator {
+func addSelectable(ctx context.Context, selectable map[string]*selectableAccumulator, name string, source string) *selectableAccumulator {
 	trimmed := strings.TrimSpace(name)
 	if trimmed == "" {
+		return nil
+	}
+	if disabled, _ := IsModelDisabled(ctx, trimmed); disabled {
 		return nil
 	}
 	key := strings.ToLower(trimmed)
@@ -208,11 +214,11 @@ func buildCapabilityInventory(ctx context.Context) (model.CapabilityInventory, e
 	serviceableByChannelModel := make(map[string]model.ServiceableModelInventoryItem)
 
 	for _, channel := range channelCache.Values() {
-		items := serviceableModelsForChannel(channel)
+		items := serviceableModelsForChannel(ctx, channel)
 		inventory.ServiceableModels = append(inventory.ServiceableModels, items...)
 		for _, item := range items {
 			serviceableByChannelModel[fmt.Sprintf("%d|%s", item.ChannelID, strings.ToLower(strings.TrimSpace(item.Name)))] = item
-			acc := addSelectable(selectable, item.Name, item.InventorySource)
+			acc := addSelectable(ctx, selectable, item.Name, item.InventorySource)
 			if acc == nil {
 				continue
 			}
@@ -236,13 +242,13 @@ func buildCapabilityInventory(ctx context.Context) (model.CapabilityInventory, e
 	}
 	routable := make(map[string]*routableAccumulator)
 	for _, group := range groups {
-		addSelectable(selectable, group.Name, inventorySourceGroupBound)
+		addSelectable(ctx, selectable, group.Name, inventorySourceGroupBound)
 		for _, item := range group.Items {
 			targetModel := strings.TrimSpace(item.ModelName)
 			if targetModel == "" {
 				targetModel = strings.TrimSpace(group.Name)
 			}
-			addSelectable(selectable, targetModel, inventorySourceGroupBound)
+			addSelectable(ctx, selectable, targetModel, inventorySourceGroupBound)
 			serviceable, ok := serviceableByChannelModel[fmt.Sprintf("%d|%s", item.ChannelID, strings.ToLower(targetModel))]
 			if !ok || serviceable.KeyCount <= 0 {
 				continue

@@ -4,6 +4,51 @@
 
 ---
 
+## 1.20.0 - 2026-06-19
+
+### 🔗 上游深链接 V2 全面重构
+
+- 重写上游网关探测层，完整支持 New API、sub2API 与 OpenAI Compatible 三类站点，支持账号密码登录后自动获取管理 Token。
+- 新增上游 Gateway Key 创建接口（`POST /api/v1/upstream/create-key`），支持设置名称、配额、过期时间与模型范围。
+- 新增自动签到（`UpstreamCheckinTask`）与手动签到接口，支持配置签到间隔并记录签到历史。
+- 新增余额预警：上游刷新时自动检查余额，低于阈值记录 WARN 日志。
+- 新增模型连通性测试（`POST /api/v1/model/test`），前端模型卡片可一键测试并展示延迟与错误信息。
+- 新增模型临时关闭：禁用后的模型不再参与路由，可随时重新启用。
+- 模型价格列表 UI 优化：同时展示官方价格与中转价格，支持排序与筛选。
+- 上游站点配置增强：支持自动签到、余额预警、Key 创建策略、自动同步到渠道/分组/价格的策略配置。
+- 底层打通：上游数据一键同步到本地渠道 Key、分组与价格。
+
+### 🤖 AI 自动化中心重构
+
+- 单页内工作台布局，单 AI 主链优先展示，结果区默认摘要优先、可展开详情。
+- 新增 `session-detail.tsx` 与 `run-report.tsx` 组件，二级视图使用固定高度滚动。
+- 统一标题、按钮、状态文案体系，补充 `zh-Hans` / `zh-Hant` / `en` 国际化键。
+
+### ⚡ 性能与稳定性优化
+
+- 上游请求新增总超时与单次请求超时，并支持指数退避重试（最多 3 次，仅对网络错误与 5xx 重试）。
+- `UpstreamRefreshTask` / `UpstreamCheckinTask` 改为 errgroup 并发执行，默认并发上限 5。
+- 成功探测日志降级为 Debug，错误日志格式统一。
+- 余额查询增加 5 分钟内存缓存，避免高频刷新时重复请求上游。
+
+### 📊 运维侧新功能
+
+- 上游站点健康看板（`GET /api/v1/upstream/health`）：综合探测状态、余额告警、模型数与错误率评估 healthy / degraded / unhealthy。
+- 多渠道自动切换：上游站点失败时自动临时压制，路由层过滤被压制站点，支持 `POST /api/v1/upstream/restore-priority/:id` 手动恢复。
+- 用量统计可视化（`GET /api/v1/upstream/:id/usage`）：基于 `RelayLog` 聚合最近 7/30 天请求量、Token 与费用趋势。
+
+### 📚 文档
+
+- 新增 `.trae/specs/upstream-deep-link-v2/api-reference.md` 完整 API 参考。
+- 新增 `.trae/specs/upstream-deep-link-v2/user-guide.md` 用户操作指南。
+- 新增 `.trae/specs/upstream-deep-link-v2/deployment-notes.md` 部署与升级说明。
+- README / README_zh 更新特性说明与版本引用。
+
+### ⚠️ 升级注意
+
+- 数据库包含新增迁移 `internal/db/migrate/018.go`，新增 `llm_infos.disabled` 列。
+- `golang.org/x/sync` 提升为 direct dependency，首次构建需确保依赖下载完成。
+
 ## 1.19.11 - 2026-06-08
 
 ### 🔧 安装脚本可测试化
