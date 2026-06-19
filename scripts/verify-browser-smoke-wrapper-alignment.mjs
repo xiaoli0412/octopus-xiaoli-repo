@@ -462,19 +462,6 @@ const activeArchiveInputDocChecks = [
       '/D:/GPT-codex/octopus_repo/docs/DETAILED_EXECUTION_WORKFLOW.zh-CN.md',
     ],
   },
-  {
-    file: 'docs/archive/worklog/worklog/README.zh-CN.md',
-    include: [
-      '/D:/GPT-codex/octopus_repo/docs/archive/planning/LLM-Gateway-Refactor-Plan.zh-CN.md',
-      '/D:/GPT-codex/octopus_repo/docs/archive/status/DETAILED_EXECUTION_WORKFLOW.zh-CN.md',
-      'docs/archive/planning/LLM-Gateway-Refactor-Plan.zh-CN.md',
-    ],
-    exclude: [
-      '/D:/GPT-codex/octopus_repo/docs/LLM-Gateway-Refactor-Plan.zh-CN.md',
-      '/D:/GPT-codex/octopus_repo/docs/DETAILED_EXECUTION_WORKFLOW.zh-CN.md',
-      'docs/LLM-Gateway-Refactor-Plan.zh-CN.md',
-    ],
-  },
 ];
 
 const wrapperFamilies = {

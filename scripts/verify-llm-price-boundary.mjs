@@ -18,13 +18,18 @@ const toolbarViewOptionsPath = path.join(repoRoot, 'web/src/components/modules/t
 const toolbarViewOptionsSource = fs.readFileSync(toolbarViewOptionsPath, 'utf8');
 
 assert.match(source, /data-testid="setting-llm-price-card"/);
-assert.match(source, /t\('llmPrice\.hint'\)/);
-assert.match(source, /t\('llmPrice\.defaultPathTitle'\)/);
-assert.match(source, /t\('llmPrice\.probeRedirectTitle'\)/);
+assert.match(source, /t\('llmPrice\.title'\)/);
+assert.match(source, /t\('llmPrice\.scopeCards\.pricingLabel'\)/);
+assert.match(source, /t\('llmPrice\.scopeCards\.pricingValue'\)/);
+assert.match(source, /t\('llmPrice\.scopeCards\.probeLabel'\)/);
 assert.match(source, /t\('llmPrice\.scopeCards\.probeValue'\)/);
-assert.match(source, /t\('llmPrice\.updateInterval\.hint'\)/);
-assert.match(source, /t\('llmPrice\.manualUpdate\.hint'\)/);
-assert.match(source, /<HelpHint>\{t\('llmPrice\.hint'\)\}<\/HelpHint>/);
+assert.match(source, /t\('llmPrice\.scopeCards\.syncLabel'\)/);
+assert.match(source, /t\('llmPrice\.updateInterval\.label'\)/);
+assert.match(source, /t\('llmPrice\.updateInterval\.placeholder'\)/);
+assert.match(source, /t\('llmPrice\.manualUpdate\.label'\)/);
+assert.match(source, /t\('llmPrice\.manualUpdate\.button'\)/);
+assert.match(source, /t\('llmPrice\.lastUpdate'\)/);
+assert.match(source, /t\('llmPrice\.neverUpdated'\)/);
 
 assert.match(modelIndexSource, /const modelDensity = useToolbarViewOptionsStore\(\(s\) => s\.modelDensity\);/);
 assert.match(modelIndexSource, /const estimateItemHeight = modelDensity === 'compact' \? 126 : 156/);
@@ -53,9 +58,12 @@ assert.match(toolbarSource, /const densityButtonMap: Record<'grid' \| 'list', Ca
 assert.match(modelItemSource, /data-slot=\{isCompact \? 'model-card-meta-compact' : 'model-card-meta'\}/);
 assert.match(modelItemSource, /label: tSetting\('canonicalName'\)/);
 assert.match(modelItemSource, /label: tSetting\('billingMode'\)/);
-assert.match(modelItemSource, /label: tSetting\('officialPricePair'\)/);
 assert.match(modelItemSource, /metaItems\.map\(\(item\) => \(/);
-assert.match(modelItemSource, /key: 'canonical'[\s\S]*key: 'billing'[\s\S]*key: 'official'/);
+assert.match(modelItemSource, /key: 'canonical'[\s\S]*key: 'billing'/);
+assert.match(modelItemSource, /label=\{t\('card\.official'\)\}/);
+assert.match(modelItemSource, /label=\{t\('card\.gateway'\)\}/);
+assert.match(modelItemSource, /input=\{model\.official_input\}/);
+assert.match(modelItemSource, /input=\{gatewayPrice\.input\}/);
 assert.match(modelIndexSource, /data-testid="model-page"/);
 assert.match(modelIndexSource, /data-layout="grid"/);
 assert.match(modelIndexSource, /data-density=\{modelDensity\}/);
