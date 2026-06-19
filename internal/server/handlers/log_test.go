@@ -27,27 +27,19 @@ func TestStreamLogConsumesTokenOnFirstUse(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/log/stream?token="+token, nil)
 	requestCtx, cancel := context.WithCancel(req.Context())
 	ctx.Request = req.WithContext(requestCtx)
-	done := make(chan struct{})
+
 	go func() {
-		defer close(done)
-		streamLog(ctx)
-	}()
-	deadline := time.Now().Add(500 * time.Millisecond)
-	for !strings.HasPrefix(first.Header().Get("Content-Type"), "text/event-stream") && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
-	if first.Code != http.StatusOK {
+		time.Sleep(100 * time.Millisecond)
 		cancel()
-		<-done
+	}()
+	streamLog(ctx)
+
+	if first.Code != http.StatusOK {
 		t.Fatalf("first stream status = %d, want %d, body = %s", first.Code, http.StatusOK, first.Body.String())
 	}
 	if !strings.HasPrefix(first.Header().Get("Content-Type"), "text/event-stream") {
-		cancel()
-		<-done
 		t.Fatalf("first content-type = %q, want prefix %q", first.Header().Get("Content-Type"), "text/event-stream")
 	}
-	cancel()
-	<-done
 
 	second := performJSONHandlerRequest(t, http.MethodGet, "/api/v1/log/stream?token="+token, nil, streamLog)
 	if second.Code != http.StatusUnauthorized {
