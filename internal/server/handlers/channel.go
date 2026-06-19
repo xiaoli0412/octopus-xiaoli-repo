@@ -39,10 +39,13 @@ func scheduleChannelPostSaveTask(channel *model.Channel) bool {
 	select {
 	case channelPostSaveTaskSlots <- struct{}{}:
 		go func(channel *model.Channel) {
-			defer func() { <-channelPostSaveTaskSlots }()
-			ctx, cancel := task.DetachedContextWithTimeout(channelPostSaveTaskTimeout)
+			runner := channelPostSaveTaskRunner
+			timeout := channelPostSaveTaskTimeout
+			slots := channelPostSaveTaskSlots
+			defer func() { <-slots }()
+			ctx, cancel := task.DetachedContextWithTimeout(timeout)
 			defer cancel()
-			channelPostSaveTaskRunner(channel, ctx)
+			runner(channel, ctx)
 		}(channel)
 		return true
 	default:
