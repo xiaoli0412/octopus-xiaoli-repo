@@ -12,6 +12,7 @@ import sys
 import paramiko
 
 COMPOSE_DIR = "/root/octopus-xiaoli-repo"
+DEPLOY_TIMEOUT = 1200  # seconds; docker builds can be slow on small servers
 
 
 def run_ssh(host: str, user: str, password: str, port: int, command: str, timeout: int = 300):
@@ -48,10 +49,17 @@ echo "=== Current git status ==="
 git status --short
 
 echo "=== Pulling latest source ==="
-git pull
+git fetch origin
+git reset --hard origin/main
 
-echo "=== Rebuilding and restarting container ==="
-docker compose up -d --build
+echo "=== Building container (output buffered to /tmp/octopus-build.log) ==="
+if ! docker compose build > /tmp/octopus-build.log 2>&1; then
+    echo "=== Build failed; last 80 lines ==="
+    tail -n 80 /tmp/octopus-build.log
+    exit 1
+fi
+echo "=== Build succeeded; starting container ==="
+docker compose up -d
 
 echo "=== Waiting for healthcheck ==="
 for i in $(seq 1 60); do
@@ -65,7 +73,7 @@ echo "Timeout waiting for healthy"
 docker logs --tail 30 octopus
 exit 1
 """
-    out, err, code = run_ssh(host, info["user"], info["password"], info["port"], script, timeout=600)
+    out, err, code = run_ssh(host, info["user"], info["password"], info["port"], script, timeout=DEPLOY_TIMEOUT)
     return {"out": out, "err": err, "code": code}
 
 
