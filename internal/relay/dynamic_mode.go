@@ -98,6 +98,10 @@ func filterUpstreamSuppressedItems(items []dbmodel.GroupItem) []dbmodel.GroupIte
 	for _, item := range items {
 		channel, err := op.ChannelGet(item.ChannelID, nil)
 		if err != nil {
+			// Keep the item when we cannot resolve its channel; suppression is
+			// only applied when the channel is confirmed to be upstream-linked
+			// and its upstream site is currently suppressed.
+			filtered = append(filtered, item)
 			continue
 		}
 		if channel.UpstreamSiteID > 0 && op.UpstreamSiteIsSuppressed(channel.UpstreamSiteID) {
