@@ -2,7 +2,8 @@
 .github
 .claude
 .local-tools
-build
+build/bin
+build/archives
 data
 web/node_modules
 web/.next
