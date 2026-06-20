@@ -75,11 +75,13 @@ git reset --hard origin/main
 {deploy_steps}
 
 echo "=== Waiting for healthcheck ==="
-for i in $(seq 1 60); do
-    if docker ps --filter "name=octopus" --filter "health=healthy" --format '{{.Names}}' | grep -q "octopus"; then
+for i in $(seq 1 120); do
+    status=$(docker inspect --format='{{.State.Health.Status}}' octopus 2>/dev/null || echo '')
+    if [ "$status" = "healthy" ]; then
         echo "Container healthy"
         exit 0
     fi
+    echo "... health status: ${status:-unknown} (iteration $i)"
     sleep 3
 done
 echo "Timeout waiting for healthy"
