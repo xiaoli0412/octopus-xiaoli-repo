@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Deploy octopus v1.20.0 to remote servers with zero data loss.
+"""Deploy octopus to remote servers with zero data loss.
 
 The servers are managed via docker compose in /root/octopus-xiaoli-repo.
-This script pulls the latest source and rebuilds the container, preserving
-all existing volume mounts.
+By default this script pulls the latest docker-compose.yml from origin/main
+and starts the GHCR pre-built image, preserving all existing volume mounts.
+Use --build to force a local build as a fallback.
 """
 
 import argparse
@@ -12,7 +13,8 @@ import sys
 import paramiko
 
 COMPOSE_DIR = "/root/octopus-xiaoli-repo"
-DEPLOY_TIMEOUT = 1200  # seconds; docker builds can be slow on small servers
+PULL_TIMEOUT = 300  # seconds; image pull is usually fast
+BUILD_TIMEOUT = 1200  # seconds; local builds can be slow on small servers
 
 
 def run_ssh(host: str, user: str, password: str, port: int, command: str, timeout: int = 300):
@@ -40,26 +42,37 @@ def inspect_container(host: str, info: dict) -> dict:
     return {"out": out, "err": err, "code": code}
 
 
-def deploy_compose(host: str, info: dict) -> dict:
-    """Pull latest source in the compose directory and rebuild the container."""
-    script = f"""set -e
-cd "{COMPOSE_DIR}"
-
-echo "=== Current git status ==="
-git status --short
-
-echo "=== Pulling latest source ==="
-git fetch origin
-git reset --hard origin/main
-
-echo "=== Building container (output buffered to /tmp/octopus-build.log) ==="
+def deploy_compose(host: str, info: dict, build_local: bool = False) -> dict:
+    """Pull latest source in the compose directory and start the container."""
+    if build_local:
+        deploy_steps = f"""echo "=== Building container locally (output buffered to /tmp/octopus-build.log) ==="
 if ! docker compose build > /tmp/octopus-build.log 2>&1; then
     echo "=== Build failed; last 80 lines ==="
     tail -n 80 /tmp/octopus-build.log
     exit 1
 fi
 echo "=== Build succeeded; starting container ==="
-docker compose up -d
+docker compose up -d"""
+        timeout = BUILD_TIMEOUT
+    else:
+        deploy_steps = f"""echo "=== Pulling latest GHCR image ==="
+docker compose pull
+
+echo "=== Starting container ==="
+docker compose up -d"""
+        timeout = PULL_TIMEOUT
+
+    script = f"""set -e
+cd "{COMPOSE_DIR}"
+
+echo "=== Current git status ==="
+git status --short
+
+echo "=== Pulling latest compose/source ==="
+git fetch origin
+git reset --hard origin/main
+
+{deploy_steps}
 
 echo "=== Waiting for healthcheck ==="
 for i in $(seq 1 60); do
@@ -73,7 +86,7 @@ echo "Timeout waiting for healthy"
 docker logs --tail 30 octopus
 exit 1
 """
-    out, err, code = run_ssh(host, info["user"], info["password"], info["port"], script, timeout=DEPLOY_TIMEOUT)
+    out, err, code = run_ssh(host, info["user"], info["password"], info["port"], script, timeout=timeout)
     return {"out": out, "err": err, "code": code}
 
 
@@ -84,6 +97,7 @@ def main():
     parser.add_argument("--user", required=True, help="SSH user")
     parser.add_argument("--password", required=True, help="SSH password")
     parser.add_argument("--inspect-only", action="store_true", help="Only inspect current state")
+    parser.add_argument("--build", action="store_true", help="Force local docker compose build instead of pulling GHCR image")
     args = parser.parse_args()
 
     info = {"port": args.port, "user": args.user, "password": args.password}
@@ -98,8 +112,8 @@ def main():
     if args.inspect_only:
         return
 
-    print("--- Deploying v1.20.0 via compose ---")
-    result = deploy_compose(args.host, info)
+    print(f"--- Deploying via compose (mode: {'local-build' if args.build else 'ghcr-pull'}) ---")
+    result = deploy_compose(args.host, info, build_local=args.build)
     print(result["out"])
     if result["err"]:
         print("STDERR:", result["err"])

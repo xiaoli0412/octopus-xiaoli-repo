@@ -1,5 +1,7 @@
 services:
   octopus:
+    # 默认使用 GHCR 预构建镜像；如需本地构建，执行 docker compose up -d --build
+    image: ${OCTOPUS_IMAGE:-ghcr.io/xiaoli0412/octopus-xiaoli-repo:latest}
     build:
       context: .
       dockerfile: scripts/dockerfiles/Dockerfile.debian
