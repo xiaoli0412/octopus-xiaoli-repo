@@ -72,6 +72,11 @@ jobs:
     permissions:
       contents: write
       packages: write
+    outputs:
+      release_tag: ${{ steps.release_meta.outputs.release_tag }}
+      docker_tag: ${{ steps.release_meta.outputs.docker_tag }}
+      app_version: ${{ steps.release_meta.outputs.app_version }}
+      is_prerelease: ${{ steps.release_meta.outputs.is_prerelease }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -130,25 +135,43 @@ jobs:
           prerelease: ${{ steps.release_meta.outputs.is_prerelease }}
           tag_name: ${{ steps.release_meta.outputs.release_tag }}
 
-      - name: Docker meta (Debian)
-        id: meta-debian
-        uses: docker/metadata-action@v5
+  docker-release:
+    name: docker-release (${{ matrix.flavor }})
+    runs-on: ubuntu-latest
+    needs: release
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [alpine, debian]
+        include:
+          - flavor: alpine
+            dockerfile: ./scripts/dockerfiles/Dockerfile.alpine
+            cache_tag: buildcache-alpine
+            tag_suffix: -alpine
+            latest_tag: latest-alpine
+          - flavor: debian
+            dockerfile: ./scripts/dockerfiles/Dockerfile.debian
+            cache_tag: buildcache-debian
+            tag_suffix: ''
+            latest_tag: latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
         with:
-          images: |
-            ghcr.io/${{ github.repository }}
-          tags: |
-            type=raw,value=latest,enable=${{ steps.release_meta.outputs.is_prerelease != 'true' }}
-            type=raw,value=${{ steps.release_meta.outputs.docker_tag }}
+          persist-credentials: false
 
-      - name: Docker meta (Alpine)
-        id: meta-alpine
+      - name: Docker meta
+        id: meta
         uses: docker/metadata-action@v5
         with:
           images: |
             ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=latest-alpine,enable=${{ steps.release_meta.outputs.is_prerelease != 'true' }}
-            type=raw,value=${{ steps.release_meta.outputs.docker_tag }}-alpine
+            type=raw,value=${{ matrix.latest_tag }},enable=${{ needs.release.outputs.is_prerelease != 'true' }}
+            type=raw,value=${{ needs.release.outputs.docker_tag }}${{ matrix.tag_suffix }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -163,31 +186,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push (Alpine)
+      - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./scripts/dockerfiles/Dockerfile.alpine
+          file: ${{ matrix.dockerfile }}
           push: true
           platforms: linux/amd64,linux/i386,linux/arm64,linux/arm/v7
-          tags: ${{ steps.meta-alpine.outputs.tags }}
-          labels: ${{ steps.meta-alpine.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             TARGETPLATFORM
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-alpine
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-alpine,mode=max
-
-      - name: Build and push (Debian)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./scripts/dockerfiles/Dockerfile.debian
-          push: true
-          platforms: linux/amd64,linux/i386,linux/arm64,linux/arm/v7
-          tags: ${{ steps.meta-debian.outputs.tags }}
-          labels: ${{ steps.meta-debian.outputs.labels }}
-          build-args: |
-            TARGETPLATFORM
-            APP_VERSION=${{ steps.release_meta.outputs.app_version }}
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-debian
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache-debian,mode=max
+            APP_VERSION=${{ needs.release.outputs.app_version }}
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:${{ matrix.cache_tag }}
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:${{ matrix.cache_tag }},mode=max

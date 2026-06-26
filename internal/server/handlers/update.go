@@ -63,6 +63,10 @@ func updateFunc(c *gin.Context) {
 			resp.Error(c, http.StatusNotImplemented, err.Error())
 			return
 		}
+		if errors.Is(err, update.ErrUpdateInDocker) {
+			resp.Error(c, http.StatusNotImplemented, err.Error())
+			return
+		}
 		resp.Error(c, http.StatusInternalServerError, "update failed")
 		return
 	}

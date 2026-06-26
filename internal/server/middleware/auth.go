@@ -118,9 +118,21 @@ func APIKeyAuth() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+
 		c.Set("request_type", requestType)
 		c.Set("supported_models", apiKeyObj.SupportedModels)
 		c.Set("api_key_id", apiKeyObj.ID)
+		c.Set("api_key", apiKeyObj)
+
+		if _, allowed := APIKeyRateLimitCheck(c); !allowed {
+			return
+		}
+
 		c.Next()
+
+		// 请求结束后根据实际消耗 token 检查 TPM。
+		if tokens := totalTokensFromContext(c.Request.Context()); tokens > 0 {
+			APIKeyRateLimitRecordTokens(c, tokens)
+		}
 	}
 }

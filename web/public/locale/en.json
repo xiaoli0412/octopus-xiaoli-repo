@@ -1868,6 +1868,14 @@
         "maxCost": "Max Cost",
         "maxCostPlaceholder": "Enter amount",
         "unlimited": "Unlimited",
+        "rateLimitTitle": "Rate Limits",
+        "rateLimitRPM": "Requests per minute (RPM)",
+        "rateLimitRPMPlaceholder": "requests / min",
+        "rateLimitTPM": "Tokens per minute (TPM)",
+        "rateLimitTPMPlaceholder": "tokens / min",
+        "rateLimitDaily": "Requests per day",
+        "rateLimitDailyPlaceholder": "requests / day",
+        "rateLimitHint": "Leave blank or 0 for unlimited",
         "expireAt": "Expire Date",
         "selectDate": "Select date",
         "neverExpire": "Never Expire",
@@ -2092,7 +2100,12 @@
       "updateNow": "Update Now",
       "updating": "Updating...",
       "updateSuccess": "Update successful, service will restart shortly",
-      "updateFailed": "Update failed"
+      "updateFailed": "Update failed",
+      "dockerUpdateHint": "Running inside a Docker container. Update the container image on the host with:",
+      "dockerUpdateCommand": "docker compose pull && docker compose up -d",
+      "copyUpdateCommand": "Copy update command",
+      "copySuccess": "Copied to clipboard",
+      "copyFailed": "Copy failed"
     },
     "log": {
       "title": "Log Settings",

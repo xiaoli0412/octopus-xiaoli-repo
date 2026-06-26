@@ -1939,7 +1939,12 @@
       "updateNow": "今すぐ更新",
       "updating": "更新中...",
       "updateSuccess": "更新に成功しました。サービスはまもなく再起動します",
-      "updateFailed": "更新に失敗しました"
+      "updateFailed": "更新に失敗しました",
+      "dockerUpdateHint": "Docker コンテナ内で実行中です。ホスト側で以下のコマンドを実行してコンテナイメージを更新してください。",
+      "dockerUpdateCommand": "docker compose pull && docker compose up -d",
+      "copyUpdateCommand": "更新コマンドをコピー",
+      "copySuccess": "クリップボードにコピーしました",
+      "copyFailed": "コピーに失敗しました"
     },
     "log": {
       "title": "ログ設定",

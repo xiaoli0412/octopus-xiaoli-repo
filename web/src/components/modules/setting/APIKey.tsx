@@ -59,6 +59,19 @@ function normalizeMoneyInput(input: string): string {
     return rest.length > 0 ? `${intPart}.${rest.join('').slice(0, 6)}` : intPart;
 }
 
+function normalizeRateLimitInput(input: string): string {
+    const cleaned = input.replace(/[^\d]/g, '');
+    return cleaned.slice(0, 12);
+}
+
+function parseRateLimitValue(input: string): number | undefined {
+    const trimmed = input.trim();
+    if (trimmed === '') return undefined;
+    const num = parseInt(trimmed, 10);
+    if (!Number.isFinite(num) || num <= 0) return undefined;
+    return num;
+}
+
 function parseSupportedModels(value?: string): string[] {
     const seen = new Set<string>();
     const models: string[] = [];
@@ -106,9 +119,21 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
         expire_at: apiKey?.expire_at,
         max_cost: apiKey?.max_cost,
         supported_models: apiKey?.supported_models,
+        rate_limit_rpm: apiKey?.rate_limit_rpm,
+        rate_limit_tpm: apiKey?.rate_limit_tpm,
+        rate_limit_daily: apiKey?.rate_limit_daily,
     }));
     const [maxCostInput, setMaxCostInput] = useState(() =>
         apiKey?.max_cost != null ? String(apiKey.max_cost) : ''
+    );
+    const [rpmInput, setRpmInput] = useState(() =>
+        apiKey?.rate_limit_rpm != null ? String(apiKey.rate_limit_rpm) : ''
+    );
+    const [tpmInput, setTpmInput] = useState(() =>
+        apiKey?.rate_limit_tpm != null ? String(apiKey.rate_limit_tpm) : ''
+    );
+    const [dailyInput, setDailyInput] = useState(() =>
+        apiKey?.rate_limit_daily != null ? String(apiKey.rate_limit_daily) : ''
     );
     const [expireTime, setExpireTime] = useState(() => {
         if (apiKey?.expire_at) {
@@ -191,6 +216,21 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
         updateForm({ max_cost: undefined });
     }, [updateForm]);
 
+    const handleRateLimitChange = useCallback((field: 'rate_limit_rpm' | 'rate_limit_tpm' | 'rate_limit_daily', setter: (value: string) => void) => {
+        return (val: string) => {
+            const normalized = normalizeRateLimitInput(val);
+            setter(normalized);
+            updateForm({ [field]: parseRateLimitValue(normalized) });
+        };
+    }, [updateForm]);
+
+    const handleClearRateLimit = useCallback((field: 'rate_limit_rpm' | 'rate_limit_tpm' | 'rate_limit_daily', setter: (value: string) => void) => {
+        return () => {
+            setter('');
+            updateForm({ [field]: undefined });
+        };
+    }, [updateForm]);
+
     const handleSubmit = useCallback((e: React.FormEvent) => {
         e.preventDefault();
         if (!form.name.trim()) return;
@@ -242,6 +282,69 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
                         {t('apiKey.form.unlimited')}
                     </button>
                 </div>
+            </div>
+
+            <div className="grid gap-2 rounded-xl border border-border/60 bg-muted/20 p-3">
+                <div className="text-xs font-medium text-foreground">{t('apiKey.form.rateLimitTitle')}</div>
+                <div className="grid gap-2">
+                    {[
+                        {
+                            label: t('apiKey.form.rateLimitRPM'),
+                            placeholder: t('apiKey.form.rateLimitRPMPlaceholder'),
+                            value: rpmInput,
+                            setter: setRpmInput,
+                            field: 'rate_limit_rpm' as const,
+                        },
+                        {
+                            label: t('apiKey.form.rateLimitTPM'),
+                            placeholder: t('apiKey.form.rateLimitTPMPlaceholder'),
+                            value: tpmInput,
+                            setter: setTpmInput,
+                            field: 'rate_limit_tpm' as const,
+                        },
+                        {
+                            label: t('apiKey.form.rateLimitDaily'),
+                            placeholder: t('apiKey.form.rateLimitDailyPlaceholder'),
+                            value: dailyInput,
+                            setter: setDailyInput,
+                            field: 'rate_limit_daily' as const,
+                        },
+                    ].map(({ label, placeholder, value, setter, field }) => {
+                        const isUnlimited = value.trim() === '';
+                        return (
+                            <div key={field} className="grid gap-1 text-xs text-muted-foreground">
+                                <span>{label}</span>
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        type="text"
+                                        inputMode="numeric"
+                                        placeholder={placeholder}
+                                        value={value}
+                                        onChange={(e) => handleRateLimitChange(field, setter)(e.target.value)}
+                                        className="h-9 flex-1 text-sm rounded-xl"
+                                        disabled={isPending}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleClearRateLimit(field, setter)}
+                                        disabled={isPending}
+                                        aria-pressed={isUnlimited}
+                                        className={cn(
+                                            'h-9 px-3 rounded-xl border text-sm transition-colors shrink-0',
+                                            isUnlimited
+                                                ? 'bg-primary text-primary-foreground border-primary/30'
+                                                : 'border-border bg-background text-foreground hover:bg-muted/30',
+                                            isPending && 'opacity-50 cursor-not-allowed'
+                                        )}
+                                    >
+                                        {t('apiKey.form.unlimited')}
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+                <div className="text-[11px] text-muted-foreground/80">{t('apiKey.form.rateLimitHint')}</div>
             </div>
 
             <div className="grid gap-1 text-xs text-muted-foreground">

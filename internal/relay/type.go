@@ -20,6 +20,10 @@ import (
 const (
 	maxUpstreamErrorBodyBytes int64 = 8 * 1024
 	maxRelayRequestBodyBytes  int64 = 8 * 1024 * 1024
+
+	// 上游请求全生命周期的默认超时。流式响应可能持续较长时间，因此使用更宽松的阈值。
+	defaultUpstreamTimeout          = 5 * time.Minute
+	defaultStreamingUpstreamTimeout = 30 * time.Minute
 )
 
 var maxSSEEventSize = 32 * 1024 * 1024

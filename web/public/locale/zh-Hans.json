@@ -1908,6 +1908,14 @@
         "maxCost": "最大金额",
         "maxCostPlaceholder": "请输入金额",
         "unlimited": "无限制",
+        "rateLimitTitle": "限流配额",
+        "rateLimitRPM": "每分钟请求数（RPM）",
+        "rateLimitRPMPlaceholder": "请求数 / 分钟",
+        "rateLimitTPM": "每分钟令牌数（TPM）",
+        "rateLimitTPMPlaceholder": "令牌数 / 分钟",
+        "rateLimitDaily": "每日请求数",
+        "rateLimitDailyPlaceholder": "请求数 / 天",
+        "rateLimitHint": "留空或填 0 表示不限制",
         "expireAt": "过期日期",
         "selectDate": "选择日期",
         "neverExpire": "永不过期",
@@ -2132,7 +2140,12 @@
       "updateNow": "立即更新",
       "updating": "更新中...",
       "updateSuccess": "更新成功，服务即将重启",
-      "updateFailed": "更新失败"
+      "updateFailed": "更新失败",
+      "dockerUpdateHint": "当前运行在 Docker 容器中，请在宿主机执行以下命令更新容器镜像：",
+      "dockerUpdateCommand": "docker compose pull && docker compose up -d",
+      "copyUpdateCommand": "复制更新命令",
+      "copySuccess": "已复制到剪贴板",
+      "copyFailed": "复制失败"
     },
     "log": {
       "title": "日志设置",

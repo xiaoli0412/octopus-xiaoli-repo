@@ -1,11 +1,13 @@
 package update
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"sync/atomic"
 	"syscall"
 
@@ -15,6 +17,7 @@ import (
 
 var ErrUpdateInProgress = errors.New("update already in progress")
 var ErrUpdateUnsupportedPlatform = errors.New("self-update is not supported on Windows; replace the binary or container image manually")
+var ErrUpdateInDocker = errors.New("self-update is not supported inside a Docker container; update the container image instead")
 
 var updateInProgress atomic.Bool
 var currentRuntimeGOOS = runtime.GOOS
@@ -30,6 +33,9 @@ var startReplacementProcess = func(execPath string, args []string) error {
 func UpdateCore() error {
 	if currentRuntimeGOOS == "windows" {
 		return ErrUpdateUnsupportedPlatform
+	}
+	if isRunningInDocker() {
+		return ErrUpdateInDocker
 	}
 	if !updateInProgress.CompareAndSwap(false, true) {
 		return ErrUpdateInProgress
@@ -76,6 +82,29 @@ func UpdateCore() error {
 	releaseUpdateGuard = false
 	go restartExecutable(execPath)
 	return nil
+}
+
+// isRunningInDocker 检测当前进程是否运行在 Docker 容器中。
+// 它通过检查 /.dockerenv 文件以及 /proc/1/cgroup 内容中是否包含 docker/kube 标记来判断。
+func isRunningInDocker() bool {
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+
+	file, err := os.Open("/proc/1/cgroup")
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.ToLower(scanner.Text())
+		if strings.Contains(line, "docker") || strings.Contains(line, "kubepods") {
+			return true
+		}
+	}
+	return false
 }
 
 func getDownloadFilename() (string, error) {

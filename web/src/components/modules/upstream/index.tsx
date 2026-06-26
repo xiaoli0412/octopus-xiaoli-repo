@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarCheck, Gift, History, KeyRound, Loader2, PlugZap, RefreshCw, Search, ShieldCheck, Waypoints } from 'lucide-react';
+import { CalendarCheck, Gift, History, KeyRound, Loader2, PlugZap, RefreshCw, Search, ShieldCheck, Trash2, Waypoints } from 'lucide-react';
 import {
     useApplyUpstreamSite,
     useCheckinUpstreamSite,
     useCreateUpstreamKey,
     useCreateUpstreamSite,
+    useDeleteUpstreamSite,
     useInspectUpstreamSite,
     useRefreshUpstreamSite,
     useUpdateUpstreamSite,
@@ -102,8 +103,11 @@ export function Upstream() {
     const createKey = useCreateUpstreamKey();
     const updateSite = useUpdateUpstreamSite();
     const checkinSite = useCheckinUpstreamSite();
+    const deleteSite = useDeleteUpstreamSite();
 
     const [selectedID, setSelectedID] = useState<number | undefined>();
+    const [pendingSiteId, setPendingSiteId] = useState<number | undefined>();
+    const [selectedSiteIDs, setSelectedSiteIDs] = useState<Set<number>>(new Set());
     const [provider, setProvider] = useState<UpstreamProviderType>('newapi');
     const [authMode, setAuthMode] = useState<UpstreamAuthMode>('token');
     const [name, setName] = useState('');
@@ -246,13 +250,103 @@ export function Upstream() {
         }
     };
 
-    const handleRefresh = async (applyChannel = false) => {
-        if (!activeID) return;
+    const handleRefresh = async (siteId?: number, applyChannel = false) => {
+        const id = siteId ?? activeID;
+        if (!id) return;
+        setPendingSiteId(id);
         try {
-            await refreshSite.mutateAsync({ id: activeID, apply_channel: applyChannel });
+            await refreshSite.mutateAsync({ id, apply_channel: applyChannel });
             toast.success(applyChannel ? '已刷新并同步渠道' : '已刷新上游');
         } catch (error) {
             toast.error('刷新失败', { description: error instanceof Error ? error.message : undefined });
+        } finally {
+            setPendingSiteId(undefined);
+        }
+    };
+
+    const handleDelete = async (siteId: number) => {
+        if (!window.confirm('确定删除该上游站点？关联的渠道与普通 Key 不会被删除。')) return;
+        setPendingSiteId(siteId);
+        try {
+            await deleteSite.mutateAsync(siteId);
+            if (selectedID === siteId) {
+                setSelectedID(undefined);
+            }
+            setSelectedSiteIDs((prev) => {
+                const next = new Set(prev);
+                next.delete(siteId);
+                return next;
+            });
+            toast.success('已删除上游站点');
+        } catch (error) {
+            toast.error('删除失败', { description: error instanceof Error ? error.message : undefined });
+        } finally {
+            setPendingSiteId(undefined);
+        }
+    };
+
+    const toggleSiteSelection = (siteId: number) => {
+        setSelectedSiteIDs((prev) => {
+            const next = new Set(prev);
+            if (next.has(siteId)) {
+                next.delete(siteId);
+            } else {
+                next.add(siteId);
+            }
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedSiteIDs.size === (sites.data?.length ?? 0)) {
+            setSelectedSiteIDs(new Set());
+        } else {
+            setSelectedSiteIDs(new Set((sites.data ?? []).map((site) => site.id)));
+        }
+    };
+
+    const handleBatchRefresh = async (applyChannel = false) => {
+        if (selectedSiteIDs.size === 0) return;
+        if (applyChannel && !window.confirm(`确定将选中的 ${selectedSiteIDs.size} 个上游站点刷新并同步到渠道？`)) return;
+        let success = 0;
+        let failed = 0;
+        for (const siteId of Array.from(selectedSiteIDs)) {
+            try {
+                await refreshSite.mutateAsync({ id: siteId, apply_channel: applyChannel });
+                success++;
+            } catch {
+                failed++;
+            }
+        }
+        const actionLabel = applyChannel ? '批量刷新并应用渠道' : '批量刷新';
+        if (failed === 0) {
+            toast.success(`已${actionLabel} ${success} 个上游站点`);
+        } else {
+            toast.error(`${actionLabel}完成`, { description: `成功 ${success} 个，失败 ${failed} 个` });
+        }
+    };
+
+    const handleBatchDelete = async () => {
+        if (selectedSiteIDs.size === 0) return;
+        if (!window.confirm(`确定删除选中的 ${selectedSiteIDs.size} 个上游站点？关联的渠道与普通 Key 不会被删除。`)) return;
+        let success = 0;
+        let failed = 0;
+        for (const siteId of Array.from(selectedSiteIDs)) {
+            try {
+                await deleteSite.mutateAsync(siteId);
+                success++;
+            } catch {
+                failed++;
+            }
+        }
+        if (selectedID !== undefined && selectedSiteIDs.has(selectedID)) {
+            setSelectedID(undefined);
+        }
+        setSelectedSiteIDs(new Set());
+        if (failed === 0) {
+            toast.success(`已删除 ${success} 个上游站点`);
+        } else {
+            toast.error('批量删除完成', { description: `成功 ${success} 个，失败 ${failed} 个` });
         }
     };
 
@@ -365,30 +459,95 @@ export function Upstream() {
                         <Waypoints className="size-4 text-primary" />
                         上游
                     </div>
-                    <span className="text-xs text-muted-foreground">{sites.data?.length ?? 0} 个站点</span>
+                    <div className="flex items-center gap-2">
+                        {hasSites ? (
+                            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground transition hover:text-foreground">
+                                <input
+                                    type="checkbox"
+                                    checked={selectedSiteIDs.size === (sites.data?.length ?? 0) && (sites.data?.length ?? 0) > 0}
+                                    onChange={toggleSelectAll}
+                                />
+                                全选
+                            </label>
+                        ) : null}
+                        <span className="text-xs text-muted-foreground">{sites.data?.length ?? 0} 个站点</span>
+                    </div>
                 </div>
+
+                {selectedSiteIDs.size > 0 ? (
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 bg-background/60 p-2">
+                        <span className="px-1 text-xs text-muted-foreground">已选 {selectedSiteIDs.size} 个</span>
+                        <div className="flex items-center gap-1.5">
+                            <Button type="button" variant="secondary" size="sm" onClick={() => handleBatchRefresh(false)} disabled={refreshSite.isPending} className="h-7 rounded-lg px-2.5 text-xs">
+                                <RefreshCw className="mr-1 size-3" />
+                                批量刷新
+                            </Button>
+                            <Button type="button" variant="secondary" size="sm" onClick={() => handleBatchRefresh(true)} disabled={refreshSite.isPending} className="h-7 rounded-lg px-2.5 text-xs">
+                                <Waypoints className="mr-1 size-3" />
+                                批量刷新并应用
+                            </Button>
+                            <Button type="button" variant="destructive" size="sm" onClick={handleBatchDelete} disabled={deleteSite.isPending} className="h-7 rounded-lg px-2.5 text-xs">
+                                <Trash2 className="mr-1 size-3" />
+                                批量删除
+                            </Button>
+                        </div>
+                    </div>
+                ) : null}
 
                 <div className="mt-3 grid gap-2">
                     {(sites.data ?? []).map((site) => (
-                        <button
+                        <div
                             key={site.id}
-                            type="button"
-                            onClick={() => setSelectedID(site.id)}
                             className={cn(
-                                'rounded-2xl border p-2.5 text-left transition',
+                                'group rounded-2xl border p-2.5 transition',
                                 activeID === site.id ? 'border-primary/40 bg-primary/8' : 'border-border/70 bg-background/50 hover:bg-muted/35',
                             )}
                         >
-                            <div className="flex items-center justify-between gap-2">
-                                <span className="truncate text-sm font-semibold text-card-foreground">{site.name}</span>
-                                <span className="shrink-0 rounded-full border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground">{providerLabel(site.provider_type)}</span>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedID(site.id)}
+                                className="w-full text-left"
+                            >
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="flex items-center gap-2 truncate text-sm font-semibold text-card-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedSiteIDs.has(site.id)}
+                                            onClick={(event) => event.stopPropagation()}
+                                            onChange={() => toggleSiteSelection(site.id)}
+                                            className="shrink-0"
+                                        />
+                                        {site.name}
+                                    </span>
+                                    <span className="shrink-0 rounded-full border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground">{providerLabel(site.provider_type)}</span>
+                                </div>
+                                <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[10px] text-muted-foreground">
+                                    <span className="rounded-lg bg-muted/35 px-1 py-1">模型 {site.model_count}</span>
+                                    <span className="rounded-lg bg-muted/35 px-1 py-1">Key {site.key_count}</span>
+                                    <span className="rounded-lg bg-muted/35 px-1 py-1">{statusLabel(site.last_refresh_status)}</span>
+                                </div>
+                            </button>
+                            <div className="mt-2 flex items-center justify-end gap-1 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
+                                <button
+                                    type="button"
+                                    title="刷新"
+                                    onClick={() => handleRefresh(site.id, false)}
+                                    disabled={Boolean(pendingSiteId)}
+                                    className="inline-flex size-7 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-primary/10 hover:text-primary disabled:opacity-50"
+                                >
+                                    {pendingSiteId === site.id ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+                                </button>
+                                <button
+                                    type="button"
+                                    title="删除"
+                                    onClick={() => handleDelete(site.id)}
+                                    disabled={Boolean(pendingSiteId)}
+                                    className="inline-flex size-7 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                                >
+                                    {pendingSiteId === site.id ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                                </button>
                             </div>
-                            <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[10px] text-muted-foreground">
-                                <span className="rounded-lg bg-muted/35 px-1 py-1">模型 {site.model_count}</span>
-                                <span className="rounded-lg bg-muted/35 px-1 py-1">Key {site.key_count}</span>
-                                <span className="rounded-lg bg-muted/35 px-1 py-1">{statusLabel(site.last_refresh_status)}</span>
-                            </div>
-                        </button>
+                        </div>
                     ))}
                     {(sites.data?.length ?? 0) === 0 ? (
                         <div className="rounded-xl border border-dashed border-border/70 p-3 text-xs leading-5 text-muted-foreground">暂无站点。右侧接入后会在这里切换管理。</div>
@@ -528,15 +687,15 @@ export function Upstream() {
                             <div className="mt-1 truncate text-xs text-muted-foreground">{activeSite?.api_base_url || activeSite?.base_url || '保存站点后显示终端地址'}</div>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                            <Button type="button" variant="secondary" onClick={() => handleRefresh(false)} disabled={!activeID || refreshSite.isPending} className="h-8 rounded-xl px-3">
-                                {refreshSite.isPending ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                            <Button type="button" variant="secondary" onClick={() => handleRefresh(activeID, false)} disabled={!activeID || Boolean(pendingSiteId)} className="h-8 rounded-xl px-3">
+                                {pendingSiteId === activeID ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
                                 刷新
                             </Button>
-                            <Button type="button" variant="secondary" onClick={() => handleRefresh(true)} disabled={!activeID || refreshSite.isPending} className="h-8 rounded-xl px-3">
-                                {refreshSite.isPending ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                            <Button type="button" variant="secondary" onClick={() => handleRefresh(activeID, true)} disabled={!activeID || Boolean(pendingSiteId)} className="h-8 rounded-xl px-3">
+                                {pendingSiteId === activeID ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
                                 立即同步
                             </Button>
-                            <Button type="button" onClick={handleApply} disabled={!activeID || applySite.isPending} className="h-8 rounded-xl px-3">
+                            <Button type="button" onClick={handleApply} disabled={!activeID || applySite.isPending || Boolean(pendingSiteId)} className="h-8 rounded-xl px-3">
                                 {applySite.isPending ? <Loader2 className="size-4 animate-spin" /> : <PlugZap className="size-4" />}
                                 应用渠道
                             </Button>

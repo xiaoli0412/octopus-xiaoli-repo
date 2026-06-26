@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/dlclark/regexp2"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/client"
@@ -25,6 +26,26 @@ func ChannelHttpClient(channel *model.Channel) (*http.Client, error) {
 	} else {
 		return client.GetHTTPClientCustomProxy(strings.TrimSpace(*channel.ChannelProxy))
 	}
+}
+
+// ChannelHttpClientWithTimeout returns an HTTP client for the channel with the
+// requested overall request timeout. The returned client is always safe to
+// mutate because system/direct clients are cloned before the timeout is set.
+func ChannelHttpClientWithTimeout(channel *model.Channel, timeout time.Duration) (*http.Client, error) {
+	c, err := ChannelHttpClient(channel)
+	if err != nil {
+		return nil, err
+	}
+	if timeout <= 0 {
+		return c, nil
+	}
+	// If the client already has a stricter timeout, keep it.
+	if c.Timeout > 0 && c.Timeout <= timeout {
+		return c, nil
+	}
+	cloned := *c
+	cloned.Timeout = timeout
+	return &cloned, nil
 }
 
 func ChannelBaseUrlDelayUpdate(channel *model.Channel, ctx context.Context) {

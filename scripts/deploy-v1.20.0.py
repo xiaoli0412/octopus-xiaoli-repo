@@ -43,7 +43,11 @@ def inspect_container(host: str, info: dict) -> dict:
 
 
 def deploy_compose(host: str, info: dict, build_local: bool = False) -> dict:
-    """Pull latest source in the compose directory and start the container."""
+    """Pull latest source in the compose directory and start the container.
+
+    Captures the current running image before the update and rolls back to it
+    automatically if the new container fails its healthcheck.
+    """
     if build_local:
         deploy_steps = f"""echo "=== Building container locally (output buffered to /tmp/octopus-build.log) ==="
 if ! docker compose build > /tmp/octopus-build.log 2>&1; then
@@ -72,20 +76,50 @@ echo "=== Pulling latest compose/source ==="
 git fetch origin
 git reset --hard origin/main
 
+# Capture the image digest currently running so we can roll back if needed.
+PREVIOUS_IMAGE=$(docker inspect --format='{{{{.Image}}}}' octopus 2>/dev/null || echo '')
+if [ -n "$PREVIOUS_IMAGE" ]; then
+    echo "=== Previous container image: $PREVIOUS_IMAGE ==="
+else
+    echo "=== No previous octopus container found; rollback unavailable ==="
+fi
+
 {deploy_steps}
 
 echo "=== Waiting for healthcheck ==="
 for i in $(seq 1 120); do
-    status=$(docker inspect --format='{{.State.Health.Status}}' octopus 2>/dev/null || echo '')
+    status=$(docker inspect --format='{{{{.State.Health.Status}}}}' octopus 2>/dev/null || echo '')
     if [ "$status" = "healthy" ]; then
         echo "Container healthy"
         exit 0
     fi
-    echo "... health status: ${status:-unknown} (iteration $i)"
+    echo "... health status: ${{status:-unknown}} (iteration $i)"
     sleep 3
 done
+
 echo "Timeout waiting for healthy"
 docker logs --tail 30 octopus
+
+if [ -n "$PREVIOUS_IMAGE" ]; then
+    echo "=== Rolling back to previous image: $PREVIOUS_IMAGE ==="
+    docker compose down || true
+    OCTOPUS_IMAGE="$PREVIOUS_IMAGE" docker compose up -d
+
+    echo "=== Waiting for rollback healthcheck ==="
+    for i in $(seq 1 120); do
+        status=$(docker inspect --format='{{{{.State.Health.Status}}}}' octopus 2>/dev/null || echo '')
+        if [ "$status" = "healthy" ]; then
+            echo "Rollback container healthy"
+            exit 2
+        fi
+        echo "... rollback health status: ${{status:-unknown}} (iteration $i)"
+        sleep 3
+    done
+    echo "Rollback also failed to become healthy"
+    docker logs --tail 30 octopus
+    exit 1
+fi
+
 exit 1
 """
     out, err, code = run_ssh(host, info["user"], info["password"], info["port"], script, timeout=timeout)
@@ -119,10 +153,14 @@ def main():
     print(result["out"])
     if result["err"]:
         print("STDERR:", result["err"])
-    if result["code"] != 0:
+    if result["code"] == 0:
+        print(f"--- {args.host} deployed successfully ---")
+    elif result["code"] == 2:
+        print(f"--- {args.host} deployment failed but rollback succeeded ---", file=sys.stderr)
+        sys.exit(2)
+    else:
         print(f"DEPLOYMENT FAILED on {args.host}", file=sys.stderr)
         sys.exit(1)
-    print(f"--- {args.host} deployed successfully ---")
 
 
 if __name__ == "__main__":

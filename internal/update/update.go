@@ -57,10 +57,14 @@ var (
 func GetStatusInfo() StatusInfo {
 	status := StatusInfo{
 		Version:             conf.Version,
-		SelfUpdateSupported: currentRuntimeGOOS != "windows",
+		SelfUpdateSupported: currentRuntimeGOOS != "windows" && !isRunningInDocker(),
 	}
 	if !status.SelfUpdateSupported {
-		status.SelfUpdateUnsupportedReason = ErrUpdateUnsupportedPlatform.Error()
+		if isRunningInDocker() {
+			status.SelfUpdateUnsupportedReason = ErrUpdateInDocker.Error()
+		} else {
+			status.SelfUpdateUnsupportedReason = ErrUpdateUnsupportedPlatform.Error()
+		}
 	}
 	return status
 }

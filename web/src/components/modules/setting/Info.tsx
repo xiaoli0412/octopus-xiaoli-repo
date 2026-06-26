@@ -26,8 +26,15 @@ function isUnsupportedUpdateError(error: unknown) {
     if (code === 501) return true;
 
     const message = resolveUpdateErrorMessage(error);
-    return typeof message === 'string'
-        && message.toLowerCase().includes(WINDOWS_UPDATE_UNSUPPORTED_TEXT);
+    if (typeof message !== 'string') return false;
+    const lower = message.toLowerCase();
+    return lower.includes(WINDOWS_UPDATE_UNSUPPORTED_TEXT) || lower.includes('docker container');
+}
+
+function isDockerUpdateUnsupported(error: unknown) {
+    if (!error || typeof error !== 'object') return false;
+    const message = resolveUpdateErrorMessage(error);
+    return typeof message === 'string' && message.toLowerCase().includes('docker container');
 }
 
 function getLocalizedUnsupportedReason(reason: string | undefined, fallback: string) {
@@ -236,6 +243,33 @@ export function SettingInfo() {
                             <p className="text-xs text-muted-foreground">
                                 {updateUnsupportedDescription}
                             </p>
+                            {isDockerUpdateUnsupported(updateStatus?.self_update_unsupported_reason) && (
+                                <div className="mt-2 space-y-1.5 rounded-lg border border-border/60 bg-background/60 p-2">
+                                    <p className="text-xs text-muted-foreground">
+                                        {t('info.dockerUpdateHint')}
+                                    </p>
+                                    <code className="block break-all rounded-md bg-muted px-2 py-1.5 font-mono text-[11px] text-foreground">
+                                        {t('info.dockerUpdateCommand')}
+                                    </code>
+                                    <div className="flex justify-end">
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(t('info.dockerUpdateCommand')).then(() => {
+                                                    toast.success(t('info.copySuccess'));
+                                                }).catch(() => {
+                                                    toast.error(t('info.copyFailed'));
+                                                });
+                                            }}
+                                            className="h-7 rounded-lg px-2.5 text-xs"
+                                        >
+                                            {t('info.copyUpdateCommand')}
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

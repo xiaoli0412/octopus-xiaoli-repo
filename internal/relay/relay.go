@@ -15,6 +15,7 @@ import (
 	dbmodel "github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/relay/balancer"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/resp"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/inbound"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/model"
@@ -199,10 +200,12 @@ roundLoop:
 				result := ra.attempt()
 				if result.Success {
 					consecutiveFails = 0
+					recordRelayTokensForRateLimit(c, metrics)
 					metrics.Save(c.Request.Context(), true, nil, iter.Attempts())
 					return
 				}
 				if result.Written {
+					recordRelayTokensForRateLimit(c, metrics)
 					metrics.Save(c.Request.Context(), false, result.Err, iter.Attempts())
 					return
 				}
@@ -233,6 +236,7 @@ roundLoop:
 						if raceOutcome.result.Success {
 							if err := req.finalizeRaceFallbackSuccess(raceOutcome.result); err == nil {
 								consecutiveFails = 0
+								recordRelayTokensForRateLimit(c, metrics)
 								metrics.Save(c.Request.Context(), true, nil, iter.Attempts())
 								return
 							} else {
@@ -249,6 +253,7 @@ roundLoop:
 	if lastErr == nil && failoverWindowExceeded(group, failoverStartedAt) {
 		lastErr = fmt.Errorf("failover window exceeded")
 	}
+	recordRelayTokensForRateLimit(c, metrics)
 	metrics.Save(c.Request.Context(), false, lastErr, iter.Attempts())
 	resp.Error(c, http.StatusBadGateway, "all channels failed")
 }
@@ -258,6 +263,22 @@ func failoverWindowExceeded(group dbmodel.Group, startedAt time.Time) bool {
 		return false
 	}
 	return time.Since(startedAt) >= time.Duration(group.FailoverWindowSec)*time.Second
+}
+
+// recordRelayTokensForRateLimit 把本次请求实际消耗的 token 写回 request context，
+// 供 auth 中间件在请求结束后进行 TPM 限流统计。
+func recordRelayTokensForRateLimit(c *gin.Context, metrics *RelayMetrics) {
+	if metrics == nil || metrics.InternalResponse == nil || metrics.InternalResponse.Usage == nil {
+		return
+	}
+	usage := metrics.InternalResponse.Usage
+	total := usage.PromptTokens + usage.CompletionTokens
+	if total <= 0 {
+		return
+	}
+	c.Request = c.Request.WithContext(
+		middleware.SetRelayTokensInContext(c.Request.Context(), total),
+	)
 }
 
 // attempt 统一管理一次通道尝试的完整生命周期
@@ -453,9 +474,14 @@ func (ra *relayAttempt) copyHeaders(outboundRequest *http.Request) {
 	}
 }
 
-// sendRequest 发送 HTTP 请求
+// sendRequest 发送 HTTP 请求，并注入 overall timeout 以治理上游请求全生命周期。
 func (ra *relayAttempt) sendRequest(req *http.Request) (*http.Response, error) {
-	httpClient, err := helper.ChannelHttpClient(ra.channel)
+	timeout := defaultUpstreamTimeout
+	if ra.isStreaming {
+		timeout = defaultStreamingUpstreamTimeout
+	}
+
+	httpClient, err := helper.ChannelHttpClientWithTimeout(ra.channel, timeout)
 	if err != nil {
 		log.Warnf("failed to get http client: %v", err)
 		return nil, err

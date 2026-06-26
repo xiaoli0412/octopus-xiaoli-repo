@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -136,7 +137,13 @@ func runRaceProbe(ctx context.Context, req *relayRequest, channel *dbmodel.Chann
 	ra := &relayAttempt{relayRequest: req, channel: channel}
 	ra.copyHeaders(outReq)
 
-	httpClient, err := helper.ChannelHttpClient(channel)
+	timeout := defaultUpstreamTimeout
+	if deadline, ok := ctx.Deadline(); ok {
+		if remaining := time.Until(deadline); remaining > 0 && remaining < timeout {
+			timeout = remaining
+		}
+	}
+	httpClient, err := helper.ChannelHttpClientWithTimeout(channel, timeout)
 	if err != nil {
 		result.Err = err
 		return result
@@ -404,8 +411,24 @@ func executeRaceCandidateBatch(req *relayRequest, iter *balancer.Iterator, candi
 		go func() {
 			defer wg.Done()
 			defer candidate.releaseBudget()
-			result := runRaceProbe(raceCtx, req, candidate.channel, candidate.usedKey, candidate.outAdapter, candidate.internalReq)
-			outcomesCh <- raceOutcome{index: candidate.order, result: result}
+
+			var result attemptResult
+			defer func() {
+				if r := recover(); r != nil {
+					log.Warnf("race probe panic recovered for channel %d key %d: %v\n%s", candidate.channel.ID, candidate.usedKey.ID, r, debug.Stack())
+					result = attemptResult{
+						Channel:  candidate.channel,
+						UsedKey:  candidate.usedKey,
+						Err:      fmt.Errorf("race probe panic: %v", r),
+						Duration: 0,
+					}
+				}
+				if raceCtx.Err() == nil {
+					outcomesCh <- raceOutcome{index: candidate.order, result: result}
+				}
+			}()
+
+			result = runRaceProbe(raceCtx, req, candidate.channel, candidate.usedKey, candidate.outAdapter, candidate.internalReq)
 		}()
 	}
 

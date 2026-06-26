@@ -106,16 +106,12 @@ func TestModelConnectivity(ctx context.Context, req model.ModelTestRequest) (mod
 		}
 	}
 
-	httpClient, err := helper.ChannelHttpClient(channel)
+	httpClient, err := helper.ChannelHttpClientWithTimeout(channel, modelConnectivityTestTimeout)
 	if err != nil {
 		return model.ModelTestResult{
 			Success:      false,
 			ErrorMessage: fmt.Sprintf("failed to get http client: %v", err),
 		}, nil
-	}
-
-	if httpClient.Timeout <= 0 {
-		httpClient.Timeout = modelConnectivityTestTimeout
 	}
 
 	start := time.Now()
