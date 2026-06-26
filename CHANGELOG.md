@@ -4,6 +4,31 @@
 
 ---
 
+## 1.21.0 - 2026-06-26
+
+### 🔐 API Key 限流
+
+- 为 API Key 新增 RPM（每分钟请求数）、TPM（每分钟 Token 数）、Daily（每日请求数）三类限流配额。
+- 新增内存限流中间件，采用令牌桶、滑动窗口与每日计数器实现，单实例场景下自动生效。
+- 前端「版本信息 / API Key」表单新增限流配额输入区，0 或留空表示不限制。
+- 修复 relay 未将实际 Token 消耗写回 request context 的问题，确保 TPM 限流真正生效。
+
+### 🐳 Docker 更新体验
+
+- 后端检测 Docker 容器运行环境（`/.dockerenv`、`/proc/1/cgroup`）。
+- Docker 容器内禁用一键自更新，避免错误地替换容器内二进制。
+- 前端版本信息卡检测到 Docker 环境时，展示可一键复制的容器更新命令：`docker compose pull && docker compose up -d`。
+
+### 🔗 上游 UI 收口
+
+- 上游站点列表支持「批量刷新并应用渠道」，一键将上游变更同步到本地渠道。
+
+### ⚙️ CI / 部署
+
+- Release CI 为 Alpine / Debian 镜像构建增加 registry layer cache，缩短多平台构建时间。
+- `docker-compose.yml` 默认使用 GHCR 预构建镜像，同时保留本地构建选项。
+- `scripts/deploy-v1.20.0.py` 增加更长的 healthcheck 等待、构建日志缓冲与 `--build` 本地构建回退。
+
 ## 1.20.0 - 2026-06-19
 
 ### 🔗 上游深链接 V2 全面重构
