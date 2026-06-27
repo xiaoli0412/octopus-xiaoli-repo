@@ -26,9 +26,7 @@ extern void octopus_free_string(char* s);
 */
 import "C"
 import (
-	"encoding/json"
 	"errors"
-	"strings"
 	"sync"
 	"unsafe"
 )
@@ -123,38 +121,3 @@ func (b *StreamBuffer) Take() ([]string, error) {
 
 // Close is a no-op for the stateless Rust extractor.
 func (b *StreamBuffer) Close() {}
-
-func parseStringArray(s string) ([]string, error) {
-	var arr []string
-	if s == "" {
-		return arr, nil
-	}
-	if err := json.Unmarshal([]byte(s), &arr); err != nil {
-		return nil, err
-	}
-	return arr, nil
-}
-
-// FeedStreamBuffer is a pure-function helper that feeds a chunk into the
-// provided partial buffer and returns the updated partial buffer plus complete
-// events. It works as a Go fallback.
-func FeedStreamBuffer(partial, chunk string) (string, []string) {
-	data := partial + chunk
-	var events []string
-	for {
-		pos := strings.Index(data, "\n\n")
-		if pos < 0 {
-			break
-		}
-		event := strings.TrimSpace(data[:pos])
-		if event != "" {
-			events = append(events, event)
-		}
-		if pos+2 >= len(data) {
-			data = ""
-			break
-		}
-		data = data[pos+2:]
-	}
-	return data, events
-}
