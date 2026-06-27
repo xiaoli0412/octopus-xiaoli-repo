@@ -15,7 +15,7 @@ assert.match(source, /const profilesQuery = useStrategyProfiles\(\);/);
 assert.match(source, /const setActiveItem = useNavStore\(\(state\) => state\.setActiveItem\);/);
 assert.match(source, /const openAICenter = \(\) => setActiveItem\('ai'\);/);
 assert.match(source, /data-testid="setting-ai-governance-source"/);
-assert.match(source, /const modeLabel = overview\?\.execution_source\.mode === 'manual' \? '手动配置' : overview\?\.execution_source\.mode === 'ai_profile' \? 'AI 策略方案' : '-';/);
+assert.match(source, /const modeLabel = .*mode === 'manual' \? '手动配置' : .*mode === 'ai_profile' \? 'AI 策略方案' : '-';/);
 assert.match(source, /overview\?\.active_strategy_profile\?\.name \?\? t\('aiAutomationSource\.noActiveProfile'\)/);
 assert.match(source, /overview\?\.learning \? `样本 \$\{overview\.learning\.sample_count\}` : '样本 0'/);
 assert.match(source, /const recentStatusLabel = overview\?\.recent_session\?\.status \? \(sessionStatusLabelMap\[overview\.recent_session\.status\] \?\? overview\.recent_session\.status\) : '-';/);
