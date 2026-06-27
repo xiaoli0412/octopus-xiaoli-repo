@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/samber/lo"
+
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/rustbridge"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/inbound/streamhelper"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/log"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/xurl"
-	"github.com/samber/lo"
 )
 
 type MessagesInbound struct {
@@ -896,13 +898,7 @@ func (i *MessagesInbound) GetInternalResponse(ctx context.Context) (*model.Inter
 }
 
 func (i *MessagesInbound) mergeStreamChunk(chunk *model.InternalLLMResponse) {
-	if chunk == nil || chunk.Object == "[DONE]" {
-		return
-	}
-	if i.streamResult == nil {
-		i.streamResult = &model.InternalLLMResponse{Object: "chat.completion"}
-	}
-	model.MergeStreamingResponseAggregate(i.streamResult, chunk)
+	i.streamResult = streamhelper.MergeStreamingChunk(i.streamResult, chunk)
 }
 
 // formatSSEEvent 格式化为完整的 SSE 事件格式

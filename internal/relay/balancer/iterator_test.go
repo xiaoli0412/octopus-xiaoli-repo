@@ -185,3 +185,147 @@ func TestIteratorConcurrentRecordsKeepSequentialAttemptNumbers(t *testing.T) {
 		}
 	}
 }
+
+func TestIteratorRustBalancerDisabledFallsBackToGoOrder(t *testing.T) {
+	resetStickySessions()
+	t.Setenv("OCTOPUS_RUST_BALANCER", "0")
+
+	group := model.Group{
+		ID:   20,
+		Mode: model.GroupModeRoundRobin,
+		Items: []model.GroupItem{
+			{ChannelID: 3, ModelName: "gpt-4o", Priority: 30},
+			{ChannelID: 1, ModelName: "gpt-4o", Priority: 10},
+			{ChannelID: 2, ModelName: "gpt-4o", Priority: 20},
+		},
+	}
+
+	it := NewIterator(group, 0, "gpt-4o")
+	want := []int{1, 2, 3}
+	got := collectIteratorChannelIDs(it)
+	if len(got) != len(want) {
+		t.Fatalf("iterator length = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("iterator order = %v, want %v", got, want)
+		}
+	}
+}
+
+func TestIteratorRustBalancerRoundRobinOrder(t *testing.T) {
+	resetStickySessions()
+
+	group := model.Group{
+		ID:   21,
+		Mode: model.GroupModeRoundRobin,
+		Items: []model.GroupItem{
+			{ChannelID: 3, ModelName: "gpt-4o", Priority: 30},
+			{ChannelID: 1, ModelName: "gpt-4o", Priority: 10},
+			{ChannelID: 2, ModelName: "gpt-4o", Priority: 20},
+		},
+	}
+
+	it := NewIterator(group, 0, "gpt-4o")
+	want := []int{1, 2, 3}
+	got := collectIteratorChannelIDs(it)
+	if len(got) != len(want) {
+		t.Fatalf("iterator length = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("iterator order = %v, want %v", got, want)
+		}
+	}
+}
+
+func TestIteratorRustBalancerWeightedOrder(t *testing.T) {
+	resetStickySessions()
+
+	group := model.Group{
+		ID:   22,
+		Mode: model.GroupModeWeighted,
+		Items: []model.GroupItem{
+			{ID: 1, ChannelID: 2, ModelName: "gpt-4o", Priority: 2, Weight: 3},
+			{ID: 2, ChannelID: 1, ModelName: "gpt-4o", Priority: 1, Weight: 2},
+			{ID: 3, ChannelID: 3, ModelName: "gpt-4o", Priority: 3, Weight: 1},
+		},
+	}
+
+	it := NewIterator(group, 0, "gpt-4o")
+	want := []int{1, 1, 2, 2, 2, 3}
+	got := collectIteratorChannelIDs(it)
+	if len(got) != len(want) {
+		t.Fatalf("iterator length = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("weighted sequence mismatch at %d: got %d want %d", i, got[i], want[i])
+		}
+	}
+}
+
+func TestIteratorRustBalancerSkipsStickyFirstCandidate(t *testing.T) {
+	resetStickySessions()
+	SetSticky(3001, "gpt-4o", 22, 220)
+
+	group := model.Group{
+		ID:              23,
+		Mode:            model.GroupModeRoundRobin,
+		SessionKeepTime: 60,
+		Items: []model.GroupItem{
+			{ChannelID: 11, ModelName: "gpt-4o", Priority: 1},
+			{ChannelID: 22, ModelName: "gpt-4o", Priority: 2},
+			{ChannelID: 33, ModelName: "gpt-4o", Priority: 3},
+		},
+	}
+
+	it := NewIterator(group, 3001, "gpt-4o")
+	if !it.Next() {
+		t.Fatal("Next() should advance to first item")
+	}
+	if it.Item().ChannelID != 22 {
+		t.Fatalf("sticky first item = %d, want 22", it.Item().ChannelID)
+	}
+
+	// Advance through the rest; the remaining order should still be valid.
+	for it.Next() {
+		if it.Item().ChannelID == 0 {
+			t.Fatal("unexpected empty candidate")
+		}
+	}
+}
+
+func TestIteratorRustBalancerNotAppliedForAIDynamic(t *testing.T) {
+	resetStickySessions()
+
+	group := model.Group{
+		ID:   24,
+		Mode: model.GroupModeAIDynamic,
+		Items: []model.GroupItem{
+			{ChannelID: 3, ModelName: "gpt-4o", Priority: 30},
+			{ChannelID: 1, ModelName: "gpt-4o", Priority: 10},
+			{ChannelID: 2, ModelName: "gpt-4o", Priority: 20},
+		},
+	}
+
+	it := NewIterator(group, 0, "gpt-4o")
+	want := []int{1, 2, 3}
+	got := collectIteratorChannelIDs(it)
+	if len(got) != len(want) {
+		t.Fatalf("iterator length = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("AI dynamic fallback order = %v, want %v", got, want)
+		}
+	}
+}
+
+func collectIteratorChannelIDs(it *Iterator) []int {
+	var ids []int
+	for it.Next() {
+		ids = append(ids, it.Item().ChannelID)
+	}
+	return ids
+}

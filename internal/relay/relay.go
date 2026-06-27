@@ -511,30 +511,30 @@ func (ra *relayAttempt) handleStreamResponse(ctx context.Context, response *http
 
 	firstToken := true
 
-	type sseReadResult struct {
-		data string
-		err  error
-	}
 	results := make(chan sseReadResult, 1)
 	stopReading := make(chan struct{})
-	go func() {
-		defer close(results)
-		readCfg := &sse.ReadConfig{MaxEventSize: maxSSEEventSize}
-		for ev, err := range sse.Read(response.Body, readCfg) {
-			if err != nil {
-				select {
-				case results <- sseReadResult{err: err}:
-				case <-stopReading:
+	if useGoSSE() {
+		go func() {
+			defer close(results)
+			readCfg := &sse.ReadConfig{MaxEventSize: maxSSEEventSize}
+			for ev, err := range sse.Read(response.Body, readCfg) {
+				if err != nil {
+					select {
+					case results <- sseReadResult{err: err}:
+					case <-stopReading:
+					}
+					return
 				}
-				return
+				select {
+				case results <- sseReadResult{data: ev.Data}:
+				case <-stopReading:
+					return
+				}
 			}
-			select {
-			case results <- sseReadResult{data: ev.Data}:
-			case <-stopReading:
-				return
-			}
-		}
-	}()
+		}()
+	} else {
+		go readStreamWithBuffer(response.Body, results, stopReading)
+	}
 	defer close(stopReading)
 
 	var firstTokenTimer *time.Timer

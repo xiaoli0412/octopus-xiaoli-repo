@@ -8,6 +8,7 @@ import (
 
 	"github.com/samber/lo"
 
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/inbound/streamhelper"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/xurl"
 )
@@ -611,13 +612,7 @@ func (i *ResponseInbound) GetInternalResponse(ctx context.Context) (*model.Inter
 }
 
 func (i *ResponseInbound) mergeStreamChunk(chunk *model.InternalLLMResponse) {
-	if chunk == nil || chunk.Object == "[DONE]" {
-		return
-	}
-	if i.streamResult == nil {
-		i.streamResult = &model.InternalLLMResponse{Object: "chat.completion"}
-	}
-	model.MergeStreamingResponseAggregate(i.streamResult, chunk)
+	i.streamResult = streamhelper.MergeStreamingChunk(i.streamResult, chunk)
 }
 
 func responsesTerminalState(finishReason string) (eventType string, status string) {

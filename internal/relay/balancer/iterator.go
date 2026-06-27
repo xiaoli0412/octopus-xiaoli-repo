@@ -2,19 +2,24 @@ package balancer
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/rustbridge"
 )
 
 type Iterator struct {
-	candidates      []model.GroupItem
-	baseCandidates  []model.GroupItem
-	index           int
-	stickyChannelID int
-	modelName       string
-	groupID         int
+	candidates            []model.GroupItem
+	baseCandidates        []model.GroupItem
+	index                 int
+	stickyChannelID       int
+	modelName             string
+	groupID               int
+	groupMode             model.GroupMode
+	strategy              string
+	rustSelectionDisabled bool
 
 	attemptMu sync.Mutex
 	attempts  []model.ChannelAttempt
@@ -60,6 +65,8 @@ func NewIteratorWithCandidates(group model.Group, apiKeyID int, requestModel str
 		stickyChannelID: stickyChannelID,
 		modelName:       requestModel,
 		groupID:         group.ID,
+		groupMode:       group.Mode,
+		strategy:        strategyForMode(group.Mode),
 	}
 }
 
@@ -84,11 +91,79 @@ func (it *Iterator) Reset() {
 
 func (it *Iterator) Next() bool {
 	it.index++
+	if it.index < len(it.candidates) && rustBalancerEnabled() && it.isStrategyMode() {
+		// Sticky session has already pinned the first candidate; do not override it.
+		if !(it.index == 0 && it.stickyChannelID > 0) {
+			remaining := it.candidates[it.index:]
+			if len(remaining) > 1 {
+				rustCands := make([]rustbridge.BalanceCandidate, len(remaining))
+				for i, item := range remaining {
+					rustCands[i] = rustbridge.BalanceCandidate{
+						ID:           int64(item.ChannelID),
+						Weight:       int64(item.Weight),
+						Latency:      0,
+						Priority:     int64(item.Priority),
+						Healthy:      true,
+						CircuitState: "",
+					}
+				}
+				if result, err := rustbridge.BalanceSelect(rustCands, it.strategy, 0); err == nil {
+					for i, item := range remaining {
+						if int64(item.ChannelID) == result.ID {
+							if i != 0 {
+								remaining[0], remaining[i] = remaining[i], remaining[0]
+							}
+							break
+						}
+					}
+				}
+			}
+		}
+	}
 	return it.index < len(it.candidates)
 }
 
 func (it *Iterator) Item() model.GroupItem {
 	return it.candidates[it.index]
+}
+
+func strategyForMode(mode model.GroupMode) string {
+	switch mode {
+	case model.GroupModeRoundRobin:
+		return "round_robin"
+	case model.GroupModeRandom:
+		return "random"
+	case model.GroupModeFailover:
+		return "failover"
+	case model.GroupModeWeighted:
+		return "weighted"
+	default:
+		return ""
+	}
+}
+
+func rustBalancerEnabled() bool {
+	v := os.Getenv("OCTOPUS_RUST_BALANCER")
+	return v != "0" && v != "false" && v != "FALSE" && v != "False"
+}
+
+func (it *Iterator) isStrategyMode() bool {
+	if it.rustSelectionDisabled {
+		return false
+	}
+	switch it.groupMode {
+	case model.GroupModeRoundRobin, model.GroupModeRandom, model.GroupModeFailover, model.GroupModeWeighted:
+		return true
+	default:
+		return false
+	}
+}
+
+// DisableRustSelection disables the optional rustbridge.BalanceSelect path for
+// this iterator. Callers that have already ordered candidates externally (e.g.
+// dynamic routing recommendations) should use this to preserve their ordering.
+func (it *Iterator) DisableRustSelection() {
+	it.rustSelectionDisabled = true
 }
 
 func (it *Iterator) CandidateAt(index int) (model.GroupItem, bool) {

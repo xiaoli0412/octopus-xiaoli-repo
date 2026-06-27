@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/inbound/streamhelper"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/model"
 )
 
@@ -81,11 +82,5 @@ func (i *ChatInbound) GetInternalResponse(ctx context.Context) (*model.InternalL
 }
 
 func (i *ChatInbound) mergeStreamChunk(chunk *model.InternalLLMResponse) {
-	if chunk == nil || chunk.Object == "[DONE]" {
-		return
-	}
-	if i.streamResult == nil {
-		i.streamResult = &model.InternalLLMResponse{Object: "chat.completion"}
-	}
-	model.MergeStreamingResponseAggregate(i.streamResult, chunk)
+	i.streamResult = streamhelper.MergeStreamingChunk(i.streamResult, chunk)
 }

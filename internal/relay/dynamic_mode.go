@@ -429,7 +429,9 @@ func dynamicIterator(group dbmodel.Group, apiKeyID int, requestModel string, sta
 	if state == nil || !state.AllowAdaptive || len(state.Recommended) == 0 {
 		return balancer.NewIteratorWithCandidates(group, apiKeyID, requestModel, base)
 	}
-	return balancer.NewIteratorWithCandidates(group, apiKeyID, requestModel, state.Recommended)
+	iter := balancer.NewIteratorWithCandidates(group, apiKeyID, requestModel, state.Recommended)
+	iter.DisableRustSelection()
+	return iter
 }
 
 func effectiveDynamicRoutingTuningForMode(group dbmodel.Group, policy dbmodel.RouteTargetResolvedPolicy, state *dynamicRoutingModeState) dynamicRoutingTuning {
