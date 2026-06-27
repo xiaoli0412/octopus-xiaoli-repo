@@ -4,6 +4,23 @@
 
 ---
 
+## 1.23.0 - 2026-06-27
+
+### ⚡ Rust FFI 真正接入生产热路径
+
+- Tokenizer：anthropic inbound 适配器全面切到 `rustbridge.CountTokens`，Rust 构建下使用 Rust tiktoken，非 Rust 构建自动回退 Go。
+- Relay 流式：`internal/relay/sse_stream.go` 使用 `rustbridge.StreamBuffer` 解析 SSE，替代默认 go-sse；通过 `OCTOPUS_USE_GO_SSE=1` 可回退到原有路径。
+- 负载均衡：`internal/relay/balancer/iterator.go` 在 round_robin/random/failover/weighted 模式下调用 `rustbridge.BalanceSelect` 选择下一候选，AI 动态路由推荐顺序不受影响；`OCTOPUS_RUST_BALANCER=0` 回退。
+- 流式聚合：新增 `internal/transformer/inbound/streamhelper`，OpenAI/Anthropic inbound 的流式 chunk 聚合默认走 `rustbridge.SSEAggregate`，失败自动回退 Go；`OCTOPUS_RUST_STREAM_AGGREGATE=0` 关闭。
+- 所有 Rust 路径均保留 Go fallback，单二进制无 Rust 依赖时行为不变。
+- 新增 SSE 提取、StreamBuffer 集成、Rust 均衡顺序、聚合等价性等单元测试。
+
+### 🚀 部署
+
+- 两台服务器（38.55.132.225、152.42.180.195）已通过 GHCR 镜像更新到 v1.22.0，数据卷与容器配置保留。
+
+---
+
 ## 1.22.0 - 2026-06-27
 
 ### ⚡ Rust FFI 核心加速
