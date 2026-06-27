@@ -30,7 +30,7 @@ import { useTranslations } from 'next-intl';
 
 export function Model() {
     const t = useTranslations('model');
-    const { data: models } = useModelList();
+    const { data: models, isLoading, error, refetch } = useModelList();
     const { data: channelModels } = useModelChannelList();
     const { data: upstreamPrices } = useUpstreamPriceSummaries();
     const pageKey = 'model' as const;
@@ -278,6 +278,10 @@ export function Model() {
                 getItemKey={(model) => `model-${model.name}`}
                 gap={modelDensity === 'compact' ? 10 : 12}
                 renderItem={(model, index) => <ModelItem model={model} upstreamPrice={upstreamByModel.get(model.name.toLowerCase())} density={modelDensity} index={index} />}
+                isLoading={isLoading}
+                error={error}
+                onRetry={() => refetch()}
+                emptyHint={t('empty')}
             />
         </div>
     );

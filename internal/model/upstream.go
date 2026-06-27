@@ -43,6 +43,7 @@ type UpstreamSite struct {
 	BalanceAlertThreshold float64   `json:"balance_alert_threshold" gorm:"default:0"`
 	LastBalanceCheckAt    time.Time `json:"last_balance_check_at,omitempty"`
 	LastBalanceValue      float64   `json:"last_balance_value"`
+	BalanceRefreshLog     string    `json:"balance_refresh_log,omitempty" gorm:"type:text"`
 	AutoCreateKey         bool      `json:"auto_create_key" gorm:"default:false"`
 	KeyQuotaLimit         float64   `json:"key_quota_limit" gorm:"default:0"`
 	KeyExpireDays         int       `json:"key_expire_days" gorm:"default:0"`
@@ -58,6 +59,14 @@ type UpstreamCheckinLogEntry struct {
 	Amount  float64   `json:"amount,omitempty"`
 	Message string    `json:"message,omitempty"`
 	At      time.Time `json:"at"`
+}
+
+type UpstreamBalanceLogEntry struct {
+	Remain    float64   `json:"remain,omitempty"`
+	Used      float64   `json:"used,omitempty"`
+	Unlimited bool      `json:"unlimited,omitempty"`
+	Message   string    `json:"message,omitempty"`
+	At        time.Time `json:"at"`
 }
 
 type UpstreamCheckinResult struct {

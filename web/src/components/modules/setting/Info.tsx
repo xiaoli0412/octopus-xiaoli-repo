@@ -123,7 +123,7 @@ export function SettingInfo() {
     };
 
     return (
-        <div className="octo-setting-card">
+        <div className="octo-setting-card" data-testid="setting-info">
             <h2 className="octo-setting-heading">
                 <Info className="size-4" />
                 {t('info.title')}
@@ -248,7 +248,7 @@ export function SettingInfo() {
                                     <p className="text-xs text-muted-foreground">
                                         {t('info.dockerUpdateHint')}
                                     </p>
-                                    <code className="block break-all rounded-md bg-muted px-2 py-1.5 font-mono text-[11px] text-foreground">
+                                    <code className="block max-w-full whitespace-pre-wrap break-all rounded-md bg-muted px-2 py-1.5 font-mono text-[11px] text-foreground">
                                         {t('info.dockerUpdateCommand')}
                                     </code>
                                     <div className="flex justify-end">

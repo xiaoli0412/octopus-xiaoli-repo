@@ -204,7 +204,7 @@ export function TokenBreakdown() {
 	}, [data?.recent_probe_last_status, t]);
 
 	return (
-		<section data-testid="home-breakdown-section" className="rounded-3xl border border-card-border bg-card p-4 text-card-foreground sm:p-5">
+		<section data-testid="home-breakdown-section" className="rounded-3xl border border-card-border bg-card p-4 text-card-foreground custom-shadow sm:p-5">
 			<div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
 				<div>
 					<div className="flex items-center gap-2">

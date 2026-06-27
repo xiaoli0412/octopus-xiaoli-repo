@@ -821,6 +821,9 @@
       }
     },
     "channelFallbackName": "渠道 {id}",
+    "listTitle": "普通渠道列表",
+    "addFromUpstream": "从上游添加",
+    "empty": "暂无渠道，可点击右上角从上游添加或手动创建",
     "detail": {
       "title": {
         "edit": "编辑渠道",
@@ -1367,9 +1370,15 @@
     },
     "copy": {
       "button": "复制",
-      "success": "复制成功",
+      "success": "已复制",
       "failed": "复制失败",
-      "noContent": "无可复制内容"
+      "noContent": "没有可复制内容"
+    },
+    "state": {
+      "loading": "加载中...",
+      "empty": "暂无数据",
+      "error": "加载失败",
+      "retry": "重试"
     }
   },
   "log": {
@@ -1398,6 +1407,7 @@
       "invalidRange": "开始时间不能晚于结束时间"
     },
     "card": {
+      "empty": "暂无日志",
       "error": "错误",
       "errorInfo": "错误信息",
       "firstToken": "首字",
@@ -1617,6 +1627,20 @@
       "label": "CORS 跨域白名单",
       "hint": "为空禁止跨域，* 允许所有",
       "example": "只允许指定域名: https://example.com,https://example2.com"
+    },
+    "publicAccess": {
+      "title": "公共访问地址",
+      "currentClientLabel": "当前访问 IP：{label}",
+      "primaryBaseUrl": "主地址",
+      "primaryBaseUrlPlaceholder": "https://api.example.com",
+      "trustedProxyCIDRs": "可信代理 CIDR",
+      "trustedProxyCIDRsPlaceholder": "127.0.0.1,10.0.0.0/8",
+      "alternateBaseUrls": "备用地址",
+      "alternateBaseUrlsPlaceholder": "https://api-a.example.com\nhttp://152.42.180.195:1088",
+      "ipDisplay": {
+        "masked": "IP 默认脱敏",
+        "full": "完整显示"
+      }
     },
     "circuitBreaker": {
       "title": "熔断器配置",
@@ -2230,7 +2254,8 @@
       "response": "响应内容",
       "success": "连通性测试成功",
       "invalidSelection": "请选择模型和渠道"
-    }
+    },
+    "empty": "暂无模型，请先在渠道中同步或手动添加"
   },
   "doc": {
     "title": "API 使用文档",

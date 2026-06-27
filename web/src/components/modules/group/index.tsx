@@ -5,9 +5,11 @@ import { GroupCard } from './Card';
 import { useGroupList } from '@/api/endpoints/group';
 import { useSearchStore, useToolbarViewOptionsStore } from '@/components/modules/toolbar';
 import { VirtualizedGrid } from '@/components/common/VirtualizedGrid';
+import { useTranslations } from 'next-intl';
 
 export function Group() {
-    const { data: groups } = useGroupList();
+    const t = useTranslations('group');
+    const { data: groups, isLoading, error, refetch } = useGroupList();
     const pageKey = 'group' as const;
     const searchTerm = useSearchStore((s) => s.getSearchTerm(pageKey));
     const layout = useToolbarViewOptionsStore((s) => s.getLayout(pageKey));
@@ -41,6 +43,10 @@ export function Group() {
             estimateItemHeight={520}
             getItemKey={(group, index) => group.id ?? `group-${index}`}
             renderItem={(group) => <GroupCard group={group} />}
+            isLoading={isLoading}
+            error={error}
+            onRetry={() => refetch()}
+            emptyHint={t('empty')}
         />
     );
 }

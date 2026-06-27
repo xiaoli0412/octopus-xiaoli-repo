@@ -5,7 +5,9 @@ param(
     [switch]$ForceFrontendInstall,
     [switch]$SkipFrontendBuild,
     [switch]$SkipFrontendSync,
-    [switch]$CheckOnly
+    [switch]$CheckOnly,
+    [switch]$EnableRust,
+    [string]$RustTarget = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -154,6 +156,46 @@ function Ensure-Directory {
     }
 }
 
+function Get-RustCargoPath {
+    $command = Get-Command -Name 'cargo' -ErrorAction SilentlyContinue
+    if ($null -ne $command) {
+        return $command.Source
+    }
+
+    $candidate = Join-Path $env:USERPROFILE '.cargo\bin\cargo.exe'
+    if (Test-Path -LiteralPath $candidate) {
+        return $candidate
+    }
+
+    return $null
+}
+
+function Get-RustStaticLibName {
+    param([Parameter(Mandatory = $true)][string]$Target)
+
+    if ($Target -like '*-windows-msvc') {
+        return 'octopus_core.lib'
+    }
+    return 'liboctopus_core.a'
+}
+
+function Resolve-WindowsRustTarget {
+    param(
+        [Parameter(Mandatory = $true)][string]$GoArch,
+        [string]$UserTarget = ''
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($UserTarget)) {
+        return $UserTarget.Trim()
+    }
+
+    switch ($GoArch) {
+        'amd64' { return 'x86_64-pc-windows-gnu' }
+        '386' { return 'i686-pc-windows-gnu' }
+        default { Fail-Build "Unsupported GOARCH for Rust FFI: $GoArch" }
+    }
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Get-NormalizedPath -Path (Join-Path $scriptDir '..')
 . (Join-Path $scriptDir 'use-go-env.ps1')
@@ -250,6 +292,7 @@ if ($CheckOnly) {
     Write-Step -Message 'Check-only summary'
     Write-Info "Frontend build: $(-not $SkipFrontendBuild)"
     Write-Info "Static sync: $(-not $SkipFrontendSync)"
+    Write-Info "Rust FFI: $EnableRust"
     Write-Info "GOOS: windows"
     Write-Info "GOARCH: $goArchResolved"
     Write-Info "Executable output: $resolvedOutputPath"
@@ -318,18 +361,73 @@ $ldflags = @(
     "-s", "-w"
 )
 
+$rustBuildTags = 'jsoniter'
+$rustCgoEnabled = '0'
+$rustCc = $null
+
+if ($EnableRust) {
+    $cargoExe = Get-RustCargoPath
+    if ([string]::IsNullOrWhiteSpace($cargoExe)) {
+        Fail-Build @"
+Rust FFI was requested but cargo was not found.
+Install options:
+  - winget install RustLang.Rustup
+  - choco install rustup
+  - Or run the installer from https://rustup.rs
+After installation, open a new PowerShell window and try again.
+"@
+    }
+
+    $resolvedRustTarget = Resolve-WindowsRustTarget -GoArch $goArchResolved -UserTarget $RustTarget
+    $rustLibName = Get-RustStaticLibName -Target $resolvedRustTarget
+    $rustCoreDir = Join-Path $repoRoot 'rust\core'
+    $rustArtifactDir = Join-Path $rustCoreDir (Join-Path 'target' (Join-Path $resolvedRustTarget 'release'))
+    $rustArtifact = Join-Path $rustArtifactDir $rustLibName
+    $rustStagingDir = Join-Path $rustCoreDir 'target\release'
+
+    Write-Info "Building Rust static library for $resolvedRustTarget"
+    Invoke-CheckedCommand -FilePath $cargoExe -Arguments @('build', '--release', '--target', $resolvedRustTarget) -WorkingDirectory $rustCoreDir
+
+    if (-not (Test-Path -LiteralPath $rustArtifact)) {
+        Fail-Build "Rust build did not produce expected artifact: $rustArtifact"
+    }
+
+    Ensure-Directory -Path $rustStagingDir
+    Copy-Item -LiteralPath $rustArtifact -Destination (Join-Path $rustStagingDir $rustLibName) -Force
+    Write-Success "Rust static library staged: $rustStagingDir\$rustLibName"
+
+    $gccCommand = Get-Command -Name 'gcc' -ErrorAction SilentlyContinue
+    if ($null -eq $gccCommand) {
+        Fail-Build @"
+Rust FFI requires a C compiler for cgo but gcc was not found in PATH.
+Install MinGW-w64, for example:
+  - winget install MSYS2.MSYS2
+  - Or use the MinGW-w64 distribution from https://www.mingw-w64.org/downloads/
+Then ensure gcc.exe is available in PATH.
+"@
+    }
+
+    $rustBuildTags = 'rust jsoniter'
+    $rustCgoEnabled = '1'
+    $rustCc = 'gcc'
+}
+
 $previousGoos = $env:GOOS
 $previousGoarch = $env:GOARCH
 $previousCgo = $env:CGO_ENABLED
+$previousCc = $env:CC
 $env:GOOS = 'windows'
 $env:GOARCH = $goArchResolved
-$env:CGO_ENABLED = '0'
+$env:CGO_ENABLED = $rustCgoEnabled
+if ($null -ne $rustCc) {
+    $env:CC = $rustCc
+}
 
 try {
     Invoke-CheckedCommand -FilePath $goCommand.Source -Arguments @(
         'build',
         '-trimpath',
-        '-tags', 'jsoniter',
+        '-tags', $rustBuildTags,
         '-ldflags', ($ldflags -join ' '),
         '-o', $resolvedOutputPath,
         '.'
@@ -355,6 +453,13 @@ finally {
     }
     else {
         $env:CGO_ENABLED = $previousCgo
+    }
+
+    if ($null -eq $previousCc) {
+        Remove-Item Env:CC -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:CC = $previousCc
     }
 }
 

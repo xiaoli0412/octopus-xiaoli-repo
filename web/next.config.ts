@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   output: 'export',
   assetPrefix: './',
+  productionBrowserSourceMaps: true,
   experimental: {
     // Worker threads are only enabled when the patched build wrapper opts in.
     // Plain `next build` on Windows can otherwise fail with DataCloneError.

@@ -29,6 +29,11 @@ jobs:
         with:
           python-version: '3.13'
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -40,6 +45,9 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
           cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Build Rust static library
+        run: cargo build --release --manifest-path rust/core/Cargo.toml
 
       - name: Frontend typecheck and static sync
         working-directory: web
@@ -58,6 +66,9 @@ jobs:
 
       - name: Go test targeted packages
         run: go test ./internal/op ./internal/server/handlers ./internal/server/middleware ./internal/relay/... ./internal/task ./internal/update -count=1
+
+      - name: Go test Rust FFI bridge
+        run: go test -tags rust ./internal/rustbridge/... -count=1
 
       - name: Go race test targeted packages
         run: go test -race ./internal/op ./internal/server/handlers ./internal/server/middleware ./internal/relay/... ./internal/task ./internal/update -count=1
@@ -107,6 +118,20 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: '1.24.4'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu,armv7-unknown-linux-gnueabihf,i686-unknown-linux-gnu,x86_64-pc-windows-gnu
+
+      - name: Install cross C compilers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabihf \
+            gcc-i686-linux-gnu \
+            mingw-w64
 
       - name: Setup Python
         uses: actions/setup-python@v6

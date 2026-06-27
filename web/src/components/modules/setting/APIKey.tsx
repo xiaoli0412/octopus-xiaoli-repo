@@ -28,6 +28,7 @@ import { useStatsAPIKey } from '@/api/endpoints/stats';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/common/Toast';
 import { CopyIconButton } from '@/components/common/CopyButton';
+import { EmptyState, ErrorState, LoadingState } from '@/components/common/State';
 import type { ApiError } from '@/api/types';
 
 function toExpireAt(date: Date, time: string): number {
@@ -344,7 +345,7 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
                         );
                     })}
                 </div>
-                <div className="text-[11px] text-muted-foreground/80">{t('apiKey.form.rateLimitHint')}</div>
+                <div className="text-xs leading-5 text-muted-foreground">{t('apiKey.form.rateLimitHint')}</div>
             </div>
 
             <div className="grid gap-1 text-xs text-muted-foreground">
@@ -733,11 +734,13 @@ function APIKeyKeyItem({
 function APIKeyPanelBase({
     idPrefix,
     containerClassName,
+    containerDataTestId,
     listClassName,
     renderHeaderExtra,
 }: {
     idPrefix: string;
     containerClassName: string;
+    containerDataTestId?: string;
     listClassName: string;
     renderHeaderExtra?: (ctx: {
         disabled: boolean;
@@ -815,10 +818,10 @@ function APIKeyPanelBase({
     }, [t, updateAPIKey]);
 
     return (
-        <div className={containerClassName}>
+        <div className={containerClassName} data-testid={containerDataTestId}>
             <div className="flex items-center justify-between gap-3">
-                <h2 className="text-lg font-bold text-card-foreground flex items-center gap-2">
-                    <KeyRound className="h-5 w-5" />
+                <h2 className="octo-setting-heading">
+                    <KeyRound className="size-4" />
                     {t('apiKey.title')}
                 </h2>
                 <div className="flex items-center gap-2">
@@ -873,17 +876,13 @@ function APIKeyPanelBase({
 
             <div className={listClassName}>
                 {apiKeysLoading ? (
-                    <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-                        <Loader className="size-4 animate-spin" />
-                    </div>
+                    <LoadingState className="h-full" />
                 ) : apiKeysError ? (
-                    <div className="h-full flex items-center justify-center text-sm text-destructive">
+                    <ErrorState className="h-full" onRetry={() => window.location.reload()}>
                         {t('apiKey.loadFailed')}
-                    </div>
+                    </ErrorState>
                 ) : apiKeys?.length === 0 ? (
-                    <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-                        {t('apiKey.empty')}
-                    </div>
+                    <EmptyState className="h-full">{t('apiKey.empty')}</EmptyState>
                 ) : (
                     <AnimatePresence>
                         {sortedApiKeys.map((apiKey) => {
@@ -942,7 +941,8 @@ export function SettingAPIKey() {
     return (
         <APIKeyPanelBase
             idPrefix="apikey"
-            containerClassName="rounded-3xl border border-border bg-card p-6 space-y-5 relative"
+            containerClassName="octo-setting-card relative"
+            containerDataTestId="setting-apikey"
             listClassName="space-y-2 h-36 overflow-y-auto"
             renderHeaderExtra={() => (
                 <MorphingDialog>

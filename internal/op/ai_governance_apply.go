@@ -10,8 +10,8 @@ import (
 
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
-	"gorm.io/gorm/clause"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func GovernanceSessionApply(id int, ctx context.Context) (model.GovernanceSessionDetail, error) {

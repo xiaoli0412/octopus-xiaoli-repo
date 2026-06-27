@@ -130,42 +130,42 @@ export function SettingSystem() {
                     <div>
                         <div className="flex items-center gap-2 text-sm font-semibold text-card-foreground">
                             <Link2 className="size-4 text-primary" />
-                            公共访问地址
+                            {t('publicAccess.title')}
                         </div>
                     </div>
                     <div className="rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-[11px] text-muted-foreground">
-                        当前访问 IP：{publicAccess?.current_client_label || '-'}
+                        {t('publicAccess.currentClientLabel', { label: publicAccess?.current_client_label || '-' })}
                     </div>
                 </div>
 
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
                     <label className="grid gap-1 text-xs text-muted-foreground">
-                        主地址
+                        {t('publicAccess.primaryBaseUrl')}
                         <Input
                             value={apiBaseUrl}
                             onChange={(e) => setApiBaseUrl(e.target.value)}
                             onBlur={() => handleSave(SettingKey.ApiBaseUrl, apiBaseUrl.trim(), initialApiBaseUrl.current)}
-                            placeholder="https://api.example.com"
+                            placeholder={t('publicAccess.primaryBaseUrlPlaceholder')}
                             className="h-9 rounded-xl"
                         />
                     </label>
                     <label className="grid gap-1 text-xs text-muted-foreground">
-                        可信代理 CIDR
+                        {t('publicAccess.trustedProxyCIDRs')}
                         <Input
                             value={trustedProxyCIDRs}
                             onChange={(e) => setTrustedProxyCIDRs(e.target.value)}
                             onBlur={() => handleSave(SettingKey.TrustedProxyCIDRs, trustedProxyCIDRs.trim(), initialTrustedProxyCIDRs.current)}
-                            placeholder="127.0.0.1,10.0.0.0/8"
+                            placeholder={t('publicAccess.trustedProxyCIDRsPlaceholder')}
                             className="h-9 rounded-xl"
                         />
                     </label>
                     <label className="grid gap-1 text-xs text-muted-foreground md:col-span-2">
-                        备用地址
+                        {t('publicAccess.alternateBaseUrls')}
                         <textarea
                             value={apiAlternateBaseUrls}
                             onChange={(e) => setApiAlternateBaseUrls(e.target.value)}
                             onBlur={() => handleSave(SettingKey.ApiAlternateBaseUrls, apiAlternateBaseUrls.trim(), initialApiAlternateBaseUrls.current)}
-                            placeholder={'https://api-a.example.com\nhttp://152.42.180.195:1088'}
+                            placeholder={t('publicAccess.alternateBaseUrlsPlaceholder')}
                             className="min-h-12 rounded-xl border border-input bg-transparent px-3 py-2 text-sm text-card-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring"
                         />
                     </label>
@@ -185,7 +185,7 @@ export function SettingSystem() {
                                 opsIPDisplayMode === mode ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border/60 bg-background/60 text-muted-foreground hover:text-foreground',
                             )}
                         >
-                            IP {mode === 'masked' ? '默认脱敏' : '完整显示'}
+                            {t(`publicAccess.ipDisplay.${mode}`)}
                         </button>
                     ))}
                 </div>

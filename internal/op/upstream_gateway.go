@@ -35,6 +35,8 @@ const (
 	upstreamAuthModeXAPIKey = "x-api-key"
 )
 
+const upstreamDefaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+
 // upstreamResponseCache holds short-lived cached responses for upstream balance
 // and usage endpoints to avoid hammering the upstream on frequent refreshes.
 type upstreamResponseCache struct {
@@ -87,12 +89,20 @@ func upstreamRetryDelay(attempt int) time.Duration {
 // callUpstreamWithRetry executes an upstream HTTP request and retries on
 // network errors or 5xx responses up to upstreamMaxRetries times.
 func callUpstreamWithRetry(ctx context.Context, httpClient *http.Client, method, endpoint string, body []byte, authMode, credential, userID string) ([]byte, bool) {
+	payload, ok, _ := callUpstreamWithRetryStatus(ctx, httpClient, method, endpoint, body, authMode, credential, userID)
+	return payload, ok
+}
+
+// callUpstreamWithRetryStatus is the status-aware variant of callUpstreamWithRetry.
+// It returns the response body, a success flag, and the last HTTP status code.
+func callUpstreamWithRetryStatus(ctx context.Context, httpClient *http.Client, method, endpoint string, body []byte, authMode, credential, userID string) ([]byte, bool, int) {
 	var lastErr error
+	var lastStatus int
 	for attempt := 0; attempt <= upstreamMaxRetries; attempt++ {
 		if attempt > 0 {
 			select {
 			case <-ctx.Done():
-				return nil, false
+				return nil, false, lastStatus
 			case <-time.After(upstreamRetryDelay(attempt)):
 			}
 		}
@@ -105,7 +115,7 @@ func callUpstreamWithRetry(ctx context.Context, httpClient *http.Client, method,
 		req, err := http.NewRequestWithContext(perReqCtx, method, endpoint, bodyReader)
 		if err != nil {
 			cancel()
-			return nil, false
+			return nil, false, lastStatus
 		}
 		switch authMode {
 		case upstreamAuthModeBearer:
@@ -120,17 +130,19 @@ func callUpstreamWithRetry(ctx context.Context, httpClient *http.Client, method,
 			req.Header.Set("Content-Type", "application/json")
 		}
 		req.Header.Set("Accept", "application/json")
+		req.Header.Set("User-Agent", upstreamDefaultUserAgent)
 
 		resp, err := httpClient.Do(req)
 		if err != nil {
 			cancel()
 			lastErr = err
 			if errors.Is(err, context.Canceled) {
-				return nil, false
+				return nil, false, lastStatus
 			}
 			continue
 		}
 		payload, readErr := io.ReadAll(io.LimitReader(resp.Body, maxNewAPIInspectResponseBytes+1))
+		lastStatus = resp.StatusCode
 		_ = resp.Body.Close()
 		cancel()
 		if readErr != nil {
@@ -138,19 +150,19 @@ func callUpstreamWithRetry(ctx context.Context, httpClient *http.Client, method,
 			continue
 		}
 		if int64(len(payload)) > maxNewAPIInspectResponseBytes {
-			return nil, false
+			return nil, false, lastStatus
 		}
 		if resp.StatusCode >= 500 && resp.StatusCode < 600 {
 			lastErr = fmt.Errorf("upstream request failed: %s", resp.Status)
 			continue
 		}
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return nil, false
+			return payload, false, resp.StatusCode
 		}
-		return payload, true
+		return payload, true, resp.StatusCode
 	}
 	_ = lastErr
-	return nil, false
+	return nil, false, lastStatus
 }
 
 func normalizeUpstreamProvider(input string) string {
@@ -321,6 +333,12 @@ func InspectUpstreamGateway(ctx context.Context, req model.UpstreamInspectReques
 			result.Models = append(result.Models, models...)
 		}
 
+		if providerType == model.UpstreamProviderOpenAICompatible {
+			if ok, warnings := validateOpenAICompatibleChatCompletions(ctx, httpClient, apiBase, gatewayKey); !ok {
+				result.Warnings = append(result.Warnings, warnings...)
+			}
+		}
+
 		if providerType == model.UpstreamProviderSub2API {
 			usage, warnings := fetchSub2APIUsage(ctx, httpClient, siteBase, gatewayKey)
 			if usage.Available {
@@ -383,7 +401,40 @@ func fetchUpstreamGatewayModels(ctx context.Context, httpClient *http.Client, ap
 		}
 		return normalizeModelNames(models), nil
 	}
-	return nil, fmt.Errorf("upstream models request failed")
+	return nil, fmt.Errorf("upstream /v1/models request failed")
+}
+
+// validateOpenAICompatibleChatCompletions sends a minimal chat completion request
+// to verify that the OpenAI-compatible endpoint is actually usable. It accepts
+// both standard JSON responses and simple error/empty responses that indicate
+// the route is reachable.
+func validateOpenAICompatibleChatCompletions(ctx context.Context, httpClient *http.Client, apiBase, token string) (bool, []string) {
+	body, _ := json.Marshal(map[string]any{
+		"model":      "gpt-3.5-turbo",
+		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+		"max_tokens": 1,
+	})
+	endpoint := strings.TrimRight(apiBase, "/") + "/chat/completions"
+	for _, auth := range []string{upstreamAuthModeBearer, upstreamAuthModeXAPIKey} {
+		payload, ok := callUpstreamWithRetry(ctx, httpClient, http.MethodPost, endpoint, body, auth, token, "")
+		if !ok {
+			continue
+		}
+		// Any parseable JSON is acceptable here: a successful completion, a model
+		// not found error, or an auth error all prove the route exists.
+		var raw any
+		if err := json.Unmarshal(payload, &raw); err != nil {
+			return false, []string{"OpenAI Compatible /v1/chat/completions returned non-JSON"}
+		}
+		records := flattenObjectRecords(raw)
+		for _, record := range records {
+			if msg, ok := stringField(record, "error", "message", "detail"); ok && msg != "" {
+				return true, []string{"OpenAI Compatible /v1/chat/completions reachable (response: " + msg + ")"}
+			}
+		}
+		return true, nil
+	}
+	return false, []string{"OpenAI Compatible /v1/chat/completions 不可用：/v1/models 与 /v1/chat/completions 均请求失败"}
 }
 
 func upstreamGatewayLogin(ctx context.Context, httpClient *http.Client, providerType, siteBase, username, password string) (string, string, []string) {
@@ -453,7 +504,8 @@ func parseUpstreamUserID(payload []byte) string {
 }
 
 func fetchSub2APIProfileUsage(ctx context.Context, httpClient *http.Client, siteBase, token string) (model.NewAPITokenUsage, []model.UpstreamSubscription, []string) {
-	for _, path := range []string{"/api/v1/user/profile", "/api/v1/auth/me"} {
+	paths := []string{"/api/v1/user/profile", "/api/v1/auth/me", "/api/profile", "/api/user/profile", "/api/me"}
+	for _, path := range paths {
 		payload, ok := fetchJSONWithBearerUserCached(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token, "")
 		if !ok {
 			continue
@@ -467,12 +519,13 @@ func fetchSub2APIProfileUsage(ctx context.Context, httpClient *http.Client, site
 			return model.NewAPITokenUsage{Available: false}, subscriptions, nil
 		}
 	}
-	return model.NewAPITokenUsage{Available: false}, nil, nil
+	return model.NewAPITokenUsage{Available: false}, nil, []string{"sub2API 账户信息不可用：已尝试 " + strings.Join(paths, ", ")}
 }
 
 func fetchSub2APIKeys(ctx context.Context, httpClient *http.Client, siteBase, token string) ([]model.UpstreamGatewayKey, []string) {
 	keys := make([]model.UpstreamGatewayKey, 0)
-	for _, path := range []string{"/api/v1/api-keys", "/api/v1/keys"} {
+	paths := []string{"/api/v1/api-keys", "/api/v1/keys", "/api/keys", "/api/api-keys"}
+	for _, path := range paths {
 		for _, payload := range fetchPagedJSONWithBearer(ctx, httpClient, siteBase, path, token, "", 4, 50) {
 			keys = append(keys, parseUpstreamGatewayKeys(payload)...)
 		}
@@ -481,22 +534,27 @@ func fetchSub2APIKeys(ctx context.Context, httpClient *http.Client, siteBase, to
 		}
 	}
 	if len(keys) == 0 {
-		return nil, []string{"API key 列表为空或字段不可识别"}
+		return nil, []string{"sub2API API key 列表为空或字段不可识别：已尝试 " + strings.Join(paths, ", ")}
 	}
 	return dedupeUpstreamGatewayKeys(keys), nil
 }
 
 func fetchNewAPIKeys(ctx context.Context, httpClient *http.Client, siteBase, token, userID string) ([]model.UpstreamGatewayKey, []string) {
 	keys := make([]model.UpstreamGatewayKey, 0)
-	for _, path := range []string{"/api/token/search", "/api/token/"} {
+	for _, path := range []string{"/api/token/search", "/api/token/", "/api/token"} {
 		for page := 0; page < 4; page++ {
 			endpoint := strings.TrimRight(siteBase, "/") + path
 			separator := "?"
 			if strings.Contains(endpoint, "?") {
 				separator = "&"
 			}
-			endpoint += separator + "p=" + strconv.Itoa(page) + "&page_size=50&size=50"
-			payload, ok := fetchJSONWithBearerUser(ctx, httpClient, endpoint, token, userID)
+			// /api/token without query is treated as a non-paginated listing.
+			if path != "/api/token" {
+				endpoint += separator + "p=" + strconv.Itoa(page) + "&page_size=50&size=50"
+			} else if page > 0 {
+				break
+			}
+			payload, ok := fetchJSONWithBearerUserMaybeCookie(ctx, httpClient, endpoint, token, userID)
 			if !ok {
 				if page == 0 {
 					continue
@@ -511,7 +569,7 @@ func fetchNewAPIKeys(ctx context.Context, httpClient *http.Client, siteBase, tok
 				break
 			}
 			keys = append(keys, pageKeys...)
-			if len(pageKeys) < 50 {
+			if len(pageKeys) < 50 || path == "/api/token" {
 				break
 			}
 		}
@@ -522,11 +580,11 @@ func fetchNewAPIKeys(ctx context.Context, httpClient *http.Client, siteBase, tok
 	if len(keys) > 0 {
 		return dedupeUpstreamGatewayKeys(keys), nil
 	}
-	return nil, []string{"New API token 列表不可用或未返回可识别 token"}
+	return nil, []string{"New API token 列表不可用：已尝试 /api/token/search、/api/token/、/api/token，未返回可识别 token"}
 }
 
 func fetchJSONWithBearer(ctx context.Context, httpClient *http.Client, endpoint, token string) ([]byte, bool) {
-	return fetchJSONWithBearerUser(ctx, httpClient, endpoint, token, "")
+	return fetchJSONWithBearerUserMaybeCookie(ctx, httpClient, endpoint, token, "")
 }
 
 func postJSONWithBearerUser(ctx context.Context, httpClient *http.Client, endpoint, token, userID string, body any) ([]byte, bool) {
@@ -640,11 +698,28 @@ func fetchJSONWithBearerUserCached(ctx context.Context, httpClient *http.Client,
 	if payload, ok := upstreamBalanceCache.get(cacheKey); ok {
 		return payload, true
 	}
-	payload, ok := fetchJSONWithBearerUser(ctx, httpClient, endpoint, token, userID)
+	payload, ok := fetchJSONWithBearerUserMaybeCookie(ctx, httpClient, endpoint, token, userID)
 	if ok {
 		upstreamBalanceCache.set(cacheKey, payload)
 	}
 	return payload, ok
+}
+
+// fetchJSONWithBearerUserMaybeCookie attempts Bearer auth first, then falls back
+// to treating the credential as a session cookie when the upstream responds
+// with 401/403. This avoids unnecessary cookie probes for 404 or 5xx errors.
+func fetchJSONWithBearerUserMaybeCookie(ctx context.Context, httpClient *http.Client, endpoint, token, userID string) ([]byte, bool) {
+	payload, ok, status := callUpstreamWithRetryStatus(ctx, httpClient, http.MethodGet, endpoint, nil, upstreamAuthModeBearer, token, userID)
+	if ok {
+		return payload, true
+	}
+	if strings.TrimSpace(token) == "" {
+		return nil, false
+	}
+	if status == http.StatusUnauthorized || status == http.StatusForbidden {
+		return callUpstreamWithCookie(ctx, httpClient, http.MethodGet, endpoint, nil, token)
+	}
+	return nil, false
 }
 
 func fetchPagedJSONWithBearer(ctx context.Context, httpClient *http.Client, siteBase, path, token, userID string, maxPages, pageSize int) [][]byte {
@@ -662,11 +737,11 @@ func fetchPagedJSONWithBearer(ctx context.Context, httpClient *http.Client, site
 			separator = "&"
 		}
 		endpoint += separator + "page=" + strconv.Itoa(page) + "&page_size=" + strconv.Itoa(pageSize)
-		payload, ok := fetchJSONWithBearerUser(ctx, httpClient, endpoint, token, userID)
+		payload, ok := fetchJSONWithBearerUserMaybeCookie(ctx, httpClient, endpoint, token, userID)
 		if !ok {
 			if page == 1 {
 				plainEndpoint := strings.TrimRight(siteBase, "/") + path
-				payload, ok = fetchJSONWithBearerUser(ctx, httpClient, plainEndpoint, token, userID)
+				payload, ok = fetchJSONWithBearerUserMaybeCookie(ctx, httpClient, plainEndpoint, token, userID)
 			}
 			if !ok {
 				break
@@ -681,7 +756,8 @@ func fetchPagedJSONWithBearer(ctx context.Context, httpClient *http.Client, site
 }
 
 func fetchNewAPIAccountUsage(ctx context.Context, httpClient *http.Client, siteBase, token, userID string) (model.NewAPITokenUsage, []string) {
-	for _, path := range []string{"/api/user/self", "/api/user/self/", "/api/user/profile", "/api/user/quota", "/api/user/subscription", "/api/user"} {
+	paths := []string{"/api/user/self", "/api/user/self/", "/api/user/me", "/api/user/profile", "/api/user/quota", "/api/user/subscription", "/api/user"}
+	for _, path := range paths {
 		payload, ok := fetchJSONWithBearerUserCached(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token, userID)
 		if !ok {
 			continue
@@ -690,12 +766,13 @@ func fetchNewAPIAccountUsage(ctx context.Context, httpClient *http.Client, siteB
 			return usage, nil
 		}
 	}
-	return model.NewAPITokenUsage{Available: false}, []string{"New API 账户余额不可用"}
+	return model.NewAPITokenUsage{Available: false}, []string{"New API 账户余额不可用：已尝试 " + strings.Join(paths, ", ") + "，返回结构无法识别或 Token 无效"}
 }
 
 func fetchNewAPIUserModels(ctx context.Context, httpClient *http.Client, siteBase, token, userID string) ([]string, []string) {
-	for _, path := range []string{"/api/user/models", "/api/user/self/models", "/api/models"} {
-		payload, ok := fetchJSONWithBearerUser(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token, userID)
+	paths := []string{"/api/user/models", "/api/user/self/models", "/api/user/me/models", "/api/models"}
+	for _, path := range paths {
+		payload, ok := fetchJSONWithBearerUserMaybeCookie(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token, userID)
 		if !ok {
 			continue
 		}
@@ -704,12 +781,13 @@ func fetchNewAPIUserModels(ctx context.Context, httpClient *http.Client, siteBas
 			return models, nil
 		}
 	}
-	return nil, []string{"New API 用户模型目录不可用"}
+	return nil, []string{"New API 用户模型目录不可用：已尝试 " + strings.Join(paths, ", ") + "，未返回可识别模型"}
 }
 
 func fetchNewAPIGroups(ctx context.Context, httpClient *http.Client, siteBase, token, userID string) ([]model.UpstreamGroup, []string) {
-	for _, path := range []string{"/api/user/self/groups", "/api/user/groups", "/api/group", "/api/groups"} {
-		payload, ok := fetchJSONWithBearerUser(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token, userID)
+	paths := []string{"/api/user/self/groups", "/api/user/groups", "/api/user/me/groups", "/api/group", "/api/groups"}
+	for _, path := range paths {
+		payload, ok := fetchJSONWithBearerUserMaybeCookie(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token, userID)
 		if !ok {
 			continue
 		}
@@ -718,12 +796,13 @@ func fetchNewAPIGroups(ctx context.Context, httpClient *http.Client, siteBase, t
 			return groups, nil
 		}
 	}
-	return nil, []string{"New API 分组目录不可用"}
+	return nil, []string{"New API 分组目录不可用：已尝试 " + strings.Join(paths, ", ")}
 }
 
 func fetchSub2APIGroups(ctx context.Context, httpClient *http.Client, siteBase, token string) ([]model.UpstreamGroup, []string) {
 	groups := make([]model.UpstreamGroup, 0)
-	for _, path := range []string{"/api/v1/groups", "/api/v1/groups/available", "/api/v1/groups/rates"} {
+	paths := []string{"/api/v1/groups", "/api/v1/groups/available", "/api/v1/groups/rates", "/api/groups", "/api/user/groups"}
+	for _, path := range paths {
 		payload, ok := fetchJSONWithBearer(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token)
 		if !ok {
 			continue
@@ -731,14 +810,15 @@ func fetchSub2APIGroups(ctx context.Context, httpClient *http.Client, siteBase, 
 		groups = append(groups, parseUpstreamGroups(payload, "sub2API")...)
 	}
 	if len(groups) == 0 {
-		return nil, []string{"sub2API 分组目录不可用"}
+		return nil, []string{"sub2API 分组目录不可用：已尝试 " + strings.Join(paths, ", ")}
 	}
 	return mergeUpstreamGroups(nil, groups), nil
 }
 
 func fetchSub2APISubscriptions(ctx context.Context, httpClient *http.Client, siteBase, token string) ([]model.UpstreamSubscription, []string) {
 	subscriptions := make([]model.UpstreamSubscription, 0)
-	for _, path := range []string{"/api/v1/subscriptions", "/api/v1/subscriptions/active", "/api/v1/subscriptions/summary"} {
+	paths := []string{"/api/v1/subscriptions", "/api/v1/subscriptions/active", "/api/v1/subscriptions/summary", "/api/subscriptions", "/api/user/subscriptions"}
+	for _, path := range paths {
 		payload, ok := fetchJSONWithBearer(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token)
 		if !ok {
 			continue
@@ -746,7 +826,7 @@ func fetchSub2APISubscriptions(ctx context.Context, httpClient *http.Client, sit
 		subscriptions = append(subscriptions, parseUpstreamSubscriptions(payload)...)
 	}
 	if len(subscriptions) == 0 {
-		return nil, []string{"sub2API 订阅明细不可用"}
+		return nil, []string{"sub2API 订阅明细不可用：已尝试 " + strings.Join(paths, ", ")}
 	}
 	return mergeUpstreamSubscriptions(nil, subscriptions), nil
 }
@@ -762,7 +842,7 @@ func fetchUpstreamPriceCandidates(ctx context.Context, httpClient *http.Client, 
 	}
 	out := make(map[string]model.UpstreamPriceCandidate)
 	for _, path := range paths {
-		payload, ok := fetchJSONWithBearerUser(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token, userID)
+		payload, ok := fetchJSONWithBearerUserMaybeCookie(ctx, httpClient, strings.TrimRight(siteBase, "/")+path, token, userID)
 		if !ok {
 			continue
 		}
@@ -1164,29 +1244,32 @@ func splitLooseModelList(values ...any) []string {
 }
 
 func fetchSub2APIUsage(ctx context.Context, httpClient *http.Client, siteBase, token string) (model.NewAPITokenUsage, []string) {
-	endpoint := strings.TrimRight(siteBase, "/") + "/v1/usage"
-	for _, mode := range []string{"x-api-key", "bearer"} {
-		auth := upstreamAuthModeBearer
-		if mode == "x-api-key" {
-			auth = upstreamAuthModeXAPIKey
-		}
-		cacheKey := upstreamBalanceCache.cacheKey(http.MethodGet, auth, endpoint, token, "")
-		if payload, ok := upstreamBalanceCache.get(cacheKey); ok {
+	paths := []string{"/v1/usage", "/api/v1/usage", "/api/usage"}
+	for _, path := range paths {
+		endpoint := strings.TrimRight(siteBase, "/") + path
+		for _, mode := range []string{"x-api-key", "bearer"} {
+			auth := upstreamAuthModeBearer
+			if mode == "x-api-key" {
+				auth = upstreamAuthModeXAPIKey
+			}
+			cacheKey := upstreamBalanceCache.cacheKey(http.MethodGet, auth, endpoint, token, "")
+			if payload, ok := upstreamBalanceCache.get(cacheKey); ok {
+				if usage, ok := parseSub2APIUsage(payload); ok {
+					return usage, nil
+				}
+				continue
+			}
+			payload, ok := callUpstreamWithRetry(ctx, httpClient, http.MethodGet, endpoint, nil, auth, token, "")
+			if !ok {
+				continue
+			}
 			if usage, ok := parseSub2APIUsage(payload); ok {
+				upstreamBalanceCache.set(cacheKey, payload)
 				return usage, nil
 			}
-			continue
-		}
-		payload, ok := callUpstreamWithRetry(ctx, httpClient, http.MethodGet, endpoint, nil, auth, token, "")
-		if !ok {
-			continue
-		}
-		if usage, ok := parseSub2APIUsage(payload); ok {
-			upstreamBalanceCache.set(cacheKey, payload)
-			return usage, nil
 		}
 	}
-	return model.NewAPITokenUsage{Available: false}, []string{"sub2API /v1/usage 不可用"}
+	return model.NewAPITokenUsage{Available: false}, []string{"sub2API usage 接口不可用：已尝试 " + strings.Join(paths, ", ")}
 }
 
 func parseSub2APIUsage(payload []byte) (model.NewAPITokenUsage, bool) {

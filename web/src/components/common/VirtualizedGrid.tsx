@@ -9,6 +9,7 @@ import {
     useState,
 } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { EmptyState, ErrorState, LoadingState } from './State';
 
 const BREAKPOINTS = {
     sm: 640,
@@ -34,6 +35,10 @@ interface VirtualizedGridProps<T> {
     onReachEnd?: () => void;
     reachEndEnabled?: boolean;
     reachEndOffset?: number;
+    isLoading?: boolean;
+    error?: Error | string | null;
+    onRetry?: () => void;
+    emptyHint?: ReactNode;
 }
 
 function getColumnsForWidth(
@@ -61,6 +66,10 @@ export function VirtualizedGrid<T>({
     onReachEnd,
     reachEndEnabled = false,
     reachEndOffset = 1,
+    isLoading,
+    error,
+    onRetry,
+    emptyHint,
 }: VirtualizedGridProps<T>) {
     'use no memo';
 
@@ -159,7 +168,19 @@ export function VirtualizedGrid<T>({
                 ref={containerRef}
                 className="relative h-full w-full overflow-y-auto overscroll-contain rounded-t-[1.25rem] sm:rounded-t-3xl"
             >
-                {rowCount === 0 ? null : (
+                {rowCount === 0 ? (
+                    <div className="absolute inset-0 flex items-start justify-center pt-16">
+                        {error ? (
+                            <ErrorState onRetry={onRetry} className="w-[min(100%,24rem)]">
+                                {typeof error === 'string' ? error : error.message}
+                            </ErrorState>
+                        ) : isLoading ? (
+                            <LoadingState className="w-[min(100%,24rem)]" />
+                        ) : (
+                            <EmptyState className="w-[min(100%,24rem)]">{emptyHint}</EmptyState>
+                        )}
+                    </div>
+                ) : (
                     <div className="relative w-full" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
                         {virtualRows.map((virtualRow) => {
                             if (hasFooterRow && virtualRow.index === itemRowCount) {

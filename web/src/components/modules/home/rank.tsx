@@ -152,7 +152,7 @@ export function Rank() {
 	}
 
 	return (
-		<section data-testid="home-rank-section" className="rounded-3xl border border-card-border bg-card p-4 text-card-foreground sm:p-5">
+		<section data-testid="home-rank-section" className="rounded-3xl border border-card-border bg-card p-4 text-card-foreground custom-shadow sm:p-5">
 			<Tabs defaultValue="cost">
 				<div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
 					<div>

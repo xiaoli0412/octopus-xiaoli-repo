@@ -114,6 +114,7 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
                     onChange={(e) => setUsername(e.target.value)}
                     required={mode === 'user'}
                     disabled={isPending}
+                    className="rounded-xl"
                   />
                 </Field>
                 <Field>
@@ -127,6 +128,7 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
                     onChange={(e) => setPassword(e.target.value)}
                     required={mode === 'user'}
                     disabled={isPending}
+                    className="rounded-xl"
                   />
                 </Field>
               </TabsContent>
@@ -141,6 +143,7 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
                     onChange={(e) => setApiKey(e.target.value)}
                     required={mode === 'apikey'}
                     disabled={isPending}
+                    className="rounded-xl"
                   />
                 </Field>
               </TabsContent>
@@ -148,7 +151,7 @@ export function LoginForm({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
 
             {error && <FieldDescription className="text-destructive">{error}</FieldDescription>}
 
-            <Button type="submit" disabled={isPending} className="w-full">
+            <Button type="submit" disabled={isPending} className="w-full rounded-xl">
               <span data-testid="login-submit-label" className="contents">
               {isPending ? t('button.loading') : t('button.submit')}
               </span>

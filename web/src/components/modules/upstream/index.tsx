@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/components/common/Toast';
 import { cn } from '@/lib/utils';
+import { EmptyState, ErrorState, LoadingState } from '@/components/common/State';
 
 const PROVIDERS: Array<{ value: UpstreamProviderType; label: string }> = [
     { value: 'newapi', label: 'New API' },
@@ -453,7 +454,7 @@ export function Upstream() {
                 hasSites ? 'lg:grid-cols-[16.5rem_minmax(0,1fr)] 2xl:grid-cols-[17.5rem_minmax(0,1fr)]' : 'lg:grid-cols-1',
             )}
         >
-            <aside className={cn('octo-section max-h-full self-start overflow-y-auto', !hasSites && 'hidden')}>
+            <aside className={cn('octo-section h-full min-h-0 self-start overflow-y-auto', !hasSites && 'hidden')}>
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-sm font-semibold">
                         <Waypoints className="size-4 text-primary" />
@@ -494,13 +495,15 @@ export function Upstream() {
                     </div>
                 ) : null}
 
+                {sites.isLoading ? <LoadingState className="mt-3 py-5 text-xs" /> : sites.error ? <ErrorState className="mt-3 py-5 text-xs" onRetry={() => sites.refetch()} /> : null}
+
                 <div className="mt-3 grid gap-2">
                     {(sites.data ?? []).map((site) => (
                         <div
                             key={site.id}
                             className={cn(
                                 'group rounded-2xl border p-2.5 transition',
-                                activeID === site.id ? 'border-primary/40 bg-primary/8' : 'border-border/70 bg-background/50 hover:bg-muted/35',
+                                activeID === site.id ? 'border-primary/40 bg-primary/10' : 'border-border/70 bg-background/50 hover:bg-muted/40',
                             )}
                         >
                             <button
@@ -550,7 +553,7 @@ export function Upstream() {
                         </div>
                     ))}
                     {(sites.data?.length ?? 0) === 0 ? (
-                        <div className="rounded-xl border border-dashed border-border/70 p-3 text-xs leading-5 text-muted-foreground">暂无站点。右侧接入后会在这里切换管理。</div>
+                        <EmptyState className="py-5 text-xs">暂无站点，接入后会在这里管理</EmptyState>
                     ) : null}
                 </div>
             </aside>
@@ -568,7 +571,7 @@ export function Upstream() {
                                     key={item.value}
                                     type="button"
                                     onClick={() => setProvider(item.value)}
-                                    className={cn('rounded-full border px-3 py-1 text-xs transition', provider === item.value ? 'border-primary/35 bg-primary/10 text-primary' : 'border-border/70 text-muted-foreground hover:text-foreground')}
+                                    className={cn('octo-tab', provider === item.value ? 'octo-tab-active' : 'octo-tab-inactive')}
                                 >
                                     {item.label}
                                 </button>
@@ -731,7 +734,7 @@ export function Upstream() {
                                 key={key}
                                 type="button"
                                 onClick={() => setTab(key as DetailTab)}
-                                className={cn('h-8 rounded-xl px-3 text-xs font-medium transition', tab === key ? 'bg-primary text-primary-foreground' : 'border border-border/70 bg-background/60 text-muted-foreground hover:bg-muted/50')}
+                                className={cn('octo-tab', tab === key ? 'octo-tab-active' : 'octo-tab-inactive')}
                             >
                                 {label}
                             </button>
@@ -744,8 +747,8 @@ export function Upstream() {
                     </div>
 
                     {tab === 'overview' ? (
-                        <div className="mt-2.5 grid gap-2 xl:grid-cols-4">
-                            <div className="octo-subsection text-xs">
+                        <div className="mt-2.5 grid gap-2 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+                            <div className="octo-subsection min-w-0 text-xs">
                                 <div className="font-medium text-card-foreground">终端</div>
                                 <div className="mt-2 space-y-1 text-muted-foreground">
                                     <div className="truncate">站点：{activeSite?.base_url || '-'}</div>
@@ -753,22 +756,22 @@ export function Upstream() {
                                     <div>方式：{AUTH_MODES.find((item) => item.value === activeSite?.auth_mode)?.label ?? '-'}</div>
                                 </div>
                             </div>
-                            <div className="octo-subsection text-xs">
+                            <div className="octo-subsection min-w-0 text-xs">
                                 <div className="font-medium text-card-foreground">凭据</div>
                                 <div className="mt-2 flex flex-wrap gap-1.5">
                                     {(detail.data?.credentials ?? []).slice(0, 4).map((item) => (
-                                        <span key={item.id} className="rounded-full border border-border/70 px-2 py-1 text-muted-foreground">{item.display_name}: {item.masked_value}</span>
+                                        <span key={item.id} className="max-w-full truncate rounded-full border border-border/70 px-2 py-1 text-muted-foreground">{item.display_name}: {item.masked_value}</span>
                                     ))}
                                     {(detail.data?.credentials?.length ?? 0) === 0 ? <span className="text-muted-foreground">-</span> : null}
                                 </div>
                             </div>
-                            <div className="octo-subsection text-xs">
+                            <div className="octo-subsection min-w-0 text-xs">
                                 <div className="font-medium text-card-foreground">渠道</div>
-                                <div className="mt-2 text-muted-foreground">
+                                <div className="mt-2 truncate text-muted-foreground">
                                     {detail.data?.linked_channel ? `${detail.data.linked_channel.name} / Key ${detail.data.linked_channel.key_count}` : '尚未应用到渠道'}
                                 </div>
                             </div>
-                            <div className="octo-subsection text-xs">
+                            <div className="octo-subsection min-w-0 text-xs">
                                 <div className="flex items-center gap-2 font-medium text-card-foreground">
                                     余额预警
                                     {isBalanceAlert ? <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] text-destructive">已触发</span> : null}
@@ -791,7 +794,7 @@ export function Upstream() {
                                     <Input value={newKeyExpiresAt} onChange={(event) => setNewKeyExpiresAt(event.target.value)} placeholder="过期时间" className="h-8 rounded-xl text-xs" />
                                     <Input value={newKeyModels} onChange={(event) => setNewKeyModels(event.target.value)} placeholder="模型（逗号分隔）" className="h-8 rounded-xl text-xs" />
                                     <Input value={newKeyGroups} onChange={(event) => setNewKeyGroups(event.target.value)} placeholder="分组（逗号分隔）" className="h-8 rounded-xl text-xs" />
-                                    <Button type="button" onClick={handleCreateKey} disabled={!canCreateKey || createKey.isPending} className="h-8 rounded-xl px-3 text-xs md:col-span-1 xl:col-span-3">
+                                    <Button type="button" onClick={handleCreateKey} disabled={!canCreateKey || createKey.isPending} className="col-span-full h-8 rounded-xl px-3 text-xs">
                                         {createKey.isPending ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
                                         创建 Key
                                     </Button>
@@ -799,7 +802,7 @@ export function Upstream() {
                             </div>
                             <div className="grid gap-2 xl:grid-cols-2">
                                 {filteredKeys.map((item) => (
-                                    <div key={item.id} className="octo-subsection text-xs">
+                                    <div key={item.id} className="octo-subsection min-w-0 text-xs">
                                         <div className="flex items-center justify-between gap-2">
                                             <span className="truncate font-medium text-card-foreground">{item.name || `Key ${item.id}`}</span>
                                             <span className="font-mono text-[11px] text-muted-foreground">{item.masked_key || '-'}</span>
@@ -811,6 +814,9 @@ export function Upstream() {
                                         </div>
                                     </div>
                                 ))}
+                                {filteredKeys.length === 0 && detail.isSuccess ? (
+                                    <EmptyState className="py-5 text-xs xl:col-span-2">暂无 Key</EmptyState>
+                                ) : null}
                             </div>
                         </div>
                     ) : null}
@@ -819,7 +825,7 @@ export function Upstream() {
                         <div className="mt-2.5 max-h-[24rem] overflow-y-auto pr-1">
                             <div className="grid gap-2 xl:grid-cols-2">
                                 {filteredGroups.map((item) => (
-                                    <div key={item.id} className="octo-subsection text-xs">
+                                    <div key={item.id} className="octo-subsection min-w-0 text-xs">
                                         <div className="flex items-center justify-between gap-2">
                                             <span className="truncate font-medium text-card-foreground">{item.name}</span>
                                             <span className="text-[11px] text-muted-foreground">{item.platform || item.source || '-'}</span>
@@ -831,6 +837,9 @@ export function Upstream() {
                                         </div>
                                     </div>
                                 ))}
+                                {filteredGroups.length === 0 && detail.isSuccess ? (
+                                    <EmptyState className="py-5 text-xs xl:col-span-2">暂无分组</EmptyState>
+                                ) : null}
                             </div>
                         </div>
                     ) : null}
@@ -848,7 +857,7 @@ export function Upstream() {
                             <div className="max-h-[24rem] overflow-y-auto pr-1">
                                 <div className="grid gap-2 xl:grid-cols-2">
                                     {filteredPrices.map((item) => (
-                                        <div key={item.id} className="octo-subsection text-xs">
+                                        <div key={item.id} className="octo-subsection min-w-0 text-xs">
                                             <div className="flex items-center justify-between gap-2">
                                                 <span className="truncate font-medium text-card-foreground">{item.model_name}</span>
                                                 <span className="shrink-0 text-[11px] text-muted-foreground">{item.source_label || '中转价'}</span>
@@ -862,6 +871,9 @@ export function Upstream() {
                                             <div className="mt-2 truncate text-[11px] text-muted-foreground">{item.price_source || item.price_matched_key || '上游价格'}</div>
                                         </div>
                                     ))}
+                                    {filteredPrices.length === 0 && detail.isSuccess ? (
+                                        <EmptyState className="py-5 text-xs xl:col-span-2">暂无中转价格</EmptyState>
+                                    ) : null}
                                 </div>
                             </div>
                         </div>
@@ -869,7 +881,7 @@ export function Upstream() {
 
                     {tab === 'checkin' ? (
                         <div className="mt-2.5 grid gap-2 xl:grid-cols-2">
-                            <div className="octo-subsection text-xs">
+                            <div className="octo-subsection min-w-0 text-xs">
                                 <div className="flex items-center gap-2 font-medium text-card-foreground">
                                     <CalendarCheck className="size-3.5 text-primary" />
                                     手动签到
@@ -889,7 +901,7 @@ export function Upstream() {
                                     </Button>
                                 </div>
                             </div>
-                            <div className="octo-subsection text-xs">
+                            <div className="octo-subsection min-w-0 text-xs">
                                 <div className="flex items-center gap-2 font-medium text-card-foreground">
                                     <History className="size-3.5 text-primary" />
                                     签到历史
@@ -898,7 +910,7 @@ export function Upstream() {
                                     {(() => {
                                         const logs = parseCheckinLog(activeSite?.checkin_log).slice().reverse();
                                         if (logs.length === 0) {
-                                            return <div className="text-muted-foreground">暂无签到记录</div>;
+                                            return <EmptyState className="py-5 text-xs">暂无签到记录</EmptyState>;
                                         }
                                         return (
                                             <div className="grid gap-2">
@@ -926,7 +938,7 @@ export function Upstream() {
 
                     {tab === 'config' ? (
                         <div className="mt-2.5 grid gap-2 xl:grid-cols-2">
-                            <div className="octo-subsection text-xs">
+                            <div className="octo-subsection min-w-0 text-xs">
                                 <div className="flex items-center gap-2 font-medium text-card-foreground">
                                     <CalendarCheck className="size-3.5 text-primary" />
                                     自动签到
@@ -951,7 +963,7 @@ export function Upstream() {
                                     />
                                 </div>
                             </div>
-                            <div className="octo-subsection text-xs">
+                            <div className="octo-subsection min-w-0 text-xs">
                                 <div className="flex items-center gap-2 font-medium text-card-foreground">
                                     余额预警
                                     {isBalanceAlert ? <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] text-destructive">已触发</span> : null}
@@ -971,7 +983,7 @@ export function Upstream() {
                                     />
                                 </div>
                             </div>
-                            <div className="octo-subsection text-xs">
+                            <div className="octo-subsection min-w-0 text-xs">
                                 <div className="font-medium text-card-foreground">Key 创建策略</div>
                                 <div className="mt-2 space-y-3">
                                     <label className="flex items-center gap-2 text-muted-foreground">
@@ -1002,7 +1014,7 @@ export function Upstream() {
                                     />
                                 </div>
                             </div>
-                            <div className="octo-subsection text-xs">
+                            <div className="octo-subsection min-w-0 text-xs">
                                 <div className="font-medium text-card-foreground">同步策略</div>
                                 <div className="mt-2 space-y-3">
                                     <label className="flex items-center gap-2 text-muted-foreground">

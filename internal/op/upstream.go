@@ -1,6 +1,7 @@
 package op
 
 import (
+	"bytes"
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
@@ -25,6 +26,7 @@ import (
 const defaultUpstreamRefreshIntervalSecs = 12 * 60 * 60
 const defaultUpstreamCheckinIntervalSecs = 24 * 60 * 60
 const maxUpstreamCheckinLogEntries = 50
+const maxUpstreamBalanceLogEntries = 50
 
 const upstreamHealthMaxRefreshAge = 24 * time.Hour
 const upstreamHealthErrorRateWindow = 1 * time.Hour
@@ -648,6 +650,7 @@ func replaceUpstreamSnapshots(ctx context.Context, site model.UpstreamSite, insp
 			}
 		}
 		statusMessage := firstNonEmptyUpstreamValue(message, refreshMode)
+		balanceLog := appendUpstreamBalanceLog(site.BalanceRefreshLog, inspect.TokenUsage)
 		if err := tx.Model(&model.UpstreamSite{}).Where("id = ?", site.ID).Updates(map[string]any{
 			"api_base_url":         inspect.APIBaseURL,
 			"auth_mode":            inspect.AuthMode,
@@ -665,6 +668,7 @@ func replaceUpstreamSnapshots(ctx context.Context, site model.UpstreamSite, insp
 			"balance_used":         inspect.TokenUsage.UsedQuota,
 			"balance_remain":       inspect.TokenUsage.RemainQuota,
 			"balance_unlimited":    inspect.TokenUsage.Unlimited,
+			"balance_refresh_log":  balanceLog,
 		}).Error; err != nil {
 			return err
 		}
@@ -843,9 +847,14 @@ func callUpstreamCheckin(ctx context.Context, baseURL, endpoint, token string) (
 	ctx, cancel := context.WithTimeout(ctx, upstreamCheckinTimeout)
 	defer cancel()
 
-	payload, ok := callUpstreamWithRetry(ctx, httpClient, http.MethodPost, strings.TrimRight(baseURL, "/")+endpoint, []byte{}, upstreamAuthModeBearer, token, "")
+	url := strings.TrimRight(baseURL, "/") + endpoint
+	payload, ok := callUpstreamWithRetry(ctx, httpClient, http.MethodPost, url, []byte{}, upstreamAuthModeBearer, token, "")
 	if !ok {
-		return model.UpstreamCheckinResult{}, fmt.Errorf("checkin request failed")
+		// Fallback: some upstream sites accept the management token as a session cookie.
+		payload, ok = callUpstreamWithCookie(ctx, httpClient, http.MethodPost, url, []byte{}, token)
+	}
+	if !ok {
+		return model.UpstreamCheckinResult{}, fmt.Errorf("checkin request failed: bearer and cookie auth both failed")
 	}
 
 	success, amount, message := parseUpstreamCheckinResponse(payload)
@@ -853,6 +862,43 @@ func callUpstreamCheckin(ctx context.Context, baseURL, endpoint, token string) (
 		return model.UpstreamCheckinResult{}, fmt.Errorf("%s", firstNonEmptyUpstreamValue(message, "checkin failed"))
 	}
 	return model.UpstreamCheckinResult{Success: true, Amount: amount, Message: firstNonEmptyUpstreamValue(message, "checkin succeeded")}, nil
+}
+
+// callUpstreamWithCookie performs a single request using the credential as a session cookie.
+func callUpstreamWithCookie(ctx context.Context, httpClient *http.Client, method, endpoint string, body []byte, credential string) ([]byte, bool) {
+	perReqCtx, cancel := context.WithTimeout(ctx, upstreamPerRequestTimeout)
+	defer cancel()
+	var bodyReader io.Reader
+	if len(body) > 0 {
+		bodyReader = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(perReqCtx, method, endpoint, bodyReader)
+	if err != nil {
+		return nil, false
+	}
+	req.Header.Set("Cookie", "session="+credential)
+	if method != http.MethodGet {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", upstreamDefaultUserAgent)
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, false
+	}
+	payload, readErr := io.ReadAll(io.LimitReader(resp.Body, maxNewAPIInspectResponseBytes+1))
+	_ = resp.Body.Close()
+	if readErr != nil {
+		return nil, false
+	}
+	if int64(len(payload)) > maxNewAPIInspectResponseBytes {
+		return nil, false
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, false
+	}
+	return payload, true
 }
 
 func parseUpstreamCheckinResponse(payload []byte) (success bool, amount float64, message string) {
@@ -915,6 +961,41 @@ func upstreamCheckinLogEntries(raw string) []model.UpstreamCheckinLogEntry {
 		return nil
 	}
 	var entries []model.UpstreamCheckinLogEntry
+	if err := json.Unmarshal([]byte(raw), &entries); err != nil {
+		return nil
+	}
+	return entries
+}
+
+func appendUpstreamBalanceLog(raw string, usage model.NewAPITokenUsage) string {
+	entries := upstreamBalanceLogEntries(raw)
+	message := "refreshed"
+	if !usage.Available {
+		message = "unavailable"
+	}
+	entries = append(entries, model.UpstreamBalanceLogEntry{
+		Remain:    usage.RemainQuota,
+		Used:      usage.UsedQuota,
+		Unlimited: usage.Unlimited,
+		Message:   message,
+		At:        time.Now(),
+	})
+	if len(entries) > maxUpstreamBalanceLogEntries {
+		entries = entries[len(entries)-maxUpstreamBalanceLogEntries:]
+	}
+	logJSON, err := json.Marshal(entries)
+	if err != nil {
+		return raw
+	}
+	return string(logJSON)
+}
+
+func upstreamBalanceLogEntries(raw string) []model.UpstreamBalanceLogEntry {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var entries []model.UpstreamBalanceLogEntry
 	if err := json.Unmarshal([]byte(raw), &entries); err != nil {
 		return nil
 	}

@@ -35,7 +35,7 @@ function parseDateTimeLocal(value: string) {
  */
 export function Log() {
     const t = useTranslations('log');
-    const { logs, hasMore, isLoading, isLoadingMore, loadMore } = useLogs({ pageSize: 10 });
+    const { logs, hasMore, isLoading, isLoadingMore, loadMore, error } = useLogs({ pageSize: 10 });
     const [isExporting, setIsExporting] = useState(false);
     const [exportOpen, setExportOpen] = useState(false);
     const [exportFormat, setExportFormat] = useState<ExportFormat>('jsonl');
@@ -245,6 +245,10 @@ export function Log() {
                 onReachEnd={handleReachEnd}
                 reachEndEnabled={canLoadMore}
                 reachEndOffset={2}
+                isLoading={isLoading}
+                error={error}
+                onRetry={() => window.location.reload()}
+                emptyHint={t('card.empty')}
             />
         </div>
     );

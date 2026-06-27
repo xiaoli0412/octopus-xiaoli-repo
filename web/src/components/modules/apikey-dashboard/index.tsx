@@ -12,7 +12,7 @@ import Logo from '@/components/modules/logo';
 import { PageWrapper } from '@/components/common/PageWrapper';
 import { CopyIconButton } from '@/components/common/CopyButton';
 import { useCopyToClipboard } from '@uidotdev/usehooks';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { JSX } from 'react';
 import {
     ArrowDownToLine,
@@ -82,12 +82,12 @@ export function APIKeyDashboard() {
     const isExpired = expireAt ? expireAt.isBefore(dayjs()) : false;
     const daysUntilExpire = expireAt ? expireAt.diff(dayjs(), 'day') : null;
 
-    const supportedModels = info.supported_models
-        ? info.supported_models
-            .split(',')
-            .map((m) => m.trim())
-            .filter(Boolean)
-        : [];
+    const supportedModels = useMemo(() => {
+        const raw = info.supported_models;
+        if (Array.isArray(raw)) return raw.map((m) => String(m).trim()).filter(Boolean);
+        if (typeof raw === 'string' && raw.trim()) return raw.split(',').map((m) => m.trim()).filter(Boolean);
+        return [];
+    }, [info.supported_models]);
 
     const supportedModelButtons: JSX.Element[] = supportedModels.map((model) => (
         <Button
@@ -287,7 +287,7 @@ export function APIKeyDashboard() {
                     </div>
 
                     {/* Supported Models */}
-                    {info.supported_models && info.supported_models.trim().length > 0 && (
+                    {supportedModels.length > 0 && (
                         <div className="rounded-2xl border bg-card p-6">
                             <div className="flex items-center gap-2 mb-4">
                                 <Layers className="w-5 h-5 text-chart-3" />

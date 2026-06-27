@@ -80,14 +80,14 @@ type governanceSnapshotModel struct {
 }
 
 type governanceSnapshotDynamicRouting struct {
-	Mode                 string `json:"mode"`
-	HealthEnabled        bool   `json:"health_enabled"`
-	LearningEnabled      bool   `json:"learning_enabled"`
-	RaceGlobalBudget     string `json:"race_global_budget"`
-	RaceGroupBudget      string `json:"race_group_budget"`
-	RaceChannelBudget    string `json:"race_channel_budget"`
-	RaceKeyBudget        string `json:"race_key_budget"`
-	RaceProbeBudget      string `json:"race_probe_budget"`
+	Mode              string `json:"mode"`
+	HealthEnabled     bool   `json:"health_enabled"`
+	LearningEnabled   bool   `json:"learning_enabled"`
+	RaceGlobalBudget  string `json:"race_global_budget"`
+	RaceGroupBudget   string `json:"race_group_budget"`
+	RaceChannelBudget string `json:"race_channel_budget"`
+	RaceKeyBudget     string `json:"race_key_budget"`
+	RaceProbeBudget   string `json:"race_probe_budget"`
 }
 
 func governanceBuildSnapshot(ctx context.Context) (governanceSnapshot, string, error) {

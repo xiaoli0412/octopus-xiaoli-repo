@@ -17,7 +17,8 @@ export function SettingAIAutomationSource() {
 	const strategyProfiles = profilesQuery.data ?? [];
 	const openAICenter = () => setActiveItem('ai');
 
-	const modeLabel = overview?.execution_source.mode === 'manual' ? '手动配置' : overview?.execution_source.mode === 'ai_profile' ? 'AI 策略方案' : '-';
+	const executionSource = overview?.execution_source;
+	const modeLabel = executionSource?.mode === 'manual' ? '手动配置' : executionSource?.mode === 'ai_profile' ? 'AI 策略方案' : '-';
 	const sessionStatusLabelMap: Record<string, string> = {
 		draft: '草稿',
 		planning: '规划中',

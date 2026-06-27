@@ -232,18 +232,19 @@ func TestCreateUpstreamKeyNewAPI(t *testing.T) {
 		case "/api/pricing":
 			_, _ = w.Write([]byte(`{"model_ratio":{}}`))
 		case "/api/token":
-			sawCreate = true
-			if r.Method != http.MethodPost {
-				t.Fatalf("expected POST, got %s", r.Method)
+			if r.Method == http.MethodPost {
+				sawCreate = true
+				if r.Header.Get("Authorization") != "Bearer management-token" {
+					t.Fatalf("Authorization = %q, want management bearer", r.Header.Get("Authorization"))
+				}
+				body, _ := io.ReadAll(r.Body)
+				if !strings.Contains(string(body), `"name":"new-newapi-key"`) {
+					t.Fatalf("request body missing name: %s", string(body))
+				}
+				_, _ = w.Write([]byte(`{"success":true,"data":{"id":88,"name":"new-newapi-key","key":"sk-created-newapi"}}`))
+				return
 			}
-			if r.Header.Get("Authorization") != "Bearer management-token" {
-				t.Fatalf("Authorization = %q, want management bearer", r.Header.Get("Authorization"))
-			}
-			body, _ := io.ReadAll(r.Body)
-			if !strings.Contains(string(body), `"name":"new-newapi-key"`) {
-				t.Fatalf("request body missing name: %s", string(body))
-			}
-			_, _ = w.Write([]byte(`{"success":true,"data":{"id":88,"name":"new-newapi-key","key":"sk-created-newapi"}}`))
+			_, _ = w.Write([]byte(`{"data":[]}`))
 		case "/v1/models":
 			_, _ = w.Write([]byte(`{"data":[{"id":"gpt-4o"}]}`))
 		default:

@@ -97,6 +97,29 @@ func parseOpenAIModelList(payload []byte) []string {
 		}
 		return out
 	}
+	// Fallback for non-standard wrappers such as {"models":[{"id":"..."},...]}.
+	var modelsWrapped struct {
+		Models []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := json.Unmarshal(payload, &modelsWrapped); err == nil && len(modelsWrapped.Models) > 0 {
+		out := make([]string, 0, len(modelsWrapped.Models))
+		seen := make(map[string]struct{}, len(modelsWrapped.Models))
+		for _, item := range modelsWrapped.Models {
+			name := strings.TrimSpace(firstNonEmptyUpstreamValue(item.ID, item.Name))
+			if name == "" {
+				continue
+			}
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
+			out = append(out, name)
+		}
+		return out
+	}
 	var plain []string
 	if err := json.Unmarshal(payload, &plain); err == nil {
 		out := make([]string, 0, len(plain))

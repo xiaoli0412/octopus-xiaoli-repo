@@ -7,6 +7,7 @@ import { useSearchStore, useToolbarViewOptionsStore } from '@/components/modules
 import { VirtualizedGrid } from '@/components/common/VirtualizedGrid';
 import { cn } from '@/lib/utils';
 import { useNavStore } from '@/components/modules/navbar/nav-store';
+import { useTranslations } from 'next-intl';
 
 function normalizeKeyword(value: string) {
     return value.trim().toLowerCase();
@@ -61,7 +62,8 @@ function getChannelTypeSearchTokens(type: ChannelType) {
 }
 
 export function Channel() {
-    const { data: channelsData } = useChannelList();
+    const t = useTranslations('channel');
+    const { data: channelsData, isLoading, error, refetch } = useChannelList();
     const setActiveItem = useNavStore((s) => s.setActiveItem);
     const pageKey = 'channel' as const;
     const searchTerm = useSearchStore((s) => s.getSearchTerm(pageKey));
@@ -140,7 +142,7 @@ export function Channel() {
     return (
         <div data-testid="channel-page" data-layout="grid" data-density={channelDensity} className="flex h-full min-h-0 flex-col gap-3">
             <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-border/60 bg-card/80 p-1.5">
-                <div className="flex-1 px-2 text-xs font-medium text-muted-foreground">普通渠道列表</div>
+                <div className="flex-1 px-2 text-xs font-medium text-muted-foreground">{t('listTitle')}</div>
                 <button
                     type="button"
                     onClick={() => setActiveItem('upstream')}
@@ -148,7 +150,7 @@ export function Channel() {
                         'h-8 rounded-xl border border-border/60 bg-background/60 px-3 text-xs font-medium text-muted-foreground transition hover:bg-muted/50 hover:text-foreground',
                     )}
                 >
-                    从上游添加
+                    {t('addFromUpstream')}
                 </button>
             </div>
             <div className="min-h-0 flex-1">
@@ -160,6 +162,10 @@ export function Channel() {
                     gap={channelDensity === 'compact' ? 10 : 12}
                     getItemKey={(item) => `channel-${item.raw.id}`}
                     renderItem={(item) => <Card channel={item.raw} stats={item.formatted} density={channelDensity} />}
+                    isLoading={isLoading}
+                    error={error}
+                    onRetry={() => refetch()}
+                    emptyHint={t('empty')}
                 />
             </div>
         </div>

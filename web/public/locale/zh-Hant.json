@@ -821,6 +821,9 @@
       }
     },
     "channelFallbackName": "渠道 {id}",
+    "listTitle": "普通渠道列表",
+    "addFromUpstream": "從上游添加",
+    "empty": "暫無渠道，可點擊右上角從上游添加或手動建立",
     "detail": {
       "title": {
         "edit": "編輯供應源",
@@ -1357,6 +1360,12 @@
       "success": "複製成功",
       "failed": "複製失敗",
       "noContent": "無可複製內容"
+    },
+    "state": {
+      "loading": "載入中...",
+      "empty": "暫無資料",
+      "error": "載入失敗",
+      "retry": "重試"
     }
   },
   "log": {
@@ -1385,6 +1394,7 @@
       "invalidRange": "開始時間不能晚於結束時間"
     },
     "card": {
+      "empty": "暫無日誌",
       "error": "錯誤",
       "errorInfo": "錯誤訊息",
       "firstToken": "首字",
@@ -1577,6 +1587,20 @@
       "label": "CORS 跨網域白名單",
       "hint": "為空禁止跨網域，* 允許所有",
       "example": "只允許指定域名: https://example.com,https://example2.com"
+    },
+    "publicAccess": {
+      "title": "公共訪問地址",
+      "currentClientLabel": "當前訪問 IP：{label}",
+      "primaryBaseUrl": "主地址",
+      "primaryBaseUrlPlaceholder": "https://api.example.com",
+      "trustedProxyCIDRs": "可信代理 CIDR",
+      "trustedProxyCIDRsPlaceholder": "127.0.0.1,10.0.0.0/8",
+      "alternateBaseUrls": "備用地址",
+      "alternateBaseUrlsPlaceholder": "https://api-a.example.com\nhttp://152.42.180.195:1088",
+      "ipDisplay": {
+        "masked": "IP 預設脫敏",
+        "full": "完整顯示"
+      }
     },
     "circuitBreaker": {
       "title": "熔斷器配置",
@@ -2190,7 +2214,8 @@
       "response": "回應內容",
       "success": "連通性測試成功",
       "invalidSelection": "請選擇模型與渠道"
-    }
+    },
+    "empty": "暫無模型，請先在渠道中同步或手動新增"
   },
   "doc": {
     "title": "API 使用文件",

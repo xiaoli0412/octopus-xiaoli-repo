@@ -821,6 +821,9 @@
       }
     },
     "channelFallbackName": "Channel {id}",
+    "listTitle": "Channel List",
+    "addFromUpstream": "Add from Upstream",
+    "empty": "No channels yet. Add from upstream or create one manually.",
     "detail": {
       "title": {
         "edit": "Edit Channel",
@@ -1357,6 +1360,12 @@
       "success": "Copied",
       "failed": "Copy failed",
       "noContent": "Nothing to copy"
+    },
+    "state": {
+      "loading": "Loading...",
+      "empty": "No data",
+      "error": "Failed to load",
+      "retry": "Retry"
     }
   },
   "log": {
@@ -1385,6 +1394,7 @@
       "invalidRange": "Start time cannot be later than end time"
     },
     "card": {
+      "empty": "No logs yet",
       "error": "Error",
       "errorInfo": "Error Info",
       "firstToken": "TTFT",
@@ -1575,8 +1585,22 @@
     },
     "corsAllowOrigins": {
       "label": "CORS Allowed Origins",
-      "hint": "Empty = deny all, * = allow all",
-      "example": "Only allow specific domains: https://example.com,https://example2.com"
+      "hint": "Empty denies all, * allows all",
+      "example": "Only specified domains: https://example.com,https://example2.com"
+    },
+    "publicAccess": {
+      "title": "Public Access Address",
+      "currentClientLabel": "Current IP: {label}",
+      "primaryBaseUrl": "Primary URL",
+      "primaryBaseUrlPlaceholder": "https://api.example.com",
+      "trustedProxyCIDRs": "Trusted Proxy CIDRs",
+      "trustedProxyCIDRsPlaceholder": "127.0.0.1,10.0.0.0/8",
+      "alternateBaseUrls": "Alternate URLs",
+      "alternateBaseUrlsPlaceholder": "https://api-a.example.com\nhttp://152.42.180.195:1088",
+      "ipDisplay": {
+        "masked": "Mask IP by default",
+        "full": "Show full IP"
+      }
     },
     "circuitBreaker": {
       "title": "Circuit Breaker",
@@ -2190,7 +2214,8 @@
       "response": "Response",
       "success": "Connectivity test passed",
       "invalidSelection": "Please select a model and channel"
-    }
+    },
+    "empty": "No models yet. Sync from a channel or add one manually."
   },
   "doc": {
     "title": "API Usage Docs",

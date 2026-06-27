@@ -6,41 +6,86 @@
 
 **A Simple, Beautiful, and Elegant LLM API Aggregation & Load Balancing Service for Individuals**
 
- English | [简体中文](README_zh.md)
+English | [简体中文](README_zh.md)
 
 </div>
 
 
 ## ✨ Features
 
+### Core
+
 - 🔀 **Multi-Channel Aggregation** - Connect multiple LLM provider channels with unified management
-- 🔑 **Multi-Key Support** - Support multiple API keys for a single channel
+- 🔑 **Multi-Key Support** - Support multiple API keys for a single channel with intelligent rotation
 - ⚡ **Smart Selection** - Multiple endpoints per channel, smart selection of the endpoint with the shortest delay
-- ⚖️ **Load Balancing** - Automatic request distribution for stable and efficient service
-- 🔄 **Protocol Conversion** - Seamless conversion between OpenAI Chat / OpenAI Responses / Anthropic API formats
-- 💰 **Price Sync** - Automatic model pricing updates
+- ⚖️ **Load Balancing** - Round-robin, random, failover, and weighted request distribution
+- 🔄 **Protocol Conversion** - Seamless conversion between OpenAI Chat / OpenAI Responses / Anthropic Messages / Gemini / Embeddings
+- 💰 **Price Sync** - Automatic model pricing updates from models.dev and other public sources
 - 🔃 **Model Sync** - Automatic synchronization of available model lists with channels
 - 📊 **Analytics** - Comprehensive request statistics, token consumption, and cost tracking
-- 🎨 **Elegant UI** - Clean and beautiful web management panel
-- 🗄️ **Multi-Database Support** - Support for SQLite, MySQL, PostgreSQL
+- 🗄️ **Multi-Database Support** - SQLite, MySQL, PostgreSQL
 
-### ✨ Extra Features (vs upstream)
+### Highlights in v1.22
 
-- 🔗 **Upstream Deep Link V2** - Deep integration with New API / sub2API / OpenAI Compatible upstreams: auto-discovery of models, keys, groups, subscriptions and balance; upstream key creation, auto-checkin, balance alerts, model connectivity testing, and one-click sync to local channels/groups/prices
-- 🤖 **GitHub Copilot OAuth** - One-click GitHub Copilot OAuth Device Flow login, no manual token management
-- 🌌 **Antigravity (Google Gemini Code Assist)** - OAuth Web Flow integration with automatic project ID retrieval and Gemini request wrapping
+- 🔗 **Upstream Deep Link V2** - Deep integration with New API / sub2API / OpenAI Compatible upstreams: real endpoint probing, model/key/group discovery, balance/subscription tracking, upstream key creation, auto-checkin, balance alerts, model connectivity testing, and one-click sync to local channels/groups/prices
+- 🦀 **Rust FFI Core** - High-frequency relay paths (tiktoken-equivalent token counting, JSON parsing/transformation, SSE aggregation) are offloaded to a Rust library via cgo FFI for lower latency and reduced allocations
+- 🚦 **API Key Rate Limiting** - Per-key RPM, TPM, and daily request quotas with in-memory token-bucket and sliding-window middleware
+- 🐳 **Docker-First Deployment & Updates** - One-line installer with GHCR image pull, source-backed Docker build fallback, and in-Docker update hints (`docker compose pull && docker compose up -d`)
+- 🌐 **Multi-Language UI** - Web management panel supports English, Simplified Chinese, and Traditional Chinese
+
+### More Extras (vs upstream)
+
+- 🤖 **GitHub Copilot OAuth** - One-click GitHub Copilot OAuth Device Flow login
+- 🌌 **Antigravity (Google Gemini Code Assist)** - OAuth Web Flow integration with automatic project ID retrieval
 - 🧪 **Model Testing UI** - Test channel model connectivity before saving; supports batch testing, 429 treated as pass
-- 🔌 **Built-in Providers** - 20+ pre-configured provider templates (OpenAI, Anthropic, Gemini, Zhipu, Volcengine, Copilot, etc.) for one-click channel creation
-- 📋 **CC Switch Integration** - Generate `ccswitch://` deep links to import provider config into Claude / Codex / Gemini CLI tools directly from the UI
-- 🎯 **Zen Channel** - Smart protocol routing: auto-selects Anthropic / OpenAI Responses / Gemini / OpenAI Chat based on model name prefix
+- 🔌 **Built-in Providers** - 20+ pre-configured provider templates (OpenAI, Anthropic, Gemini, Zhipu, Volcengine, Copilot, etc.)
+- 📋 **CC Switch Integration** - Generate `ccswitch://` deep links to import provider config into Claude / Codex / Gemini CLI tools
+- 🎯 **Zen Channel** - Smart protocol routing based on model name prefix
 - ⚙️ **API Base URL Setting** - Configure the externally accessible base URL for generated curl examples and client config instructions
+
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    subgraph Client
+        A[OpenAI SDK / Claude Code / Codex / Gemini CLI]
+    end
+    subgraph Octopus
+        B[Next.js UI] --> C[Gin Server]
+        C --> D[Relay Engine]
+        D --> E[Rust FFI Core<br/>token count / JSON / SSE]
+        D --> F[Transformer Adapters]
+        F --> G[Outbound Providers]
+        C --> H[Operations Layer]
+        H --> I[(Database)]
+    end
+    subgraph Upstream
+        J[New API / sub2API / OpenAI Compatible]
+    end
+    subgraph Providers
+        K[OpenAI / Anthropic / Gemini / Volcengine / Copilot]
+    end
+    A -->|API Key + /v1/*| C
+    G --> K
+    H -->|probe / sync / checkin| J
+```
+
+Key components:
+
+- **Relay Engine** - Routes incoming requests to the selected channel/group, applies rate limits, and records usage.
+- **Rust FFI Core** (`rust/core/` + `internal/rustbridge/`) - Handles token counting, JSON parsing/transformation, and SSE aggregation.
+- **Transformer Adapters** - Inbound (OpenAI Chat/Responses, Anthropic, Embeddings) and outbound (OpenAI, Anthropic, Gemini, Volcengine, Copilot, Antigravity, Zen) protocol conversion.
+- **Upstream Gateway** - Probes and synchronizes upstream sites, manages upstream keys, auto-checkin, and balance alerts.
+- **Load Balancer** - Round-robin, random, failover, weighted.
+- **Statistics & Logs** - In-memory aggregation with periodic batch flush to the database.
 
 
 ## 🚀 Quick Start
 
-### 🐳 Docker
+### 🐳 Docker (Recommended)
 
-Recommended one-line Docker install:
+One-line install:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
@@ -48,9 +93,7 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 
 The installer keeps `1088` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, reuses the existing `octopus` container data mount when `OCTOPUS_DATA_DIR` is not set, tries the official GHCR image first, falls back to a local source-backed Docker build from the matching release tag when GHCR is denied or unreachable, and can finally build a local Docker image from a known-good Linux binary when the server-side source build is still blocked. Docker Hub is no longer an official install source.
 
-Server validation note: on 2026-06-06, a clean Ubuntu host returned `denied` while pulling the GHCR image, then the installer successfully fell back to a source-backed Docker build and started a healthy container on `1088`.
-
-If your SSH host has unstable access to `raw.githubusercontent.com`, prefer the two-step flow below so you can tell whether the failure is in script download or image pulling:
+If your SSH host has unstable access to `raw.githubusercontent.com`, prefer the two-step flow:
 
 ```bash
 curl -fsSL -o install-octopus.sh https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh
@@ -66,7 +109,7 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 If your network restricts GHCR, you can still pin a reachable private or mirrored registry image explicitly:
 
 ```bash
-OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.20.0 bash install-octopus.sh
+OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.22.0 bash install-octopus.sh
 ```
 
 If GHCR is blocked and the server-side source build still fails, provide a known-good Linux binary and let the installer build a local Docker image from it:
@@ -78,10 +121,10 @@ OCTOPUS_BINARY_PATH=/root/octopus-linux-amd64 bash install-octopus.sh
 Direct GHCR `docker run` is only recommended after you have confirmed this host can pull the GHCR package:
 
 ```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.20.0
+docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.22.0
 ```
 
-If you prefer the manual path, you can still clone the repository and run compose directly:
+If you prefer the manual path, clone the repository and run compose directly:
 
 ```bash
 git clone https://github.com/xiaoli0412/octopus-xiaoli-repo.git
@@ -90,7 +133,7 @@ docker compose up -d --build
 ```
 
 If you use the compose file in this repository directly, the default persistent data directory is `./data`. For upgrades of an existing server, set `OCTOPUS_DATA_DIR` to the real old data directory before running compose; the one-line installer does this automatically when it can inspect the existing `octopus` container mount.
-The Debian Docker build remains available for CI and image publishing, while the install script prefers the prebuilt release image and only falls back to a source-backed Docker build when image pulling fails.
+
 You can also override the default compose runtime parameters without editing the file itself:
 
 ```bash
@@ -100,7 +143,7 @@ OCTOPUS_CONTAINER_NAME=octopus-smoke \
 docker compose up -d
 ```
 
-The container startup path now refuses to silently fall back to a root runtime when `PUID` / `PGID` requests an unprivileged user but the mounted data directory is not writable. Fix the host volume ownership instead. If you need a temporary compatibility escape hatch for an existing deployment, set `ALLOW_ROOT_FALLBACK_ON_DATA_DIR_ERROR=true` explicitly and remove it after repairing the mount permissions.
+The container startup path refuses to silently fall back to a root runtime when `PUID` / `PGID` requests an unprivileged user but the mounted data directory is not writable. Fix the host volume ownership instead. If you need a temporary compatibility escape hatch for an existing deployment, set `ALLOW_ROOT_FALLBACK_ON_DATA_DIR_ERROR=true` explicitly and remove it after repairing the mount permissions.
 
 
 ### 📦 Download from Release
@@ -117,6 +160,7 @@ Download the binary for your platform from [Releases](https://github.com/xiaoli0
 - Go 1.24.4+
 - Node.js 18+
 - pnpm
+- Rust toolchain (cargo, rustc) - required for the Rust FFI core
 
 ```bash
 # Clone the repository
@@ -124,6 +168,8 @@ git clone https://github.com/xiaoli0412/octopus-xiaoli-repo.git
 cd octopus-xiaoli-repo
 # Build frontend and sync the exported assets into static/out
 cd web && pnpm install && pnpm run build:static && cd ..
+# Build the Rust FFI core
+./scripts/build.sh rust-core
 # Start the backend service
 go run main.go start 
 ```
@@ -136,7 +182,7 @@ go run main.go start
 powershell -ExecutionPolicy Bypass -File .\scripts\build-win.ps1
 ```
 
-This script will build the frontend, sync the exported assets into `static/out`, and generate `build/bin/octopus-windows-amd64.exe`.
+This script will build the frontend, sync the exported assets into `static/out`, compile the Rust FFI core, and generate `build/bin/octopus-windows-amd64.exe`.
 
 **Windows Development Mode**
 
@@ -184,28 +230,21 @@ chmod +x ./scripts/smoke-docker-compose.sh
 ./scripts/smoke-docker-compose.sh
 ```
 
-This smoke path verifies the repository `docker-compose.yml` end-to-end with a temporary, parameterized runtime:
-- `docker compose up -d --build`
-- `/healthz`
-- `/`
-- `/manifest.json`
-- compose teardown and cleanup
+This smoke path verifies the repository `docker-compose.yml` end-to-end with a temporary, parameterized runtime.
 
 **Repository Validation Workflow**
 
-The repository also includes a GitHub Actions validation workflow at `.github/workflows/validation.yaml`.
-It is intended to cover the remaining Milestone 6 acceptance chain in CI when local Docker or Linux runtime is not available:
+The repository also includes a GitHub Actions validation workflow at `.github/workflows/validation.yaml`:
 - `go build ./...`
-- `go test ./internal/op -count=1`
+- Go tests
 - frontend `pnpm exec tsc --noEmit`
 - Linux backend smoke via `scripts/smoke-linux-backend.sh`
 - Docker compose runtime smoke via `scripts/smoke-docker-compose.sh`
 
 **Manual Frontend Checklist**
 
-Complex UI acceptance remains `runtime smoke + manual checklist`, not browser E2E automation.
+Complex UI acceptance remains `runtime smoke + manual checklist`.
 The repository-tracked checklist lives at `docs/MANUAL_FRONTEND_CHECKLIST.zh-CN.md` and should be run on both desktop and `375px` width before claiming final UI acceptance.
-The current UI rollback-and-recovery mainline task is tracked in `docs/UI_MAINLINE_TASK_2026-04-30.zh-CN.md`.
 
 **Backup / Import Contract**
 
@@ -343,79 +382,21 @@ Notes:
 - Antigravity uses Octopus's own callback endpoint (`/api/v1/channel/antigravity/oauth/callback`) and polling flow.
 - `ANTIGRAVITY_*` / `COPILOT_*` aliases are also supported for compatibility.
 
-## 📸 Screenshots
 
-### 🖥️ Desktop
+## ⚠️ Upgrade Notes
 
-<div align="center">
-<table>
-<tr>
-<td align="center"><b>Dashboard</b></td>
-<td align="center"><b>Channel Management</b></td>
-<td align="center"><b>Group Management</b></td>
-</tr>
-<tr>
-<td><img src="web/public/screenshot/desktop-home.png" alt="Dashboard" width="400"></td>
-<td><img src="web/public/screenshot/desktop-channel.png" alt="Channel" width="400"></td>
-<td><img src="web/public/screenshot/desktop-group.png" alt="Group" width="400"></td>
-</tr>
-<tr>
-<td align="center"><b>Price Management</b></td>
-<td align="center"><b>Logs</b></td>
-<td align="center"><b>Settings</b></td>
-</tr>
-<tr>
-<td><img src="web/public/screenshot/desktop-price.png" alt="Price Management" width="400"></td>
-<td><img src="web/public/screenshot/desktop-log.png" alt="Logs" width="400"></td>
-<td><img src="web/public/screenshot/desktop-setting.png" alt="Settings" width="400"></td>
-</tr>
-<tr>
-<td align="center"><b>Curl usage</b></td>
-<td align="center"><b>CC Switch</b></td>
-<td align="center"><b> </b></td>
-</tr>
-<tr>
-<td><img src="web/public/screenshot/desktop-api-curl.png" alt="Curl Usage" width="400"></td>
-<td><img src="web/public/screenshot/desktop-api-cc.png" alt="CC Switch" width="400"></td>
-<td></td>
-</tr>
-</table>
-</div>
+### Upgrading to v1.22.0
 
-### 📱 Mobile
-
-<div align="center">
-<table>
-<tr>
-<td align="center"><b>Home</b></td>
-<td align="center"><b>Channel</b></td>
-<td align="center"><b>Group</b></td>
-<td align="center"><b>Price</b></td>
-</tr>
-<tr>
-<td><img src="web/public/screenshot/mobile-home.png" alt="Mobile Home" width="140"></td>
-<td><img src="web/public/screenshot/mobile-channel.png" alt="Mobile Channel" width="140"></td>
-<td><img src="web/public/screenshot/mobile-group.png" alt="Mobile Group" width="140"></td>
-<td><img src="web/public/screenshot/mobile-price.png" alt="Mobile Price" width="140"></td>
-</tr>
-<tr>
-<td align="center"><b>Logs</b></td>
-<td align="center"><b>Settings</b></td>
-<td align="center"><b>Curl usage</b></td>
-<td align="center"><b>CC Switch</b></td>
-</tr>
-<tr>
-<td><img src="web/public/screenshot/mobile-log.png" alt="Mobile Logs" width="140"></td>
-<td><img src="web/public/screenshot/mobile-setting.png" alt="Mobile Settings" width="140"></td>
-<td><img src="web/public/screenshot/mobile-api-curl.png" alt="Mobile Curl Usage" width="140"></td>
-<td><img src="web/public/screenshot/mobile-api-cc.png" alt="Mobile CC Switch" width="140"></td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>
-</table>
-</div>
+1. **Rust FFI Core**: This release introduces a Rust FFI core (`rust/core/`). When building from source, ensure the Rust toolchain is installed. Prebuilt release binaries already bundle the Rust library.
+2. **Database Migrations**: v1.22 includes new migrations. Back up your data directory before upgrading. The application will run migrations automatically on startup.
+3. **Docker Update**: If running inside Docker, use the update command shown in the web UI version card:
+   ```bash
+   docker compose pull && docker compose up -d
+   ```
+   In-container self-update is disabled to avoid replacing the container binary incorrectly.
+4. **API Key Rate Limits**: After upgrading, existing API keys have no rate limits by default. Visit **Settings → API Key** to configure RPM / TPM / Daily quotas.
+5. **Upstream Gateway**: The upstream probing layer has been hardened with multi-endpoint fallback, credential degradation, and cookie fallback. Existing upstream sites will be re-probed on the next refresh.
+6. **Backup First**: Use `/api/v1/setting/export` (or the Settings → Backup UI) to take a full snapshot before major upgrades.
 
 
 ## 📖 Documentation
@@ -468,7 +449,7 @@ Manage model pricing information in the system.
 **Data Sources:**
 
 - The system periodically syncs model pricing data from [models.dev](https://github.com/sst/models.dev)
-- When creating a channel, if the channel contains models not in models.dev, the system automatically creates pricing information for those models on this page, so this page displays models that haven't had their prices fetched from upstream, allowing users to set prices manually
+- When creating a channel, if the channel contains models not in models.dev, the system automatically creates pricing information for those models on this page
 - Manual creation of models that exist in models.dev is also supported for custom pricing
 
 **Price Priority:**

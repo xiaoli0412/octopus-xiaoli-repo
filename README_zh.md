@@ -13,34 +13,79 @@
 
 ## ✨ 特性
 
+### 核心
+
 - 🔀 **多渠道聚合** - 支持接入多个 LLM 供应商渠道，统一管理
-- 🔑 **多Key支持** - 单渠道支持配置多 Key
+- 🔑 **多 Key 支持** - 单渠道支持配置多 Key，具备智能轮换
 - ⚡ **智能优选** - 单渠道多端点，智能选择延迟最小的端点请求
-- ⚖️ **负载均衡** - 自动分配请求，确保服务稳定高效
-- 🔄 **协议互转** - 支持 OpenAI Chat / OpenAI Responses / Anthropic 三种 API 格式互相转换
-- 💰 **价格同步** - 自动更新模型价格
-- 🔃 **模型同步** - 自动与渠道同步可用模型列表，省心省力
+- ⚖️ **负载均衡** - 支持轮询、随机、故障转移、加权四种分发模式
+- 🔄 **协议互转** - 支持 OpenAI Chat / OpenAI Responses / Anthropic Messages / Gemini / Embeddings 互相转换
+- 💰 **价格同步** - 自动从 models.dev 等公开数据源同步模型价格
+- 🔃 **模型同步** - 自动与渠道同步可用模型列表
 - 📊 **数据统计** - 全面的请求统计、Token 消耗、费用追踪
-- 🎨 **优雅界面** - 简洁美观的 Web 管理面板
 - 🗄️ **多数据库支持** - 支持 SQLite、MySQL、PostgreSQL
 
-### ✨ 额外功能（相对上游项目）
+### v1.22 亮点
 
-- 🔗 **上游深链接 V2** - 深度对接 New API / sub2API / OpenAI Compatible 上游：自动发现模型、Key、分组、订阅与余额；支持上游 Key 创建、自动签到、余额预警、模型连通性测试，并一键同步到本地渠道/分组/价格
-- 🤖 **GitHub Copilot OAuth** - 一键 GitHub Copilot OAuth Device Flow 登录，无需手动管理 token
-- 🌌 **Antigravity（Google Gemini Code Assist）** - OAuth Web Flow 集成，自动获取项目 ID 并封装 Gemini 请求
+- 🔗 **上游深链接 V2** - 深度对接 New API / sub2API / OpenAI Compatible 上游：真实端点探测、模型/Key/分组发现、余额/订阅追踪、上游 Key 创建、自动签到、余额预警、模型连通性测试，并一键同步到本地渠道/分组/价格
+- 🦀 **Rust FFI 核心** - 将 relay 高频路径（tiktoken 等价 token 计数、JSON 解析/转换、SSE aggregate）通过 cgo FFI 下沉到 Rust 库，降低延迟并减少内存分配
+- 🚦 **API Key 限流** - 为每个分发 Key 配置 RPM（每分钟请求数）、TPM（每分钟 Token 数）、Daily（每日请求数）配额，基于内存令牌桶与滑动窗口中间件实现
+- 🐳 **Docker 优先部署与更新** - 一键安装脚本优先拉取 GHCR 镜像，失败时回退到源码 Docker 构建；容器内展示一键复制更新命令 `docker compose pull && docker compose up -d`
+- 🌐 **多语言 UI** - Web 管理台支持英文、简体中文、繁体中文
+
+### 更多扩展（相对上游项目）
+
+- 🤖 **GitHub Copilot OAuth** - 一键 GitHub Copilot OAuth Device Flow 登录
+- 🌌 **Antigravity（Google Gemini Code Assist）** - OAuth Web Flow 集成，自动获取项目 ID
 - 🧪 **模型测试 UI** - 保存渠道前可先测试模型连通性；支持批量测试，429 视为通过
-- 🔌 **内置供应商模板** - 20+ 预设供应商配置（OpenAI、Anthropic、Gemini、智谱、火山引擎、Copilot 等），一键建立渠道
+- 🔌 **内置供应商模板** - 20+ 预设供应商配置（OpenAI、Anthropic、Gemini、智谱、火山引擎、Copilot 等）
 - 📋 **CC Switch 集成** - 在 UI 中直接生成 `ccswitch://` 深链接，一键将供应商配置导入 Claude / Codex / Gemini CLI 工具
-- 🎯 **Zen 渠道** - 智能协议路由：根据模型名前缀自动选择 Anthropic / OpenAI Responses / Gemini / OpenAI Chat
+- 🎯 **Zen 渠道** - 根据模型名前缀自动选择协议路由
 - ⚙️ **API 基础地址设置** - 配置对外可访问的基础地址，用于生成 curl 示例和引导内容
+
+
+## 🏗️ 架构
+
+```mermaid
+flowchart LR
+    subgraph Client
+        A[OpenAI SDK / Claude Code / Codex / Gemini CLI]
+    end
+    subgraph Octopus
+        B[Next.js UI] --> C[Gin Server]
+        C --> D[Relay Engine]
+        D --> E[Rust FFI Core<br/>token count / JSON / SSE]
+        D --> F[Transformer Adapters]
+        F --> G[Outbound Providers]
+        C --> H[Operations Layer]
+        H --> I[(Database)]
+    end
+    subgraph Upstream
+        J[New API / sub2API / OpenAI Compatible]
+    end
+    subgraph Providers
+        K[OpenAI / Anthropic / Gemini / Volcengine / Copilot]
+    end
+    A -->|API Key + /v1/*| C
+    G --> K
+    H -->|probe / sync / checkin| J
+```
+
+关键组件：
+
+- **Relay Engine** - 将请求路由到选定的渠道/分组，应用限流并记录用量。
+- **Rust FFI Core**（`rust/core/` + `internal/rustbridge/`）- 负责 token 计数、JSON 解析/转换、SSE aggregate。
+- **Transformer Adapters** - 入站适配器（OpenAI Chat/Responses、Anthropic、Embeddings）与出站适配器（OpenAI、Anthropic、Gemini、火山引擎、Copilot、Antigravity、Zen）。
+- **Upstream Gateway** - 探测/同步上游站点、管理上游 Key、自动签到、余额告警。
+- **Load Balancer** - 轮询、随机、故障转移、加权。
+- **Statistics & Logs** - 内存聚合后按配置周期批量写入数据库。
 
 
 ## 🚀 快速开始
 
-### 🐳 Docker 运行
+### 🐳 Docker（推荐）
 
-推荐的一键 Docker 安装命令：
+一键安装：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
@@ -48,9 +93,7 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 
 脚本默认使用 `1088` 作为外部端口，启动前会先探测端口占用；如果 `1088` 已被占用，非交互场景会自动切换到可用端口并继续安装。未显式设置 `OCTOPUS_DATA_DIR` 时，脚本会优先复用现有 `octopus` 容器的 `/app/data` 挂载目录，避免升级时误生成空库。脚本会先尝试拉取 GHCR 官方镜像；如果 GHCR 返回 `denied` 或不可达，会回退到对应 release tag 的本地源码支撑 Docker 构建；如果服务器侧源码 Docker 构建仍被阻塞，还可以基于已知可用的 Linux 二进制继续构建本地 Docker 镜像。Docker Hub 已不再作为官方安装来源。
 
-服务器实测记录：2026-06-06，在一台干净 Ubuntu 主机上 GHCR 拉取返回 `denied`，安装脚本随后成功回退到源码 Docker 构建，并在 `1088` 端口启动健康容器。
-
-如果你的 SSH 主机访问 `raw.githubusercontent.com` 不稳定，优先改成“两步执行”，这样能更清楚地区分是脚本下载卡住，还是镜像拉取卡住：
+如果你的 SSH 主机访问 `raw.githubusercontent.com` 不稳定，优先改成“两步执行”：
 
 ```bash
 curl -fsSL -o install-octopus.sh https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh
@@ -66,7 +109,7 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 如果所在网络对 GHCR 有限制，也可以显式指定一个可达的私有镜像或镜像代理：
 
 ```bash
-OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.20.0 bash install-octopus.sh
+OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.22.0 bash install-octopus.sh
 ```
 
 如果 GHCR 不通，且服务器侧源码 Docker 构建仍然失败，也可以直接提供一个已知可用的 Linux 二进制，再让安装脚本继续构建本地 Docker 镜像：
@@ -78,7 +121,7 @@ OCTOPUS_BINARY_PATH=/root/octopus-linux-amd64 bash install-octopus.sh
 只有在确认当前服务器可以拉取 GHCR 包时，才建议直接使用 `docker run`：
 
 ```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.20.0
+docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.22.0
 ```
 
 如果你仍然希望手动安装，也可以继续使用仓库内 compose：
@@ -90,7 +133,8 @@ docker compose up -d --build
 ```
 
 如果直接使用当前仓库中的 compose 文件，默认持久化目录为 `./data`。升级已有服务器时，应先把 `OCTOPUS_DATA_DIR` 指向真实旧数据目录；一键安装脚本在能检查到现有 `octopus` 容器挂载时会自动处理这一点。
-Debian Docker 构建仍然保留给 CI 和镜像发布使用，而安装脚本会优先走正式版预构建镜像；只有镜像拉取失败时，才回退到源码支撑 Docker 构建。
+
+也可以不修改 compose 文件本身，直接覆盖默认运行参数：
 
 ```bash
 OCTOPUS_PORT=1088 \
@@ -116,6 +160,7 @@ docker compose up -d
 - Go 1.24.4+
 - Node.js 18+
 - pnpm
+- Rust 工具链（cargo、rustc）- 用于编译 Rust FFI 核心
 
 ```bash
 # 克隆项目
@@ -123,6 +168,8 @@ git clone https://github.com/xiaoli0412/octopus-xiaoli-repo.git
 cd octopus-xiaoli-repo
 # 构建前端并将导出产物同步到 static/out
 cd web && pnpm install && pnpm run build:static && cd ..
+# 构建 Rust FFI 核心
+./scripts/build.sh rust-core
 # 启动后端服务
 go run main.go start 
 ```
@@ -135,7 +182,7 @@ go run main.go start
 powershell -ExecutionPolicy Bypass -File .\scripts\build-win.ps1
 ```
 
-该脚本会构建前端、将静态导出产物同步到 `static/out`，并生成 `build/bin/octopus-windows-amd64.exe`。
+该脚本会构建前端、将静态导出产物同步到 `static/out`、编译 Rust FFI 核心，并生成 `build/bin/octopus-windows-amd64.exe`。
 
 **Windows 开发模式**
 
@@ -149,6 +196,15 @@ powershell -ExecutionPolicy Bypass -File .\scripts\dev-win.ps1
 chmod +x ./scripts/dev-linux.sh
 ./scripts/dev-linux.sh
 ```
+
+**Linux 服务器二进制（轻量路径）**
+
+```bash
+chmod +x ./scripts/build.sh
+./scripts/build.sh linux-binary
+```
+
+该路径仅构建 `build/bin/octopus-linux-x86_64`，跳过前端与价格更新流程，适合只需要 Linux 服务器二进制时使用。
 
 **Linux 后端烟测**
 
@@ -174,27 +230,21 @@ chmod +x ./scripts/smoke-docker-compose.sh
 ./scripts/smoke-docker-compose.sh
 ```
 
-该脚本会对仓库内的 `docker-compose.yml` 做一条低污染的运行态验收链：
-- `docker compose up -d --build`
-- `/healthz`
-- `/`
-- `/manifest.json`
-- 自动 `down` 与清理
+该脚本会对仓库内的 `docker-compose.yml` 做一条低污染的运行态验收链。
 
 **仓库验证工作流**
 
-仓库中还提供了 `.github/workflows/validation.yaml`，用于在本地缺少 Linux 运行环境或 Docker 时继续覆盖里程碑 6 的主要验收链：
+仓库中还提供了 `.github/workflows/validation.yaml`，用于在本地缺少 Linux 运行环境或 Docker 时继续覆盖主要验收链：
 - `go build ./...`
-- `go test ./internal/op -count=1`
+- Go 测试
 - 前端 `pnpm exec tsc --noEmit`
 - Linux 后端烟测 `scripts/smoke-linux-backend.sh`
 - Docker Compose 运行态烟测 `scripts/smoke-docker-compose.sh`
 
 **前端手工验收清单**
 
-复杂 UI 的最终验收口径仍是“运行态 smoke + 手工 checklist”，本轮没有引入新的浏览器 E2E 框架。
+复杂 UI 的最终验收口径仍是“运行态 smoke + 手工 checklist”。
 仓库内固定清单位于 `docs/MANUAL_FRONTEND_CHECKLIST.zh-CN.md`，对外宣称最终 UI 验收完成前，应至少覆盖桌面端与 `375px` 宽度。
-当前这一轮“恢复原版 UI 再继续改”的主线任务文档位于 `docs/UI_MAINLINE_TASK_2026-04-30.zh-CN.md`。
 
 **备份 / 导入契约**
 
@@ -206,7 +256,7 @@ chmod +x ./scripts/smoke-docker-compose.sh
 
 ```bash
 cd web && pnpm install && NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:1088" pnpm run dev
-## 新建终端,启动后端服务
+## 新建终端，启动后端服务
 go run main.go start
 ## 访问前端地址
 http://localhost:3000
@@ -309,8 +359,8 @@ http://localhost:3000
 | `OCTOPUS_DATABASE_TYPE` | `database.type` |
 | `OCTOPUS_DATABASE_PATH` | `database.path` |
 | `OCTOPUS_LOG_LEVEL` | `log.level` |
-| `OCTOPUS_GITHUB_PAT` | 用于获取最新版本时的速率限制(可选) |
-| `OCTOPUS_RELAY_MAX_SSE_EVENT_SIZE` | 最大 SSE 事件大小(可选) |
+| `OCTOPUS_GITHUB_PAT` | 用于获取最新版本时的速率限制（可选） |
+| `OCTOPUS_RELAY_MAX_SSE_EVENT_SIZE` | 最大 SSE 事件大小（可选） |
 
 ### OAuth 环境变量覆盖（可选）
 
@@ -324,8 +374,8 @@ Antigravity OAuth 需要先配置 `OCTOPUS_ANTIGRAVITY_CLIENT_ID` 和 `OCTOPUS_A
 | `OCTOPUS_COPILOT_SCOPE` | `copilot` |
 | `OCTOPUS_COPILOT_DEVICE_CODE_URL` | `https://github.com/login/device/code` |
 | `OCTOPUS_COPILOT_ACCESS_TOKEN_URL` | `https://github.com/login/oauth/access_token` |
-| `OCTOPUS_ANTIGRAVITY_CLIENT_ID` | *(必需，通过环境变量设置)* |
-| `OCTOPUS_ANTIGRAVITY_CLIENT_SECRET` | *(必需，通过环境变量设置)* |
+| `OCTOPUS_ANTIGRAVITY_CLIENT_ID` | *（必需，通过环境变量设置）* |
+| `OCTOPUS_ANTIGRAVITY_CLIENT_SECRET` | *（必需，通过环境变量设置）* |
 | `OCTOPUS_ANTIGRAVITY_AUTHORIZE_URL` | `https://accounts.google.com/o/oauth2/v2/auth` |
 | `OCTOPUS_ANTIGRAVITY_TOKEN_URL` | `https://oauth2.googleapis.com/token` |
 | `OCTOPUS_ANTIGRAVITY_SCOPE` | `https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile` |
@@ -335,75 +385,20 @@ Antigravity OAuth 需要先配置 `OCTOPUS_ANTIGRAVITY_CLIENT_ID` 和 `OCTOPUS_A
 - 同时兼容 `ANTIGRAVITY_*` / `COPILOT_*` 别名变量。
 
 
-## 📸 界面预览
+## ⚠️ 升级注意
 
-### 🖥️ 桌面端
+### 升级到 v1.22.0
 
-<div align="center">
-<table>
-<tr>
-<td align="center"><b>首页</b></td>
-<td align="center"><b>渠道</b></td>
-<td align="center"><b>分组</b></td>
-</tr>
-<tr>
-<td><img src="web/public/screenshot/desktop-home.png" alt="首页" width="400"></td>
-<td><img src="web/public/screenshot/desktop-channel.png" alt="渠道" width="400"></td>
-<td><img src="web/public/screenshot/desktop-group.png" alt="分组" width="400"></td>
-</tr>
-<tr>
-<td align="center"><b>价格</b></td>
-<td align="center"><b>日志</b></td>
-<td align="center"><b>设置</b></td>
-</tr>
-<tr>
-<td><img src="web/public/screenshot/desktop-price.png" alt="价格" width="400"></td>
-<td><img src="web/public/screenshot/desktop-log.png" alt="日志" width="400"></td>
-<td><img src="web/public/screenshot/desktop-setting.png" alt="设置" width="400"></td>
-</tr>
-<tr>
-<td align="center"><b>Curl 示例</b></td>
-<td align="center"><b>CC Switch</b></td>
-<td align="center"></td>
-</tr>
-<tr>
-<td><img src="web/public/screenshot/desktop-api-curl.png" alt="Curl 示例" width="400"></td>
-<td><img src="web/public/screenshot/desktop-api-cc.png" alt="CC Switch" width="400"></td>
-<td></td>
-</tr>
-</table>
-</div>
-
-### 📱 移动端
-
-<div align="center">
-<table>
-<tr>
-<td align="center"><b>首页</b></td>
-<td align="center"><b>渠道</b></td>
-<td align="center"><b>分组</b></td>
-<td align="center"><b>价格</b></td>
-</tr>
-<tr>
-<td><img src="web/public/screenshot/mobile-home.png" alt="移动端首页" width="140"></td>
-<td><img src="web/public/screenshot/mobile-channel.png" alt="移动端渠道" width="140"></td>
-<td><img src="web/public/screenshot/mobile-group.png" alt="移动端分组" width="140"></td>
-<td><img src="web/public/screenshot/mobile-price.png" alt="移动端价格" width="140"></td>
-</tr>
-<tr>
-<td align="center"><b>日志</b></td>
-<td align="center"><b>设置</b></td>
-<td align="center"><b>Curl 示例</b></td>
-<td align="center"><b>CC Switch</b></td>
-</tr>
-<tr>
-<td><img src="web/public/screenshot/mobile-log.png" alt="移动端日志" width="140"></td>
-<td><img src="web/public/screenshot/mobile-setting.png" alt="移动端设置" width="140"></td>
-<td><img src="web/public/screenshot/mobile-api-curl.png" alt="移动端 Curl" width="140"></td>
-<td><img src="web/public/screenshot/mobile-api-cc.png" alt="移动端 CC Switch" width="140"></td>
-</tr>
-</table>
-</div>
+1. **Rust FFI Core**：本版本引入 Rust FFI 核心（`rust/core/`）。从源码构建时请确保已安装 Rust 工具链。Release 预构建二进制已内嵌 Rust 库。
+2. **数据库迁移**：v1.22 包含新的数据库迁移。升级前请备份数据目录，程序将在启动时自动执行迁移。
+3. **Docker 更新**：如果当前以 Docker 方式运行，请使用 Web UI 版本信息卡中展示的更新命令：
+   ```bash
+   docker compose pull && docker compose up -d
+   ```
+   容器内已禁用一键自更新，避免错误地替换容器内二进制。
+4. **API Key 限流**：升级后，现有 API Key 默认不限流。请前往**设置 → API Key** 配置 RPM / TPM / Daily 配额。
+5. **上游网关**：上游探测层已增强多 endpoint 回退、凭证降级、Cookie 回退等能力。已有上游站点将在下次刷新时被重新探测。
+6. **先备份**：重大升级前，请使用 `/api/v1/setting/export`（或设置页备份功能）导出全量快照。
 
 
 ## 📖 功能说明
@@ -456,7 +451,7 @@ Antigravity OAuth 需要先配置 `OCTOPUS_ANTIGRAVITY_CLIENT_ID` 和 `OCTOPUS_A
 **数据来源：**
 
 - 系统会定期从 [models.dev](https://github.com/sst/models.dev) 同步更新模型价格数据
-- 当创建渠道时，若渠道包含的模型不在 models.dev 中，系统会自动在此页面创建该模型的价格信息,所以此页面显示的是没有从上游获取到价格的模型，用户可以手动设置价格
+- 当创建渠道时，若渠道包含的模型不在 models.dev 中，系统会自动在此页面创建该模型的价格信息
 - 也支持手动创建 models.dev 中已存在的模型，用于自定义价格
 
 **价格优先级：**
@@ -483,8 +478,7 @@ Antigravity OAuth 需要先配置 `OCTOPUS_ANTIGRAVITY_CLIENT_ID` 和 `OCTOPUS_A
 
 > ⚠️ **重要提示**：退出程序时，请使用正常的关闭方式（如 `Ctrl+C` 或发送 `SIGTERM` 信号），以确保内存中的统计数据能正确写入数据库。**请勿使用 `kill -9` 等强制终止方式**，否则可能导致统计数据丢失。
 
-
-
+---
 
 ## 🔌 客户端接入
 
@@ -540,6 +534,7 @@ model_provider = "octopus"
 name = "octopus"
 base_url = "http://127.0.0.1:1088/v1"
 ```
+
 编辑 `~/.codex/auth.json`
 
 ```json
@@ -551,7 +546,7 @@ base_url = "http://127.0.0.1:1088/v1"
 
 ### CC Switch（一键导入 CLI 工具）
 
-在 Web 界面点击 **API 文档** 按鈕 → **CC Switch** tab，即可生成深链接，直接将 Octopus 供应商配置导入 CLI 工具。
+在 Web 界面点击 **API 文档** 按钮 → **CC Switch** tab，即可生成深链接，直接将 Octopus 供应商配置导入 CLI 工具。
 
 支持工具：**Claude Code**、**Codex**、**Gemini CLI**
 

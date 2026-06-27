@@ -16,6 +16,10 @@ readonly MAIN_DIR="./"
 readonly OUTPUT_DIR="build"
 readonly VERSION_FILE="VERSION"
 
+# Rust FFI configuration
+readonly RUST_DIR="rust/core"
+readonly RUST_LIB_STAGING="${RUST_DIR}/target/release"
+
 resolve_version() {
     if [ -f "${VERSION_FILE}" ]; then
         local version
@@ -305,6 +309,90 @@ get_go_arch() {
     esac
 }
 
+get_rust_target() {
+    local os="$1"
+    local arch="$2"
+    case "${os}/${arch}" in
+    "linux/x86_64") echo "x86_64-unknown-linux-gnu" ;;
+    "linux/arm64") echo "aarch64-unknown-linux-gnu" ;;
+    "linux/armv7") echo "armv7-unknown-linux-gnueabihf" ;;
+    "linux/x86") echo "i686-unknown-linux-gnu" ;;
+    "windows/x86_64") echo "x86_64-pc-windows-gnu" ;;
+    "windows/x86") echo "i686-pc-windows-gnu" ;;
+    "darwin/arm64") echo "aarch64-apple-darwin" ;;
+    "darwin/x86_64") echo "x86_64-apple-darwin" ;;
+    "android/arm64") echo "aarch64-linux-android" ;;
+    *) echo "" ;;
+    esac
+}
+
+get_c_compiler() {
+    local os="$1"
+    local arch="$2"
+    case "${os}/${arch}" in
+    "linux/x86_64") echo "x86_64-linux-gnu-gcc" ;;
+    "linux/arm64") echo "aarch64-linux-gnu-gcc" ;;
+    "linux/armv7") echo "arm-linux-gnueabihf-gcc" ;;
+    "linux/x86") echo "i686-linux-gnu-gcc" ;;
+    "windows/x86_64") echo "x86_64-w64-mingw32-gcc" ;;
+    "windows/x86") echo "i686-w64-mingw32-gcc" ;;
+    "darwin/arm64" | "darwin/x86_64") echo "o64-clang" ;;
+    *) echo "" ;;
+    esac
+}
+
+rust_lib_filename() {
+    local target="$1"
+    case "${target}" in
+    *-windows-msvc) echo "octopus_core.lib" ;;
+    *-windows-gnu) echo "liboctopus_core.a" ;;
+    *) echo "liboctopus_core.a" ;;
+    esac
+}
+
+build_rust_library() {
+    local target="$1"
+
+    if ! command_exists cargo; then
+        log_warning "cargo not found in PATH; install Rust to enable the FFI accelerator"
+        return 1
+    fi
+
+    if ! command_exists rustup; then
+        log_warning "rustup not found; cannot ensure target ${target} is installed"
+        return 1
+    fi
+
+    if ! rustup target list --installed | grep -qx "${target}"; then
+        log_info "Installing Rust target ${target}..."
+        if ! rustup target add "${target}"; then
+            log_warning "Failed to install Rust target ${target}"
+            return 1
+        fi
+    fi
+
+    log_info "Building Rust static library for ${target}..."
+    if ! (cd "${RUST_DIR}" && cargo build --release --target "${target}"); then
+        log_warning "Rust build failed for ${target}"
+        return 1
+    fi
+
+    local filename
+    filename="$(rust_lib_filename "${target}")"
+    echo "${RUST_DIR}/target/${target}/release/${filename}"
+}
+
+stage_rust_library() {
+    local artifact="$1"
+    local filename
+    filename="$(basename "${artifact}")"
+    local dest="${RUST_LIB_STAGING}/${filename}"
+
+    mkdir -p "${RUST_LIB_STAGING}"
+    cp -f "${artifact}" "${dest}"
+    log_info "Staged Rust library: ${dest}"
+}
+
 build_standard() {
     local os="$1"
     local arch="$2"
@@ -319,10 +407,36 @@ build_standard() {
 
     log_info "Building ${os}/${arch}..."
 
-    if ! GOOS="${os}" GOARCH="${go_arch}" CGO_ENABLED=0 \
-        go build -o "${output_file}" -ldflags="${LDFLAGS}" -tags=jsoniter "${MAIN_DIR}" 2>&1; then
+    local rust_target
+    local rust_artifact=""
+    local cc=""
+    local cgo_enabled=0
+    local build_tags="jsoniter"
+
+    rust_target="$(get_rust_target "${os}" "${arch}")"
+    if [ -n "${rust_target}" ] && [ "${OCTOPUS_ENABLE_RUST:-1}" != "0" ]; then
+        cc="$(get_c_compiler "${os}" "${arch}")"
+        if [ -n "${cc}" ] && command_exists "${cc}"; then
+            if rust_artifact="$(build_rust_library "${rust_target}")"; then
+                stage_rust_library "${rust_artifact}"
+                cgo_enabled=1
+                build_tags="rust,jsoniter"
+            else
+                log_warning "Rust FFI unavailable for ${os}/${arch}; falling back to pure Go"
+            fi
+        else
+            log_warning "No cross C compiler '${cc}' for ${os}/${arch}; falling back to pure Go"
+        fi
+    fi
+
+    local build_env="GOOS=${os} GOARCH=${go_arch} CGO_ENABLED=${cgo_enabled}"
+    if [ "${cgo_enabled}" -eq 1 ]; then
+        build_env="${build_env} CC=${cc}"
+    fi
+
+    if ! eval "${build_env} go build -o \"${output_file}\" -ldflags=\"${LDFLAGS}\" -tags=\"${build_tags}\" \"${MAIN_DIR}\"" 2>&1; then
         log_error "Failed to build ${os}/${arch}"
-        log_error "Build command: GOOS=${os} GOARCH=${go_arch} CGO_ENABLED=0 go build -o ${output_file} -ldflags=\"${LDFLAGS}\" -tags=jsoniter ${MAIN_DIR}"
+        log_error "Build command: ${build_env} go build -o ${output_file} -ldflags=\"${LDFLAGS}\" -tags=\"${build_tags}\" ${MAIN_DIR}"
         return 1
     fi
 

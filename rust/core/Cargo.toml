@@ -1,0 +1,30 @@
+[package]
+name = "octopus-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["xiaoli0412"]
+description = "Rust FFI core acceleration for Octopus relay/transformer"
+
+[lib]
+name = "octopus_core"
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+tiktoken-rs = "0.12.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+libc = "0.2"
+rand = "0.8"
+memchr = "2"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "tokenizer"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

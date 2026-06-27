@@ -668,6 +668,9 @@
       }
     },
     "channelFallbackName": "チャネル {id}",
+    "listTitle": "チャネル一覧",
+    "addFromUpstream": "アップストリームから追加",
+    "empty": "チャネルはまだありません。アップストリームから追加するか、手動で作成してください。",
     "detail": {
       "title": {
         "edit": "チャネルを編集",
@@ -1204,6 +1207,12 @@
       "success": "コピーしました",
       "failed": "コピーに失敗しました",
       "noContent": "コピーできる内容がありません"
+    },
+    "state": {
+      "loading": "読み込み中...",
+      "empty": "データがありません",
+      "error": "読み込みに失敗しました",
+      "retry": "再試行"
     }
   },
   "log": {
@@ -1232,6 +1241,7 @@
       "invalidRange": "開始時刻は終了時刻より後にできません"
     },
     "card": {
+      "empty": "ログはまだありません",
       "error": "エラー",
       "errorInfo": "エラー情報",
       "firstToken": "先頭トークン",
@@ -1422,8 +1432,22 @@
     },
     "corsAllowOrigins": {
       "label": "CORS 許可オリジン",
-      "hint": "空欄で全拒否、* ですべて許可",
-      "example": "特定ドメインのみ許可: https://example.com,https://example2.com"
+      "hint": "空欄は全拒否、* は全許可",
+      "example": "指定ドメインのみ: https://example.com,https://example2.com"
+    },
+    "publicAccess": {
+      "title": "パブリックアクセスアドレス",
+      "currentClientLabel": "現在の IP：{label}",
+      "primaryBaseUrl": "プライマリ URL",
+      "primaryBaseUrlPlaceholder": "https://api.example.com",
+      "trustedProxyCIDRs": "信頼プロキシ CIDR",
+      "trustedProxyCIDRsPlaceholder": "127.0.0.1,10.0.0.0/8",
+      "alternateBaseUrls": "代替 URL",
+      "alternateBaseUrlsPlaceholder": "https://api-a.example.com\nhttp://152.42.180.195:1088",
+      "ipDisplay": {
+        "masked": "IP をデフォルトでマスク",
+        "full": "IP を完全表示"
+      }
     },
     "circuitBreaker": {
       "title": "サーキットブレーカー設定",
@@ -2029,7 +2053,8 @@
       "response": "応答",
       "success": "接続テストが成功しました",
       "invalidSelection": "モデルとチャネルを選択してください"
-    }
+    },
+    "empty": "モデルはまだありません。チャネルから同期するか、手動で追加してください。"
   },
   "doc": {
     "title": "API 利用ドキュメント",

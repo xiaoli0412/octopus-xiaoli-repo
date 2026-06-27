@@ -323,7 +323,7 @@ export function AppContainer() {
                     </motion.div>
                 </AnimatePresence>
             </main>
-            <DocModal isOpen={docModalOpen} onClose={() => setDocModalOpen(false)} />
+            {docModalOpen && <DocModal isOpen onClose={() => setDocModalOpen(false)} />}
         </motion.div>
     );
 }

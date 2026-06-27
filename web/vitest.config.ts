@@ -15,6 +15,7 @@ export default defineConfig({
 		globals: true,
 		setupFiles: ['./vitest.setup.ts'],
 		css: false,
+		exclude: ['e2e/**', 'node_modules/**', 'dist/**', 'out/**'],
 	},
 	server: {
 		host: '127.0.0.1',

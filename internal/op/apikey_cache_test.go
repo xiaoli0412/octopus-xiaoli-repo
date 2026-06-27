@@ -129,4 +129,3 @@ func TestAPIKeyRefreshCacheNormalizesSupportedModels(t *testing.T) {
 		t.Fatalf("cached SupportedModels = %q, want %q", cached.SupportedModels, "gpt-4o,o1-mini")
 	}
 }
-

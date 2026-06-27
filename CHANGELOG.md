@@ -4,6 +4,45 @@
 
 ---
 
+## 1.22.0 - 2026-06-27
+
+### ⚡ Rust FFI 核心加速
+
+- 新增 `rust/core/` Rust 库，通过 cgo FFI 为 Go 提供高性能计算路径。
+- Token 计数：Rust 路径较 Go `tiktoken-go` 延迟降低约 68%（标准文本）。
+- JSON 字段提取：请求/响应 `model`、`usage` 字段通过 Rust 快速提取。
+- SSE aggregate：流式响应 chunk 解析与 usage 累加下沉到 Rust。
+- Rust FFI 扩展：协议转换（OpenAI/Anthropic/Gemini/火山引擎字段映射）、负载均衡决策、SSE 流式 buffer、统计聚合/分位数均提供 Rust 实现与 Go fallback。
+- 所有 Rust 路径均支持环境变量开关（`OCTOPUS_RUST_TOKENIZER`、`OCTOPUS_RUST_TRANSFORM`、`OCTOPUS_RUST_BALANCER`、`OCTOPUS_RUST_STREAM`、`OCTOPUS_RUST_STATS`）。
+- 更新 `scripts/build.sh`、`scripts/build-win.ps1`、`.github/workflows/release.yaml`，支持 Linux/Windows/macOS 交叉编译 Rust 静态库并链接进发布二进制。
+
+### 🔗 上游协议真实化
+
+- New API：增加 `/api/user/me`、`/api/user/models`、`/api/token` 等多接口回退探测。
+- sub2API：增加 `/api/profile`、`/api/subscriptions`、`/api/keys` 探测，支持账号密码登录获取管理 Token。
+- OpenAI Compatible：增加 `/v1/models` 探测与 `/v1/chat/completions` 最小可用性验证。
+- 管理接口在 Bearer 返回 401/403 时自动回退 Cookie 凭证，并统一追加浏览器 User-Agent。
+- 签到错误兜底与余额刷新历史记录，签到历史正确记录。
+- 新增 `scripts/test-upstream-mock/` 本地 mock 服务，覆盖三类协议主要接口；新增 `internal/op/upstream_gateway_test.go` 回归测试。
+
+### 🎨 全站 UI 修复与视觉回归
+
+- 制定并应用前端 UI 统一规范（间距、字体、颜色、按钮、卡片圆角、空/加载/错误态）。
+- 修复上游模块：列表布局、批量操作栏响应式、详情 tab（keys/groups/prices/checkin/config）样式统一、签到日志与余额展示。
+- 修复设置模块：API Key 限流配额输入视觉、Info 版本信息卡 Docker 更新命令与复制按钮、System 表单对齐。
+- 修复渠道/分组/模型/日志模块：表格、搜索、分页、筛选、空状态。
+- 修复登录页与仪表盘一致性。
+- 新增 Playwright 视觉回归测试，覆盖登录页、仪表盘、上游列表/详情、设置-APIKey、设置-版本信息，基线截图已通过。
+
+### 📖 README 重写
+
+- 删除旧版 UI 截图。
+- 重写特性列表，突出上游深链接 V2、API Key 限流、Rust 核心、Docker 部署、多语言 UI。
+- 更新安装/部署命令示例到 v1.22，保留 GHCR 镜像与 Docker Compose 方式。
+- 中文版 README_zh.md 与英文版同步。
+
+---
+
 ## 1.21.0 - 2026-06-26
 
 ### 🔐 API Key 限流
