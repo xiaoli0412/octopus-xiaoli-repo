@@ -4,6 +4,15 @@
 
 ---
 
+## 1.23.1 - 2026-06-27
+
+### 🔧 修复
+
+- 修复 `internal/rustbridge/stream_rust.go` 在 `rust` 构建标签下因 `FeedStreamBuffer` 与 `parseStringArray` 重复声明导致的编译失败。
+- 非 Rust 构建行为不变；Rust 构建下上述辅助函数复用 `stream_common.go` 中的统一实现。
+
+---
+
 ## 1.23.0 - 2026-06-27
 
 ### ⚡ Rust FFI 真正接入生产热路径
