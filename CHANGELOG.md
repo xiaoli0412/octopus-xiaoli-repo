@@ -4,6 +4,15 @@
 
 ---
 
+## 1.23.2 - 2026-06-27
+
+### 📖 文档
+
+- 同步 README / README_zh 版本亮点、Docker 命令示例与升级注意事项到 v1.23.1。
+- 移除 `web/public/screenshot/` 下的旧版 UI 截图，并更新 `web/public/manifest.json` 移除 `screenshots` 数组。
+
+---
+
 ## 1.23.1 - 2026-06-27
 
 ### 🔧 修复
