@@ -25,12 +25,12 @@
 - 📊 **数据统计** - 全面的请求统计、Token 消耗、费用追踪
 - 🗄️ **多数据库支持** - 支持 SQLite、MySQL、PostgreSQL
 
-### v1.22 亮点
+### v1.23 亮点
 
+- 🦀 **Rust FFI 进入生产热路径** - Token 计数、SSE 流解析、负载均衡选择、流式响应聚合均可走 Rust FFI 核心；非 Rust 构建仍可通过环境开关回退到 Go 实现
 - 🔗 **上游深链接 V2** - 深度对接 New API / sub2API / OpenAI Compatible 上游：真实端点探测、模型/Key/分组发现、余额/订阅追踪、上游 Key 创建、自动签到、余额预警、模型连通性测试，并一键同步到本地渠道/分组/价格
-- 🦀 **Rust FFI 核心** - 将 relay 高频路径（tiktoken 等价 token 计数、JSON 解析/转换、SSE aggregate）通过 cgo FFI 下沉到 Rust 库，降低延迟并减少内存分配
 - 🚦 **API Key 限流** - 为每个分发 Key 配置 RPM（每分钟请求数）、TPM（每分钟 Token 数）、Daily（每日请求数）配额，基于内存令牌桶与滑动窗口中间件实现
-- 🐳 **Docker 优先部署与更新** - 一键安装脚本优先拉取 GHCR 镜像，失败时回退到源码 Docker 构建；容器内展示一键复制更新命令 `docker compose pull && docker compose up -d`
+- 🐳 **Docker 优先部署与更新** - 一键安装脚本优先拉取 GHCR 镜像，失败时回退到源码 Docker 构建；容器内展示一键复制更新命令 `docker compose pull && docker compose up -d`；小内存服务器还可使用已知可用二进制构建本地镜像
 - 🌐 **多语言 UI** - Web 管理台支持英文、简体中文、繁体中文
 
 ### 更多扩展（相对上游项目）
@@ -109,7 +109,7 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 如果所在网络对 GHCR 有限制，也可以显式指定一个可达的私有镜像或镜像代理：
 
 ```bash
-OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.22.0 bash install-octopus.sh
+OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.23.1 bash install-octopus.sh
 ```
 
 如果 GHCR 不通，且服务器侧源码 Docker 构建仍然失败，也可以直接提供一个已知可用的 Linux 二进制，再让安装脚本继续构建本地 Docker 镜像：
@@ -121,7 +121,7 @@ OCTOPUS_BINARY_PATH=/root/octopus-linux-amd64 bash install-octopus.sh
 只有在确认当前服务器可以拉取 GHCR 包时，才建议直接使用 `docker run`：
 
 ```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.22.0
+docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.23.1
 ```
 
 如果你仍然希望手动安装，也可以继续使用仓库内 compose：
@@ -387,10 +387,10 @@ Antigravity OAuth 需要先配置 `OCTOPUS_ANTIGRAVITY_CLIENT_ID` 和 `OCTOPUS_A
 
 ## ⚠️ 升级注意
 
-### 升级到 v1.22.0
+### 升级到 v1.23.1
 
-1. **Rust FFI Core**：本版本引入 Rust FFI 核心（`rust/core/`）。从源码构建时请确保已安装 Rust 工具链。Release 预构建二进制已内嵌 Rust 库。
-2. **数据库迁移**：v1.22 包含新的数据库迁移。升级前请备份数据目录，程序将在启动时自动执行迁移。
+1. **Rust FFI Core**：v1.23 将 Rust FFI 核心（`rust/core/`）延伸至 relay 流式、负载均衡选择和流式聚合。从源码构建时请确保已安装 Rust 工具链。Release 预构建二进制已内嵌 Rust 库。
+2. **数据库迁移**：v1.23 包含新的数据库迁移。升级前请备份数据目录，程序将在启动时自动执行迁移。
 3. **Docker 更新**：如果当前以 Docker 方式运行，请使用 Web UI 版本信息卡中展示的更新命令：
    ```bash
    docker compose pull && docker compose up -d

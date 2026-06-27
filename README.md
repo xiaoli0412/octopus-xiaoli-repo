@@ -25,12 +25,12 @@ English | [简体中文](README_zh.md)
 - 📊 **Analytics** - Comprehensive request statistics, token consumption, and cost tracking
 - 🗄️ **Multi-Database Support** - SQLite, MySQL, PostgreSQL
 
-### Highlights in v1.22
+### Highlights in v1.23
 
+- 🦀 **Rust FFI in Production Hot Paths** - Token counting, SSE stream parsing, load-balancer selection, and streaming response aggregation can run through the Rust FFI core; Go fallbacks remain available via environment switches for non-Rust builds
 - 🔗 **Upstream Deep Link V2** - Deep integration with New API / sub2API / OpenAI Compatible upstreams: real endpoint probing, model/key/group discovery, balance/subscription tracking, upstream key creation, auto-checkin, balance alerts, model connectivity testing, and one-click sync to local channels/groups/prices
-- 🦀 **Rust FFI Core** - High-frequency relay paths (tiktoken-equivalent token counting, JSON parsing/transformation, SSE aggregation) are offloaded to a Rust library via cgo FFI for lower latency and reduced allocations
 - 🚦 **API Key Rate Limiting** - Per-key RPM, TPM, and daily request quotas with in-memory token-bucket and sliding-window middleware
-- 🐳 **Docker-First Deployment & Updates** - One-line installer with GHCR image pull, source-backed Docker build fallback, and in-Docker update hints (`docker compose pull && docker compose up -d`)
+- 🐳 **Docker-First Deployment & Updates** - One-line installer with GHCR image pull, source-backed Docker build fallback, in-Docker update hints (`docker compose pull && docker compose up -d`), and optional binary-backed image build for low-memory servers
 - 🌐 **Multi-Language UI** - Web management panel supports English, Simplified Chinese, and Traditional Chinese
 
 ### More Extras (vs upstream)
@@ -109,7 +109,7 @@ curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main
 If your network restricts GHCR, you can still pin a reachable private or mirrored registry image explicitly:
 
 ```bash
-OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.22.0 bash install-octopus.sh
+OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.23.1 bash install-octopus.sh
 ```
 
 If GHCR is blocked and the server-side source build still fails, provide a known-good Linux binary and let the installer build a local Docker image from it:
@@ -121,7 +121,7 @@ OCTOPUS_BINARY_PATH=/root/octopus-linux-amd64 bash install-octopus.sh
 Direct GHCR `docker run` is only recommended after you have confirmed this host can pull the GHCR package:
 
 ```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.22.0
+docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.23.1
 ```
 
 If you prefer the manual path, clone the repository and run compose directly:
@@ -385,10 +385,10 @@ Notes:
 
 ## ⚠️ Upgrade Notes
 
-### Upgrading to v1.22.0
+### Upgrading to v1.23.1
 
-1. **Rust FFI Core**: This release introduces a Rust FFI core (`rust/core/`). When building from source, ensure the Rust toolchain is installed. Prebuilt release binaries already bundle the Rust library.
-2. **Database Migrations**: v1.22 includes new migrations. Back up your data directory before upgrading. The application will run migrations automatically on startup.
+1. **Rust FFI Core**: v1.23 extends the Rust FFI core (`rust/core/`) into relay streaming, balancer selection, and streaming aggregation. When building from source, ensure the Rust toolchain is installed. Prebuilt release binaries already bundle the Rust library.
+2. **Database Migrations**: v1.23 includes new migrations. Back up your data directory before upgrading. The application will run migrations automatically on startup.
 3. **Docker Update**: If running inside Docker, use the update command shown in the web UI version card:
    ```bash
    docker compose pull && docker compose up -d
