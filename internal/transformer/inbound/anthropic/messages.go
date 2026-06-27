@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/rustbridge"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/transformer/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/log"
-	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/tokenizer"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/xurl"
 	"github.com/samber/lo"
 )
@@ -67,7 +67,7 @@ func (i *MessagesInbound) TransformRequest(ctx context.Context, body []byte) (*m
 					Content: systemContent,
 				},
 			})
-			i.inputToken += int64(tokenizer.CountTokens(*systemContent, chatReq.Model))
+			i.inputToken += int64(rustbridge.CountTokens(*systemContent, chatReq.Model))
 		} else if len(anthropicReq.System.MultiplePrompts) > 0 {
 			// Mark that system was originally in array format
 			chatReq.TransformerMetadata["anthropic_system_array_format"] = "true"
@@ -80,7 +80,7 @@ func (i *MessagesInbound) TransformRequest(ctx context.Context, body []byte) (*m
 					},
 					CacheControl: convertToLLMCacheControl(prompt.CacheControl),
 				}
-				i.inputToken += int64(tokenizer.CountTokens(prompt.Text, chatReq.Model))
+				i.inputToken += int64(rustbridge.CountTokens(prompt.Text, chatReq.Model))
 				messages = append(messages, msg)
 			}
 		}
@@ -104,7 +104,7 @@ func (i *MessagesInbound) TransformRequest(ctx context.Context, body []byte) (*m
 				Content: msg.Content.Content,
 			}
 			hasContent = true
-			i.inputToken += int64(tokenizer.CountTokens(*msg.Content.Content, chatReq.Model))
+			i.inputToken += int64(rustbridge.CountTokens(*msg.Content.Content, chatReq.Model))
 		} else if len(msg.Content.MultipleContent) > 0 {
 			contentParts := make([]model.MessageContentPart, 0, len(msg.Content.MultipleContent))
 
@@ -133,7 +133,7 @@ func (i *MessagesInbound) TransformRequest(ctx context.Context, body []byte) (*m
 						Text:         block.Text,
 						CacheControl: convertToLLMCacheControl(block.CacheControl),
 					})
-					i.inputToken += int64(tokenizer.CountTokens(*block.Text, chatReq.Model))
+					i.inputToken += int64(rustbridge.CountTokens(*block.Text, chatReq.Model))
 					hasContent = true
 				case "image":
 					if block.Source != nil {
@@ -183,7 +183,7 @@ func (i *MessagesInbound) TransformRequest(ctx context.Context, body []byte) (*m
 											Type: "text",
 											Text: contentBlock.Text,
 										})
-										i.inputToken += int64(tokenizer.CountTokens(*contentBlock.Text, chatReq.Model))
+										i.inputToken += int64(rustbridge.CountTokens(*contentBlock.Text, chatReq.Model))
 									}
 								case "image":
 									if contentBlock.Source == nil {
@@ -282,9 +282,9 @@ func (i *MessagesInbound) TransformRequest(ctx context.Context, body []byte) (*m
 				CacheControl: convertToLLMCacheControl(tool.CacheControl),
 			}
 			tools = append(tools, llmTool)
-			i.inputToken += int64(tokenizer.CountTokens(tool.Name, chatReq.Model))
-			i.inputToken += int64(tokenizer.CountTokens(tool.Description, chatReq.Model))
-			i.inputToken += int64(tokenizer.CountTokens(string(tool.InputSchema), chatReq.Model))
+			i.inputToken += int64(rustbridge.CountTokens(tool.Name, chatReq.Model))
+			i.inputToken += int64(rustbridge.CountTokens(tool.Description, chatReq.Model))
+			i.inputToken += int64(rustbridge.CountTokens(string(tool.InputSchema), chatReq.Model))
 		}
 		i.inputToken += int64(len(tools) * 3)
 
