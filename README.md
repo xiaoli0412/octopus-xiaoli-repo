@@ -8,7 +8,7 @@
 
 [![Release](https://img.shields.io/github/v/release/xiaoli0412/octopus-xiaoli-repo?style=flat-square)](https://github.com/xiaoli0412/octopus-xiaoli-repo/releases)
 [![License](https://img.shields.io/github/license/xiaoli0412/octopus-xiaoli-repo?style=flat-square)](LICENSE)
-[![Go](https://img.shields.io/badge/Go-1.24.4-00ADD8?style=flat-square&logo=go)](https://go.dev)
+[![Go](https://img.shields.io/badge/Go-1.25.0-00ADD8?style=flat-square&logo=go)](https://go.dev)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker)](https://github.com/xiaoli0412/octopus-xiaoli-repo/pkgs/container/octopus-xiaoli-repo)
 
 English | [简体中文](README_zh.md)
@@ -145,7 +145,7 @@ Download from [Releases](https://github.com/xiaoli0412/octopus-xiaoli-repo/relea
 
 ### Build from Source
 
-**Requirements:** Go 1.24.4+, Node.js 22+, pnpm 10+, Rust toolchain
+**Requirements:** Go 1.25.0+, Node.js 22+, pnpm 10+, Rust toolchain
 
 ```bash
 git clone https://github.com/xiaoli0412/octopus-xiaoli-repo.git
@@ -331,7 +331,7 @@ The web UI's **API Docs** → **CC Switch** tab generates deep links that import
 
 - v1.25 is backward compatible with v1.24 data.
 - Rust FFI core is bundled in release binaries. Source builds require Rust toolchain.
-- Go 1.24.4+ required for source builds.
+- Go 1.25.0+ required for source builds.
 
 ---
 

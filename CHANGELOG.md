@@ -8,7 +8,7 @@
 
 ### 📦 发布修复与企业级 README
 
-- 修复 go.mod Go 版本要求（1.25.0 → 1.24.4）与 Dockerfile/CI 不匹配导致构建失败
+- 升级 Go 版本至 1.25.0（Dockerfile、CI 工作流、构建脚本），匹配依赖 grpc-gateway/v2 v2.29.0 的最低版本要求
 - 排除 e2e 测试目录从主 tsconfig 类型检查（修复 CI `tsc --noEmit` 失败）
 - 修复 SettingState 缺少 hotkeyEnabled 字段的 TypeScript 编译错误
 - 重写 README 为企业级落地交付文档（架构图、安全特性、可观测性、运维指南、监控告警）

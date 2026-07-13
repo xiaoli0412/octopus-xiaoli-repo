@@ -127,7 +127,7 @@ trap cleanup EXIT INT TERM
 
 require_linux_runtime
 
-require_command go "Install Go 1.24.4+ and ensure it is on PATH."
+require_command go "Install Go 1.25.0+ and ensure it is on PATH."
 require_command curl "Install curl and ensure it is on PATH."
 
 if command -v python3 >/dev/null 2>&1; then

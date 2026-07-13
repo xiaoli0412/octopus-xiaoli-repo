@@ -104,8 +104,8 @@ assert_minimum_version() {
 echo "== Checking required tools =="
 
 if [[ $FRONTEND_ONLY -eq 0 ]]; then
-    require_command go "Install Go 1.24.4+ and ensure it is on PATH."
-    assert_minimum_version "Go" "$(go version)" "1.24.4"
+    require_command go "Install Go 1.25.0+ and ensure it is on PATH."
+    assert_minimum_version "Go" "$(go version)" "1.25.0"
 fi
 
 if [[ $BACKEND_ONLY -eq 0 ]]; then

@@ -206,7 +206,7 @@ if ($startBackend) {
     . (Join-Path $scriptDir 'use-go-env.ps1')
     $goExe = $env:GOEXE
     $goCommand = [pscustomobject]@{ Source = $goExe }
-    Assert-MinimumVersion -ToolName 'Go' -ActualText (& $goCommand.Source version) -MinimumVersion ([version]'1.24.4')
+    Assert-MinimumVersion -ToolName 'Go' -ActualText (& $goCommand.Source version) -MinimumVersion ([version]'1.25.0')
 }
 
 if ($startFrontend) {

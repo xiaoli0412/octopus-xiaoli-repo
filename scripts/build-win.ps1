@@ -226,7 +226,7 @@ $nodeCommand = [pscustomobject]@{ Source = $env:NODEEXE }
 $pnpmCommand = [pscustomobject]@{ Source = $env:PNPMEXE }
 $gitCommand = Get-Command -Name 'git' -ErrorAction SilentlyContinue
 
-Assert-MinimumVersion -ToolName 'Go' -ActualText (& $goCommand.Source version) -MinimumVersion ([version]'1.24.4')
+Assert-MinimumVersion -ToolName 'Go' -ActualText (& $goCommand.Source version) -MinimumVersion ([version]'1.25.0')
 Assert-MinimumVersion -ToolName 'Node.js' -ActualText (& $nodeCommand.Source --version) -MinimumVersion ([version]'18.0.0')
 Assert-MinimumVersion -ToolName 'pnpm' -ActualText (& $pnpmCommand.Source --version) -MinimumVersion ([version]'7.0.0')
 
