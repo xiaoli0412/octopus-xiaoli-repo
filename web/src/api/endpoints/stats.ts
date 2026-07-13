@@ -371,3 +371,38 @@ export function useStatsDynamicRoutingSummary() {
         refetchOnMount: 'always',
     });
 }
+
+export type StatsExportDimension = 'channel' | 'model' | 'apikey';
+
+export type StatsExportParams = {
+    dimension: StatsExportDimension;
+    start?: string;
+    end?: string;
+};
+
+/**
+ * 导出统计数据为 CSV 文件
+ *
+ * 调用后端 `/api/v1/stats/export` 接口，下载 CSV 文件到本地。
+ */
+export async function exportStatsCsv(params: StatsExportParams): Promise<void> {
+    const response = await apiClient.raw('/api/v1/stats/export', {
+        dimension: params.dimension,
+        ...(params.start ? { start: params.start } : {}),
+        ...(params.end ? { end: params.end } : {}),
+    });
+
+    const blob = await response.blob();
+    const disposition = response.headers.get('content-disposition') || '';
+    const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+    const filename = filenameMatch?.[1] || `stats-${params.dimension}-${Date.now()}.csv`;
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}

@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/observability"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/auth"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
@@ -33,6 +35,18 @@ func init() {
 		AddRoute(
 			router.NewRoute("/delete/:id", http.MethodDelete).
 				Handle(deleteAPIKey),
+		).
+		AddRoute(
+			router.NewRoute("/batch-enable", http.MethodPost).
+				Handle(batchEnableAPIKey),
+		).
+		AddRoute(
+			router.NewRoute("/batch-disable", http.MethodPost).
+				Handle(batchDisableAPIKey),
+		).
+		AddRoute(
+			router.NewRoute("/batch-delete", http.MethodPost).
+				Handle(batchDeleteAPIKey),
 		)
 	router.NewGroupRouter("/api/v1/apikey").
 		Use(middleware.APIKeyAuth()).
@@ -93,6 +107,68 @@ func deleteAPIKey(c *gin.Context) {
 		return
 	}
 	resp.Success(c, nil)
+}
+
+// batchEnableAPIKey 批量启用 API Key
+func batchEnableAPIKey(c *gin.Context) {
+	req, ok := parseBatchRequest(c)
+	if !ok {
+		return
+	}
+	result := runBatchOperation(c.Request.Context(), req, func(ctx context.Context, id int) error {
+		key, err := op.APIKeyGet(id, ctx)
+		if err != nil {
+			return err
+		}
+		key.Enabled = true
+		if err := op.APIKeyUpdate(&key, ctx); err != nil {
+			return err
+		}
+		recordBatchAudit(c, observability.AuditActionEnable, observability.ResourceTypeAPIKey, id, key.Name)
+		return nil
+	})
+	resp.Success(c, result)
+}
+
+// batchDisableAPIKey 批量禁用 API Key
+func batchDisableAPIKey(c *gin.Context) {
+	req, ok := parseBatchRequest(c)
+	if !ok {
+		return
+	}
+	result := runBatchOperation(c.Request.Context(), req, func(ctx context.Context, id int) error {
+		key, err := op.APIKeyGet(id, ctx)
+		if err != nil {
+			return err
+		}
+		key.Enabled = false
+		if err := op.APIKeyUpdate(&key, ctx); err != nil {
+			return err
+		}
+		recordBatchAudit(c, observability.AuditActionDisable, observability.ResourceTypeAPIKey, id, key.Name)
+		return nil
+	})
+	resp.Success(c, result)
+}
+
+// batchDeleteAPIKey 批量删除 API Key
+func batchDeleteAPIKey(c *gin.Context) {
+	req, ok := parseBatchRequest(c)
+	if !ok {
+		return
+	}
+	result := runBatchOperation(c.Request.Context(), req, func(ctx context.Context, id int) error {
+		var keyName string
+		if key, err := op.APIKeyGet(id, ctx); err == nil {
+			keyName = key.Name
+		}
+		if err := op.APIKeyDelete(id, ctx); err != nil {
+			return err
+		}
+		recordBatchAudit(c, observability.AuditActionDelete, observability.ResourceTypeAPIKey, id, keyName)
+		return nil
+	})
+	resp.Success(c, result)
 }
 
 func getStatsAPIKeyById(c *gin.Context) {

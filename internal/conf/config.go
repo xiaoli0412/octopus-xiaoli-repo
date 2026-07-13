@@ -18,7 +18,11 @@ type Server struct {
 }
 
 type Log struct {
-	Level string `mapstructure:"level"`
+	Level      string `mapstructure:"level"`
+	File       string `mapstructure:"file"`
+	MaxSize    int    `mapstructure:"max_size"`
+	MaxBackups int    `mapstructure:"max_backups"`
+	MaxAge     int    `mapstructure:"max_age"`
 }
 
 type Database struct {
@@ -110,4 +114,8 @@ func setDefaults() {
 	viper.SetDefault("database.type", "sqlite")
 	viper.SetDefault("database.path", "data/data.db")
 	viper.SetDefault("log.level", "info")
+	viper.SetDefault("log.file", "")
+	viper.SetDefault("log.max_size", 100)
+	viper.SetDefault("log.max_backups", 7)
+	viper.SetDefault("log.max_age", 30)
 }

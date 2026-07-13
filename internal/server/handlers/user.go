@@ -38,6 +38,10 @@ func init() {
 				Handle(changeUsername),
 		).
 		AddRoute(
+			router.NewRoute("/rotate-secret", http.MethodPost).
+				Handle(rotateSecret),
+		).
+		AddRoute(
 			router.NewRoute("/status", http.MethodGet).
 				Handle(status),
 		)
@@ -146,4 +150,12 @@ func changeUsername(c *gin.Context) {
 
 func status(c *gin.Context) {
 	resp.Success(c, model.UserStatusResponse{OK: true, MustChangePassword: op.UserMustChangePassword()})
+}
+
+func rotateSecret(c *gin.Context) {
+	if err := op.RotateAuthTokenSecret(c.Request.Context()); err != nil {
+		resp.Error(c, http.StatusInternalServerError, resp.ErrInternalServer)
+		return
+	}
+	resp.Success(c, "JWT secret rotated successfully")
 }

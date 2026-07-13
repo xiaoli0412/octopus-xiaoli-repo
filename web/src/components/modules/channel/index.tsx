@@ -1,13 +1,16 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { ChannelType, useChannelList } from '@/api/endpoints/channel';
+import { useCallback, useMemo, useState } from 'react';
+import { ChannelType, useChannelList, useBatchEnableChannel, useBatchDisableChannel, useBatchDeleteChannel, type BatchOperationResult } from '@/api/endpoints/channel';
 import { Card } from './Card';
 import { useSearchStore, useToolbarViewOptionsStore } from '@/components/modules/toolbar';
 import { VirtualizedGrid } from '@/components/common/VirtualizedGrid';
+import { BatchToolbar, type BatchAction } from '@/components/common/BatchToolbar';
 import { cn } from '@/lib/utils';
 import { useNavStore } from '@/components/modules/navbar/nav-store';
 import { useTranslations } from 'next-intl';
+import { useDebounce } from '@/hooks/useDebounce';
+import { toast } from '@/components/common/Toast';
 
 function normalizeKeyword(value: string) {
     return value.trim().toLowerCase();
@@ -74,15 +77,25 @@ export function Channel() {
     const modelKeyword = useToolbarViewOptionsStore((s) => s.channelModelKeyword);
     const keyKeyword = useToolbarViewOptionsStore((s) => s.channelKeyKeyword);
 
+    const batchEnable = useBatchEnableChannel();
+    const batchDisable = useBatchDisableChannel();
+    const batchDelete = useBatchDeleteChannel();
+
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+    const debouncedSearchTerm = useDebounce(searchTerm, 300);
+    const debouncedModelKeyword = useDebounce(modelKeyword, 300);
+    const debouncedKeyKeyword = useDebounce(keyKeyword, 300);
+
     const sortedChannels = useMemo(() => {
         if (!channelsData) return [];
         return [...channelsData].sort((a, b) => (sortOrder === 'asc' ? a.raw.id - b.raw.id : b.raw.id - a.raw.id));
     }, [channelsData, sortOrder]);
 
     const visibleChannels = useMemo(() => {
-        const term = normalizeKeyword(searchTerm);
-        const modelTerm = normalizeKeyword(modelKeyword);
-        const keyTerm = normalizeKeyword(keyKeyword);
+        const term = normalizeKeyword(debouncedSearchTerm);
+        const modelTerm = normalizeKeyword(debouncedModelKeyword);
+        const keyTerm = normalizeKeyword(debouncedKeyKeyword);
 
         const bySearch = !term
             ? sortedChannels
@@ -137,12 +150,97 @@ export function Channel() {
             });
 
         return byKey;
-    }, [sortedChannels, searchTerm, filter, providerFilter, modelKeyword, keyKeyword]);
+    }, [sortedChannels, debouncedSearchTerm, filter, providerFilter, debouncedModelKeyword, debouncedKeyKeyword]);
+
+    const handleToggleSelect = useCallback((id: number) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    }, []);
+
+    const handleClearSelection = useCallback(() => {
+        setSelectedIds(new Set());
+    }, []);
+
+    const handleSelectAll = useCallback(() => {
+        setSelectedIds(new Set(visibleChannels.map((c) => c.raw.id)));
+    }, [visibleChannels]);
+
+    const handleBatchResult = useCallback((result: BatchOperationResult, successMsg: string) => {
+        if (result.failed_count > 0) {
+            toast.warning(`${successMsg}：成功 ${result.success_count}，失败 ${result.failed_count}`, {
+                description: result.errors.slice(0, 3).join('\n'),
+            });
+        } else {
+            toast.success(`${successMsg}：${result.success_count} 项`);
+        }
+        setSelectedIds(new Set());
+    }, []);
+
+    const handleBatchEnable = useCallback(() => {
+        const ids = Array.from(selectedIds);
+        batchEnable.mutate(ids, {
+            onSuccess: (result) => handleBatchResult(result, t('batch.enableSuccess')),
+            onError: (error) => toast.error(error.message),
+        });
+    }, [selectedIds, batchEnable, handleBatchResult, t]);
+
+    const handleBatchDisable = useCallback(() => {
+        const ids = Array.from(selectedIds);
+        batchDisable.mutate(ids, {
+            onSuccess: (result) => handleBatchResult(result, t('batch.disableSuccess')),
+            onError: (error) => toast.error(error.message),
+        });
+    }, [selectedIds, batchDisable, handleBatchResult, t]);
+
+    const handleBatchDelete = useCallback(() => {
+        const ids = Array.from(selectedIds);
+        batchDelete.mutate(ids, {
+            onSuccess: (result) => handleBatchResult(result, t('batch.deleteSuccess')),
+            onError: (error) => toast.error(error.message),
+        });
+    }, [selectedIds, batchDelete, handleBatchResult, t]);
+
+    const selectedIdArray = Array.from(selectedIds);
+    const allVisibleSelected = visibleChannels.length > 0 && visibleChannels.every((c) => selectedIds.has(c.raw.id));
+
+    const batchActions: BatchAction[] = [
+        {
+            label: t('batch.selectAll'),
+            onClick: () => (allVisibleSelected ? handleClearSelection() : handleSelectAll()),
+        },
+        {
+            label: t('batch.enable'),
+            onClick: handleBatchEnable,
+        },
+        {
+            label: t('batch.disable'),
+            onClick: handleBatchDisable,
+        },
+        {
+            label: t('batch.delete'),
+            onClick: handleBatchDelete,
+            variant: 'destructive',
+            requireConfirm: true,
+            confirmText: t('batch.deleteConfirm', { count: selectedIdArray.length }),
+        },
+    ];
 
     return (
         <div data-testid="channel-page" data-layout="grid" data-density={channelDensity} className="flex h-full min-h-0 flex-col gap-3">
             <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-border/60 bg-card/80 p-1.5">
                 <div className="flex-1 px-2 text-xs font-medium text-muted-foreground">{t('listTitle')}</div>
+                <BatchToolbar
+                    selectedIds={selectedIdArray}
+                    onClearSelection={handleClearSelection}
+                    actions={batchActions}
+                />
                 <button
                     type="button"
                     onClick={() => setActiveItem('upstream')}
@@ -161,7 +259,15 @@ export function Channel() {
                     estimateItemHeight={channelDensity === 'compact' ? 214 : 248}
                     gap={channelDensity === 'compact' ? 10 : 12}
                     getItemKey={(item) => `channel-${item.raw.id}`}
-                    renderItem={(item) => <Card channel={item.raw} stats={item.formatted} density={channelDensity} />}
+                    renderItem={(item) => (
+                        <Card
+                            channel={item.raw}
+                            stats={item.formatted}
+                            density={channelDensity}
+                            selected={selectedIds.has(item.raw.id)}
+                            onToggleSelect={() => handleToggleSelect(item.raw.id)}
+                        />
+                    )}
                     isLoading={isLoading}
                     error={error}
                     onRetry={() => refetch()}

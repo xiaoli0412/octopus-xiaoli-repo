@@ -430,8 +430,8 @@ export function GroupEditor({
 
                         <div className="mt-3">
                             <div className="mb-2 text-sm font-medium text-foreground">{t('form.modeSectionTitle')}</div>
-                        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
-                            {([1, 2, 3, 4, 5] as const).map((itemMode) => (
+                        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-7">
+                            {([1, 2, 3, 4, 5, 6, 7] as const).map((itemMode) => (
                                 <button
                                     key={itemMode}
                                     type="button"

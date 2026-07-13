@@ -73,15 +73,16 @@
     }
   },
   "navbar": {
-      "home": "主页",
-      "channel": "渠道",
-      "upstream": "上游",
-      "group": "分组",
+    "home": "主页",
+    "channel": "渠道",
+    "upstream": "上游",
+    "group": "分组",
     "key": "密钥",
     "model": "价格",
     "ops": "运维",
     "ai": "AI 自动化",
     "log": "日志",
+    "audit": "审计日志",
     "setting": "设置",
     "doc": "API 使用文档",
     "mainNavigation": "主导航"
@@ -395,23 +396,68 @@
         }
       },
       "tools": {
-        "channel_inventory": { "label": "读取渠道库存", "desc": "让 AI 明确知道现有渠道、密钥和来源结构。" },
-        "group_topology": { "label": "读取分组拓扑", "desc": "让 AI 按现有分组与分组条目理解结构。" },
-        "price_catalog": { "label": "读取价格目录", "desc": "让 AI 分析本地价格与免费模型倾向。" },
-        "model_catalog": { "label": "读取模型目录", "desc": "让 AI 看见现有模型列表与自动发现结果。" },
-        "route_overrides": { "label": "读取路由覆盖", "desc": "让 AI 识别 route target override 的特殊规则。" },
-        "learning_state": { "label": "读取学习状态", "desc": "让 AI 用动态路由学习样本解释推荐差异。" },
-        "profile_write": { "label": "生成 AI 方案档案", "desc": "允许任务直接产出可回看、可切换的 AI 方案档案。" },
-        "profile_activate": { "label": "允许切换方案档案", "desc": "配合人工确认后直接激活 AI 方案档案。" },
-        "snapshot_guard": { "label": "创建配置快照", "desc": "在高风险动作前自动记录回退点。" }
+        "channel_inventory": {
+          "label": "读取渠道库存",
+          "desc": "让 AI 明确知道现有渠道、密钥和来源结构。"
+        },
+        "group_topology": {
+          "label": "读取分组拓扑",
+          "desc": "让 AI 按现有分组与分组条目理解结构。"
+        },
+        "price_catalog": {
+          "label": "读取价格目录",
+          "desc": "让 AI 分析本地价格与免费模型倾向。"
+        },
+        "model_catalog": {
+          "label": "读取模型目录",
+          "desc": "让 AI 看见现有模型列表与自动发现结果。"
+        },
+        "route_overrides": {
+          "label": "读取路由覆盖",
+          "desc": "让 AI 识别 route target override 的特殊规则。"
+        },
+        "learning_state": {
+          "label": "读取学习状态",
+          "desc": "让 AI 用动态路由学习样本解释推荐差异。"
+        },
+        "profile_write": {
+          "label": "生成 AI 方案档案",
+          "desc": "允许任务直接产出可回看、可切换的 AI 方案档案。"
+        },
+        "profile_activate": {
+          "label": "允许切换方案档案",
+          "desc": "配合人工确认后直接激活 AI 方案档案。"
+        },
+        "snapshot_guard": {
+          "label": "创建配置快照",
+          "desc": "在高风险动作前自动记录回退点。"
+        }
       },
       "laneStrategies": {
-        "balanced_default": { "label": "平衡默认", "desc": "推荐起步模板，保留规划、执行、审核三条车道，兼顾速度和安全。" },
-        "speed_first": { "label": "极速出稿", "desc": "压缩为规划 + 执行双车道，优先快速给出可用草案。" },
-        "safety_first": { "label": "稳健审阅", "desc": "保留审核车道并默认启用快照保护，适合你准备动真实配置前先跑一遍。" },
-        "mesh_guarded": { "label": "全量守护网格", "desc": "打开规划、执行、审核、守护四条车道，适合复杂自动化任务和高风险检查。" },
-        "model_taxonomy": { "label": "模型归类镜像", "desc": "优先归类模型、渠道和免费倾向，适合先整理模型层，再回头补分组。" },
-        "hybrid_orchestrator": { "label": "混合分流工作台", "desc": "用并发分流处理更复杂的自然语言请求，当前会以前端 lane 任务并行启动。" }
+        "balanced_default": {
+          "label": "平衡默认",
+          "desc": "推荐起步模板，保留规划、执行、审核三条车道，兼顾速度和安全。"
+        },
+        "speed_first": {
+          "label": "极速出稿",
+          "desc": "压缩为规划 + 执行双车道，优先快速给出可用草案。"
+        },
+        "safety_first": {
+          "label": "稳健审阅",
+          "desc": "保留审核车道并默认启用快照保护，适合你准备动真实配置前先跑一遍。"
+        },
+        "mesh_guarded": {
+          "label": "全量守护网格",
+          "desc": "打开规划、执行、审核、守护四条车道，适合复杂自动化任务和高风险检查。"
+        },
+        "model_taxonomy": {
+          "label": "模型归类镜像",
+          "desc": "优先归类模型、渠道和免费倾向，适合先整理模型层，再回头补分组。"
+        },
+        "hybrid_orchestrator": {
+          "label": "混合分流工作台",
+          "desc": "用并发分流处理更复杂的自然语言请求，当前会以前端 lane 任务并行启动。"
+        }
       },
       "presets": {
         "channel_group_rollout": {
@@ -824,6 +870,16 @@
     "listTitle": "普通渠道列表",
     "addFromUpstream": "从上游添加",
     "empty": "暂无渠道，可点击右上角从上游添加或手动创建",
+    "batch": {
+      "selectAll": "全选",
+      "enable": "批量启用",
+      "disable": "批量禁用",
+      "delete": "批量删除",
+      "enableSuccess": "批量启用成功",
+      "disableSuccess": "批量禁用成功",
+      "deleteSuccess": "批量删除成功",
+      "deleteConfirm": "确定要删除选中的 {count} 个渠道吗？"
+    },
     "detail": {
       "title": {
         "edit": "编辑渠道",
@@ -1304,7 +1360,7 @@
       "namingSectionHint": "分组名称会参与默认模糊匹配；只有模型命名和分组名称差异较大时，才需要手动写匹配正则。",
       "namingSectionDesc": "先定名称，正则按需补。",
       "modeSectionTitle": "路由策略",
-      "modeSectionHint": "轮询适合平均分配，随机适合快速分散，故障转移适合主备兜底，加权分配适合能力差异场景，AI 动态适合按运行时评分直排候选顺序。",
+      "modeSectionHint": "轮询适合平均分配，随机适合快速分散，故障转移适合主备兜底，加权分配适合能力差异场景，AI 动态适合按运行时评分直排候选顺序，最低延迟适合对响应时间敏感的场景，健康感知综合成功率与延迟评分自动选择。",
       "modeSectionDesc": "先选分发方式。",
       "nameHint": "建议直接使用模型家族或用途命名，例如 deepseek-chat、claude-code、embeddings。名称越稳定，默认匹配越省心。",
       "matchRegexHint": "只有在模型名和分组名对不上，或者你需要更精细地圈定模型集合时，才需要填写这里。",
@@ -1360,9 +1416,18 @@
       "random": "随机",
       "failover": "故障转移",
       "weighted": "加权分配",
-      "aiDynamic": "AI 动态"
+      "aiDynamic": "AI 动态",
+      "leastLatency": "最低延迟",
+      "healthAware": "健康感知"
     },
-    "empty": "暂无分组，点击左上角按钮创建"
+    "empty": "暂无分组，点击左上角按钮创建",
+    "listTitle": "分组列表",
+    "batch": {
+      "selectAll": "全选",
+      "delete": "批量删除",
+      "deleteSuccess": "批量删除成功",
+      "deleteConfirm": "确定要删除选中的 {count} 个分组吗？"
+    }
   },
   "common": {
     "helpHint": {
@@ -1426,7 +1491,12 @@
       "retryDetails": "重试详情",
       "attempts": "次尝试",
       "success": "成功",
-      "failed": "失败"
+      "failed": "失败",
+      "replay": "重放",
+      "replayResult": "重放结果",
+      "replayStatus": "状态码",
+      "replayDiff": "有差异",
+      "replaySame": "一致"
     }
   },
   "home": {
@@ -1452,7 +1522,13 @@
       "outputCost": "输出费用",
       "successRequests": "成功请求",
       "failedRequests": "失败请求",
-      "successRate": "成功率"
+      "successRate": "成功率",
+      "exportCsv": "导出 CSV",
+      "exportSuccess": "导出成功",
+      "exportFailed": "导出失败",
+      "exportDimensionChannel": "按渠道",
+      "exportDimensionModel": "按模型",
+      "exportDimensionApiKey": "按 API Key"
     },
     "chart": {
       "title": "趋势",
@@ -1551,57 +1627,57 @@
   "setting": {
     "appearance": "外观",
     "system": "系统",
-      "aiAutomationSource": {
-        "title": "AI 配置来源",
-        "desc": "这里仅保留轻量切换入口。模型获取、任务进度、方案档案和动态路由学习都在独立的 AI 自动化栏目中处理，避免设置页变慢。",
-        "mode": "当前读取来源",
-        "manual": "手动配置",
-        "aiProfile": "AI 生成方案档案",
-        "profileLabel": "AI 方案",
-        "profilePlaceholder": "选择一个 AI 方案档案",
-        "activeProfile": "当前启用方案档案 ID：{id}",
-        "noActiveProfile": "尚未启用 AI 方案档案。请先进入 AI 自动化栏目选择方案。",
-        "profileEmpty": "还没有可切换的 AI 方案档案。请先进入 AI 自动化中心生成方案。",
-        "selectedProfile": "当前选中方案",
-        "selectedProfilePending": "当前选中方案尚未启用；切到 AI 方案时会先启用它。",
-        "status": "方案状态",
-        "profileId": "方案档案 ID",
-        "profileVersion": "版本",
-        "profileConfidence": "置信度",
-        "profileUpdatedAt": "更新时间",
-        "profileSummaryFallback": "暂无方案说明。建议先进入 AI 自动化中心查看任务结果详情。",
-        "inUseBadge": "运行时正在读取此方案",
-        "riskTitle": "风险与回退提示",
-        "readyHint": "这个方案可以被切换使用；即使启用后，现有手动配置也会原样保留。",
-        "riskDraft": "这个方案档案仍是草稿。建议先到 AI 自动化中心核对生成内容，再把运行时读取切到它。",
-        "riskArchived": "归档方案仅供回看，不能再次启用。",
-        "riskInvalid": "这个方案档案没有通过校验。若它曾被选为来源，Octopus 会回退到手动配置，而不会继续在运行时使用它。",
-        "riskLowConfidence": "当前置信度只有 {confidence}。建议先复核生成的渠道、分组或价格建议，再把它当作运行时来源。",
-        "profileBlocked": "当前选中的 AI 方案档案已无效或已归档，请先到 AI 自动化中心选择其他方案。",
-        "runtimeFallbackTitle": "运行时已回退到手动配置",
-        "runtimeFallbackNotice": "之前选中的 AI 方案档案已缺失、无效或校验失败；在你重新启用有效方案前，Octopus 当前会继续读取手动配置。",
-        "fallbackReasons": {
-          "profile_missing": "请求使用的 AI 方案档案已不存在，所以运行时已回退到手动配置。",
-          "profile_unusable": "请求使用的 AI 方案档案已归档或无效，所以运行时已回退到手动配置。",
-          "profile_missing_content": "请求使用的 AI 方案档案缺少可用的运行时配置内容，所以运行时已回退到手动配置。",
-          "profile_invalid_content": "请求使用的 AI 方案档案内容无法解析成运行时配置，所以运行时已回退到手动配置。"
-        },
-        "manualSafety": "只会切换读取来源，不会覆盖现有手动配置。",
-        "fallbackHint": "如果方案无效、缺失或未通过校验，系统会自动回退到手动配置。",
-        "statusValues": {
-          "draft": "草稿",
-          "ready": "可启用",
-          "active": "已启用",
-          "archived": "已归档",
-          "invalid": "无效",
-          "unknown": "未知"
-        },
-        "useSelected": "启用所选方案",
-        "usingSelected": "启用中...",
-        "activateFailed": "启用 AI 方案失败",
-        "selectProfileFirst": "请先在 AI 自动化栏目选择一个 AI 方案档案",
-        "openCenter": "打开 AI 自动化中心"
+    "aiAutomationSource": {
+      "title": "AI 配置来源",
+      "desc": "这里仅保留轻量切换入口。模型获取、任务进度、方案档案和动态路由学习都在独立的 AI 自动化栏目中处理，避免设置页变慢。",
+      "mode": "当前读取来源",
+      "manual": "手动配置",
+      "aiProfile": "AI 生成方案档案",
+      "profileLabel": "AI 方案",
+      "profilePlaceholder": "选择一个 AI 方案档案",
+      "activeProfile": "当前启用方案档案 ID：{id}",
+      "noActiveProfile": "尚未启用 AI 方案档案。请先进入 AI 自动化栏目选择方案。",
+      "profileEmpty": "还没有可切换的 AI 方案档案。请先进入 AI 自动化中心生成方案。",
+      "selectedProfile": "当前选中方案",
+      "selectedProfilePending": "当前选中方案尚未启用；切到 AI 方案时会先启用它。",
+      "status": "方案状态",
+      "profileId": "方案档案 ID",
+      "profileVersion": "版本",
+      "profileConfidence": "置信度",
+      "profileUpdatedAt": "更新时间",
+      "profileSummaryFallback": "暂无方案说明。建议先进入 AI 自动化中心查看任务结果详情。",
+      "inUseBadge": "运行时正在读取此方案",
+      "riskTitle": "风险与回退提示",
+      "readyHint": "这个方案可以被切换使用；即使启用后，现有手动配置也会原样保留。",
+      "riskDraft": "这个方案档案仍是草稿。建议先到 AI 自动化中心核对生成内容，再把运行时读取切到它。",
+      "riskArchived": "归档方案仅供回看，不能再次启用。",
+      "riskInvalid": "这个方案档案没有通过校验。若它曾被选为来源，Octopus 会回退到手动配置，而不会继续在运行时使用它。",
+      "riskLowConfidence": "当前置信度只有 {confidence}。建议先复核生成的渠道、分组或价格建议，再把它当作运行时来源。",
+      "profileBlocked": "当前选中的 AI 方案档案已无效或已归档，请先到 AI 自动化中心选择其他方案。",
+      "runtimeFallbackTitle": "运行时已回退到手动配置",
+      "runtimeFallbackNotice": "之前选中的 AI 方案档案已缺失、无效或校验失败；在你重新启用有效方案前，Octopus 当前会继续读取手动配置。",
+      "fallbackReasons": {
+        "profile_missing": "请求使用的 AI 方案档案已不存在，所以运行时已回退到手动配置。",
+        "profile_unusable": "请求使用的 AI 方案档案已归档或无效，所以运行时已回退到手动配置。",
+        "profile_missing_content": "请求使用的 AI 方案档案缺少可用的运行时配置内容，所以运行时已回退到手动配置。",
+        "profile_invalid_content": "请求使用的 AI 方案档案内容无法解析成运行时配置，所以运行时已回退到手动配置。"
       },
+      "manualSafety": "只会切换读取来源，不会覆盖现有手动配置。",
+      "fallbackHint": "如果方案无效、缺失或未通过校验，系统会自动回退到手动配置。",
+      "statusValues": {
+        "draft": "草稿",
+        "ready": "可启用",
+        "active": "已启用",
+        "archived": "已归档",
+        "invalid": "无效",
+        "unknown": "未知"
+      },
+      "useSelected": "启用所选方案",
+      "usingSelected": "启用中...",
+      "activateFailed": "启用 AI 方案失败",
+      "selectProfileFirst": "请先在 AI 自动化栏目选择一个 AI 方案档案",
+      "openCenter": "打开 AI 自动化中心"
+    },
     "theme": {
       "label": "主题",
       "light": "浅色",
@@ -1627,6 +1703,14 @@
       "label": "CORS 跨域白名单",
       "hint": "为空禁止跨域，* 允许所有",
       "example": "只允许指定域名: https://example.com,https://example2.com"
+    },
+    "backupInterval": {
+      "label": "定时备份间隔",
+      "placeholder": "如 24h（留空使用默认 24h）"
+    },
+    "backupKeepCount": {
+      "label": "备份保留数量",
+      "placeholder": "如 7（留空使用默认 7）"
     },
     "publicAccess": {
       "title": "公共访问地址",
@@ -1927,6 +2011,16 @@
       "editTitle": "编辑密钥",
       "closeTitle": "关闭面板",
       "loadFailed": "加载失败",
+      "batch": {
+        "selectAll": "全选",
+        "enable": "批量启用",
+        "disable": "批量禁用",
+        "delete": "批量删除",
+        "enableSuccess": "批量启用成功",
+        "disableSuccess": "批量禁用成功",
+        "deleteSuccess": "批量删除成功",
+        "deleteConfirm": "确定要删除选中的 {count} 个 API Key 吗？"
+      },
       "form": {
         "name": "名称",
         "maxCost": "最大金额",
@@ -1951,7 +2045,28 @@
         "savedMissingModels": "已保存但当前库存未命中",
         "noMatchedModels": "无匹配模型",
         "inventoryHint": "不选择表示不限制；候选来自真实能力库存、分组和已保存绑定。",
+        "permissionsTitle": "权限粒度",
+        "allowedCapabilities": "能力限制",
+        "allowedCapabilitiesHint": "勾选允许调用的能力类型，不选表示不限制",
+        "allowedChannels": "渠道限制",
+        "allowedChannelsHint": "勾选允许调用的渠道，不选表示不限制",
+        "noChannels": "暂无可用渠道",
+        "allowedGroups": "分组限制",
+        "allowedGroupsHint": "勾选允许调用的分组，不选表示不限制",
+        "noGroups": "暂无可用分组",
+        "allowedIpCidrs": "IP 白名单",
+        "allowedIpCidrsPlaceholder": "10.0.0.0/8, 192.168.1.0/24",
+        "allowedIpCidrsHint": "CIDR 格式，逗号分隔，支持 IPv4/IPv6，留空表示不限制",
+        "noRestriction": "不限制",
+        "selectedCount": "已选 {count}",
+        "capability": {
+          "chat": "对话",
+          "embedding": "向量",
+          "response": "响应",
+          "message": "消息"
+        },
         "enabled": "是否启用",
+        "responseCacheEnabled": "响应缓存",
         "cancel": "取消",
         "create": "创建",
         "save": "保存",
@@ -2139,6 +2254,14 @@
         "change": "修改密码",
         "success": "密码修改成功",
         "failed": "密码修改失败"
+      },
+      "rotateSecret": {
+        "label": "轮换 JWT 密钥",
+        "hint": "轮换 JWT 签名密钥。旧密钥在过期前仍可验证已签发的令牌。",
+        "button": "轮换密钥",
+        "confirm": "确定要轮换 JWT 签名密钥吗？操作后将自动登出。",
+        "success": "JWT 密钥轮换成功",
+        "failed": "JWT 密钥轮换失败"
       }
     },
     "info": {
@@ -2190,8 +2313,25 @@
     },
     "apiBaseUrl": {
       "label": "系统 API 地址",
-    "placeholder": "http://127.0.0.1:1088",
-    "hint": "用于文档弹框中的 curl 示例地址，默认为 http://127.0.0.1:1088"
+      "placeholder": "http://127.0.0.1:1088",
+      "hint": "用于文档弹框中的 curl 示例地址，默认为 http://127.0.0.1:1088"
+    },
+    "costAlert": {
+      "thresholds": {
+        "label": "阈值",
+        "hint": "逗号分隔的百分比（0-2）。如 0.5,0.8,1.0 表示在 MaxCost 的 50%、80% 和 100% 时触发。"
+      },
+      "webhookURL": {
+        "label": "Webhook URL",
+        "placeholder": "https://hooks.slack.com/services/...",
+        "hint": "留空则禁用告警。支持 Slack、飞书、钉钉或任意通用 Webhook 端点。"
+      },
+      "format": {
+        "label": "消息格式",
+        "hint": "选择 Webhook 平台以正确格式化消息体。"
+      },
+      "description": "当 API Key 的累计成本达到其 MaxCost 限制的配置阈值时触发 Webhook 通知。",
+      "title": "成本告警"
     }
   },
   "model": {
@@ -2315,5 +2455,28 @@
     "ccswitchStepPending": "待完成",
     "ccswitchAppClaude": "Claude 客户端",
     "ccswitchAppCodex": "Codex 客户端"
+  },
+  "audit": {
+    "title": "审计日志",
+    "user": "用户",
+    "action": "操作",
+    "resourceType": "资源类型",
+    "resourceId": "资源ID",
+    "resourceName": "资源名称",
+    "ip": "IP",
+    "time": "时间",
+    "before": "变更前",
+    "after": "变更后",
+    "diff": "差异对比",
+    "timeRange": "时间范围",
+    "allActions": "所有操作",
+    "allTypes": "所有类型",
+    "reset": "重置",
+    "filter": "筛选",
+    "empty": "暂无审计日志",
+    "total": "共 {count} 条",
+    "prev": "上一页",
+    "next": "下一页",
+    "page": "第 {page} / {pages} 页"
   }
 }

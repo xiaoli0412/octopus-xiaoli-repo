@@ -19,6 +19,7 @@ node_modules/
 CON
 .claude/settings.local.json
 .trae/
+.trae-cn/
 rust/core/target/
 web/playwright-report/
 web/test-results/

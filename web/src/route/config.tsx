@@ -1,7 +1,7 @@
 import { lazyWithPreload } from './lazy-with-preload';
 import { lazy, ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Bot, Home, Radio, Sparkles, FolderTree, Settings, Logs, Activity, Waypoints } from 'lucide-react';
+import { Bot, Home, Radio, Sparkles, FolderTree, Settings, Logs, Activity, Waypoints, ShieldCheck } from 'lucide-react';
 
 export type LazyComponent = ReturnType<typeof lazy> & {
     preload: () => Promise<{ default: ComponentType<Record<string, never>> }>
@@ -22,6 +22,7 @@ const Group_Module = lazyWithPreload(() => import('@/components/modules/group').
 const Ops_Module = lazyWithPreload(() => import('@/components/modules/ops').then(m => ({ default: m.Ops })));
 const AIAutomation_Module = lazyWithPreload(() => import('@/components/modules/ai-automation').then(m => ({ default: m.AIAutomation })));
 const Log_Module = lazyWithPreload(() => import('@/components/modules/log').then(m => ({ default: m.Log })));
+const Audit_Module = lazyWithPreload(() => import('@/components/modules/audit').then(m => ({ default: m.Audit })));
 const Setting_Module = lazyWithPreload(() => import('@/components/modules/setting').then(m => ({ default: m.Setting })));
 
 export const ROUTES: RouteConfig[] = [
@@ -33,6 +34,7 @@ export const ROUTES: RouteConfig[] = [
     { id: 'ops', label: '运维', icon: Activity, component: Ops_Module },
     { id: 'ai', label: '自动化', icon: Bot, component: AIAutomation_Module },
     { id: 'log', label: '日志', icon: Logs, component: Log_Module },
+    { id: 'audit', label: '审计', icon: ShieldCheck, component: Audit_Module },
     { id: 'setting', label: '设置', icon: Settings, component: Setting_Module },
 ];
 

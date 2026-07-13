@@ -4,6 +4,132 @@
 
 ---
 
+## 1.25.0 - 2026-07-13
+
+### 🛡️ 深度稳定性与功能扩展
+
+本版本在 v1.24.0 企业级硬化基础上，进一步深化功能逻辑、提升稳定性，并扩展了多项实用新功能。
+
+#### 错误处理与重试
+
+- 新增错误分类系统（`ErrorClass`）：按 HTTP 状态码将上游错误分为 RateLimited/AuthFailed/ServerError/Timeout/ClientError/NetworkError 六类。
+- 429 限流执行指数退避 + jitter 重试同 key（最多 2 次），401/403 标记 key 失效并 failover，5xx 立即 failover，408/504 超时 failover，其他 4xx 直接返回。
+- 53 个单元测试覆盖所有分类与决策路径。
+
+#### 健康检查与感知路由
+
+- 新增主动健康检查后台任务（5 分钟间隔，可配置）：HEAD 探测 base URL 延迟，可选 LLM 1-token 探测。
+- 探测结果回写 `BaseUrl.Delay` 与 `StatsChannel` 健康指标，熔断渠道探测成功时自动恢复。
+- 新增 `least_latency`（最低延迟）与 `health_aware`（健康感知）两种负载均衡模式，聚合成功率/延迟/熔断器状态选择最优渠道。
+- Rust FFI 与 Go fallback 双路径支持新模式，16 个测试覆盖健康感知选择逻辑。
+
+#### API Key 权限粒度
+
+- 新增 `AllowedChannels`、`AllowedGroups`、`AllowedCapabilities`（chat/embedding/response/message）、`AllowedIPCIDRs` 四维权限控制。
+- 未配置时允许所有（向后兼容），中间件层校验能力与 IP 白名单，relay 层过滤不在白名单的渠道/分组。
+- 前端 API Key 编辑表单增加完整权限配置 UI。
+
+#### 安全增强
+
+- `/metrics` 端点支持 Bearer token 鉴权与 IP 白名单（`metrics_auth_token`、`metrics_ip_allowlist`），未配置时无鉴权（向后兼容）。
+- JWT 双密钥轮换：primary + secondary 均可验证，新增 `/api/v1/user/rotate-secret` API 实现平滑轮换，前端设置页增加轮换按钮。
+- 审计日志 BeforeJSON 补全：更新/删除操作前查询资源快照，敏感字段脱敏后记录。
+
+#### 响应缓存
+
+- 非流式请求支持响应缓存：SHA256 key、LRU + TTL、sync.RWMutex 并发安全。
+- 缓存命中返回 `X-Octopus-Cache: HIT`，未命中返回 `X-Octopus-Cache: MISS`，后台任务每 60s 清理过期条目。
+- 12 个测试覆盖命中/未命中/过期/LRU 淘汰/并发安全。
+
+#### 成本告警
+
+- API Key 成本告警 Webhook：支持 50%/80%/100% 多阈值去重，Slack/飞书/钉钉三种消息格式。
+- 告警在 relay 计费后异步触发，API Key 删除时清除去重记录。
+- 前端新增全局告警配置面板。
+
+#### 请求重放与版本端点
+
+- 新增 `POST /api/v1/log/replay/:id`：根据 RelayLog 重新走 relay 流程，标记 `X-Octopus-Replay: true`，不计入正常统计。
+- 前端日志详情页增加"重放"按钮与结果对比面板。
+- 新增 `GET /version` 端点（无需鉴权）：返回 version/commit/buildTime/goVersion。
+
+#### 定时备份与日志轮转
+
+- 后台备份任务：SQLite 数据库自动备份到 `data/backups/backup-<timestamp>.db`，超出保留数量的旧备份自动删除。
+- 日志文件轮转：配置 `OCTOPUS_LOG_FILE` 后使用 lumberjack 轮转，支持 MaxSize/MaxBackups/MaxAge 配置，同时输出到文件和 stderr。
+
+#### 批量操作与数据导出
+
+- 渠道/分组/APIKey 批量启用/禁用/删除 API（上限 100 条，每条记录审计日志）。
+- 前端 `BatchToolbar` 组件：全选/反选 + 批量操作工具栏，删除操作二次确认。
+- 统计数据 CSV 导出：`GET /api/v1/stats/export` 支持按渠道/模型/APIKey 维度与时间段筛选。
+
+#### 审计日志前端
+
+- 审计日志列表页：按时间/用户/动作/资源类型筛选 + 分页。
+- 审计详情页：before/after JSON diff 组件，高亮新增/删除/修改字段，敏感字段显示为 `***`。
+
+#### 前端工程化
+
+- 6 个通用 hooks：`useDebounce`、`useThrottle`、`useLocalStorage`、`useCopyToClipboard`、`usePagination`、`useMediaQuery`。
+- 45 个单元测试覆盖所有 hooks，渠道列表搜索已集成 `useDebounce` 优化性能。
+
+#### K8s 部署
+
+- 新增 `deploy/k8s/` 完整部署模板：namespace/configmap/secret/deployment/service/ingress/pvc。
+- Deployment 含 livenessProbe(/healthz)、readinessProbe(/readyz)、resources、安全加固（runAsNonRoot/readOnlyRootFilesystem/cap_drop ALL）。
+- K8s 部署 README 含前置条件、部署步骤、验证、升级、卸载、生产建议。
+
+---
+
+## 1.24.0 - 2026-07-13
+
+### 🚀 企业级硬化与 UI 精修
+
+#### 后端可观测性
+
+- Prometheus 指标：`/metrics` 端点暴露 relay_requests_total、relay_duration_seconds（histogram）、channel_health、circuit_breaker_state、token_throughput_total、http_client_pool_idle 等核心指标。
+- OpenTelemetry 分布式追踪：relay 全链路 span（relay.handle、balancer.pick、outbound.forward、stream.aggregate），支持 OTLP 导出与 W3C TraceContext 传播。
+- 通用审计日志系统：记录用户登录、渠道/分组/APIKey 增删改、配置变更等敏感操作，支持 `/api/v1/audit/*` 查询与筛选。
+
+#### 运行时健壮性
+
+- 优雅关闭增强：context + 超时（默认 30s，可配置 `OCTOPUS_SHUTDOWN_TIMEOUT`），清理任务并发执行各自带超时。
+- HTTP 连接池显式调优：MaxIdleConns/MaxConnsPerHost/IdleConnTimeout/TLSHandshakeTimeout 可通过环境变量覆盖。
+- 新增 `/readyz` 就绪探针：检查数据库连通、缓存可用、后台任务活动，与 `/healthz` 语义区分。
+
+#### CI Rust 回归门禁
+
+- validation.yaml 日常 PR 增加 `go test -tags rust ./internal/rustbridge/...`，防止 FFI 回归。
+
+#### 前端实时更新（SSE）
+
+- `/api/v1/stream/stats` 与 `/api/v1/stream/logs` SSE 端点，仪表盘统计与日志列表实时推送。
+- 前端 `useRealtimeStats()` 与 `useRealtimeLogs()` hooks，自动重连与降级轮询。
+
+#### 键盘快捷键系统
+
+- 统一快捷键注册器：支持单键、组合键、序列键（如 `g d`），作用域与优先级。
+- `?` 弹出快捷键帮助面板，全局导航 `g d`/`g c`/`g g`/`g m`/`g l`/`g s`。
+
+#### 可访问性系统化
+
+- `useFocusTrap`、`useFocusReturn`、`useAriaLive` hooks，Modal/Drawer/Popover 焦点管理规范化。
+- 表格 `role="table"`、`aria-rowindex`、`aria-sort`，表单 `aria-label`、`aria-describedby`、`aria-invalid`。
+- `@axe-core/playwright` a11y 扫描集成。
+
+#### 微交互与空状态打磨
+
+- 统一 `Skeleton` 骨架屏组件（Card/Table/List/Detail 变体）与 `EmptyState` 空状态组件。
+- 过渡动画精修（列表项进出、卡片展开、tab 切换使用 AnimatePresence），移动端响应式细节。
+
+#### 负载测试与部署 Runbook
+
+- `load-test/` 目录含 k6 压测脚本（chat-completions/embeddings/stats）与 `run.sh` 统一执行入口。
+- `docs/RUNBOOK.md` 完整部署/扩缩容/配置/故障排查/回滚/监控告警文档。
+
+---
+
 ## 1.23.2 - 2026-06-27
 
 ### 📖 文档

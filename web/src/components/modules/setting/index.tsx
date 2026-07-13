@@ -5,6 +5,7 @@ import { PageWrapper } from '@/components/common/PageWrapper';
 import { SettingAppearance } from './Appearance';
 import { SettingSystem } from './System';
 import { SettingAPIKey } from './APIKey';
+import { SettingCostAlert } from './CostAlert';
 import { SettingAccount } from './Account';
 import { SettingInfo } from './Info';
 import { SettingLLMSync } from './LLMSync';
@@ -26,6 +27,7 @@ export function Setting() {
                         <SettingSystem key="setting-system" />
                         <SettingLog key="setting-log" />
                         <SettingAPIKey key="setting-apikey" />
+                        <SettingCostAlert key="setting-cost-alert" />
                         <SettingAIAutomationSource key="setting-ai-automation-source" />
                         <LazySettingModelProbe key="setting-model-probe" />
                         <LazySettingBackup key="setting-backup" />

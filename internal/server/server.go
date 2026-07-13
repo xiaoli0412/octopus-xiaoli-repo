@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/conf"
 	_ "github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/handlers"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
@@ -73,6 +74,7 @@ func newEngine() (*gin.Engine, error) {
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+	r.GET("/metrics", middleware.MetricsAuthMiddleware(), gin.WrapH(promhttp.Handler()))
 	r.Use(middleware.Cors())
 	r.Use(buildStaticMiddleware())
 

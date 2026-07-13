@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/helper"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/observability"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/resp"
@@ -102,6 +103,18 @@ func init() {
 		AddRoute(
 			router.NewRoute("/delete/:id", http.MethodDelete).
 				Handle(deleteChannel),
+		).
+		AddRoute(
+			router.NewRoute("/batch-enable", http.MethodPost).
+				Handle(batchEnableChannel),
+		).
+		AddRoute(
+			router.NewRoute("/batch-disable", http.MethodPost).
+				Handle(batchDisableChannel),
+		).
+		AddRoute(
+			router.NewRoute("/batch-delete", http.MethodPost).
+				Handle(batchDeleteChannel),
 		).
 		AddRoute(
 			router.NewRoute("/fetch-model", http.MethodPost).
@@ -227,6 +240,66 @@ func deleteChannel(c *gin.Context) {
 		return
 	}
 	resp.Success(c, nil)
+}
+
+// batchEnableChannel 批量启用渠道
+func batchEnableChannel(c *gin.Context) {
+	req, ok := parseBatchRequest(c)
+	if !ok {
+		return
+	}
+	result := runBatchOperation(c.Request.Context(), req, func(ctx context.Context, id int) error {
+		if err := op.ChannelEnabled(id, true, ctx); err != nil {
+			return err
+		}
+		if ch, err := op.ChannelGet(id, ctx); err == nil {
+			recordBatchAudit(c, observability.AuditActionEnable, observability.ResourceTypeChannel, id, ch.Name)
+		} else {
+			recordBatchAudit(c, observability.AuditActionEnable, observability.ResourceTypeChannel, id, "")
+		}
+		return nil
+	})
+	resp.Success(c, result)
+}
+
+// batchDisableChannel 批量禁用渠道
+func batchDisableChannel(c *gin.Context) {
+	req, ok := parseBatchRequest(c)
+	if !ok {
+		return
+	}
+	result := runBatchOperation(c.Request.Context(), req, func(ctx context.Context, id int) error {
+		if err := op.ChannelEnabled(id, false, ctx); err != nil {
+			return err
+		}
+		if ch, err := op.ChannelGet(id, ctx); err == nil {
+			recordBatchAudit(c, observability.AuditActionDisable, observability.ResourceTypeChannel, id, ch.Name)
+		} else {
+			recordBatchAudit(c, observability.AuditActionDisable, observability.ResourceTypeChannel, id, "")
+		}
+		return nil
+	})
+	resp.Success(c, result)
+}
+
+// batchDeleteChannel 批量删除渠道
+func batchDeleteChannel(c *gin.Context) {
+	req, ok := parseBatchRequest(c)
+	if !ok {
+		return
+	}
+	result := runBatchOperation(c.Request.Context(), req, func(ctx context.Context, id int) error {
+		var channelName string
+		if ch, err := op.ChannelGet(id, ctx); err == nil {
+			channelName = ch.Name
+		}
+		if err := op.ChannelDel(id, ctx); err != nil {
+			return err
+		}
+		recordBatchAudit(c, observability.AuditActionDelete, observability.ResourceTypeChannel, id, channelName)
+		return nil
+	})
+	resp.Success(c, result)
 }
 
 func fetchModel(c *gin.Context) {

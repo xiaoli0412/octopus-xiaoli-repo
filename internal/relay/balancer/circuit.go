@@ -2,6 +2,7 @@ package balancer
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -202,6 +203,94 @@ func RecordFailure(channelID, keyID int, modelName string) {
 
 func ResetCircuitStateForTest() {
 	globalBreaker = sync.Map{}
+}
+
+// ChannelCircuitState returns the worst circuit breaker state for a channel
+// across all keys for the given model. Returns "closed", "open", or "half-open".
+// This is a read-only inspection (unlike IsTripped which may transition Open→HalfOpen).
+func ChannelCircuitState(channelID int, modelName string) string {
+	chIDStr := fmt.Sprintf("%d", channelID)
+	worst := StateClosed
+	globalBreaker.Range(func(key, value any) bool {
+		keyStr, ok := key.(string)
+		if !ok {
+			return true
+		}
+		parts := strings.SplitN(keyStr, ":", 3)
+		if len(parts) < 3 || parts[0] != chIDStr {
+			return true
+		}
+		if modelName != "" && parts[2] != modelName {
+			return true
+		}
+		entry, ok := value.(*circuitEntry)
+		if !ok || entry == nil {
+			return true
+		}
+		entry.mu.Lock()
+		state := entry.State
+		tripCount := entry.TripCount
+		lastFailure := entry.LastFailureTime
+		entry.mu.Unlock()
+
+		effectiveState := state
+		if state == StateOpen {
+			cooldown := GetCooldown(tripCount)
+			if time.Since(lastFailure) >= cooldown {
+				effectiveState = StateHalfOpen
+			}
+		}
+		if effectiveState == StateOpen {
+			worst = StateOpen
+			return false // can stop scanning, worst found
+		}
+		if effectiveState == StateHalfOpen && worst != StateOpen {
+			worst = StateHalfOpen
+		}
+		return true
+	})
+	switch worst {
+	case StateOpen:
+		return "open"
+	case StateHalfOpen:
+		return "half-open"
+	default:
+		return "closed"
+	}
+}
+
+// ResetCircuitBreakersForChannel resets all circuit breakers associated with
+// the given channel ID. It returns the number of breakers that were reset
+// from a non-closed state. This is used by the proactive health check task
+// to auto-recover channels that have been probed as healthy.
+func ResetCircuitBreakersForChannel(channelID int) int {
+	prefix := fmt.Sprintf("%d:", channelID)
+	reset := 0
+	globalBreaker.Range(func(key, value any) bool {
+		keyStr, ok := key.(string)
+		if !ok || !strings.HasPrefix(keyStr, prefix) {
+			return true
+		}
+		entry, ok := value.(*circuitEntry)
+		if !ok || entry == nil {
+			return true
+		}
+		entry.mu.Lock()
+		if entry.State != StateClosed {
+			log.Infof("circuit breaker [%s] auto-recovered to Closed (health check probe succeeded)", keyStr)
+			entry.State = StateClosed
+			entry.ConsecutiveFailures = 0
+			entry.TripCount = 0
+			reset++
+		}
+		entry.mu.Unlock()
+		return true
+	})
+	return reset
+}
+
+func init() {
+	op.SetCircuitBreakerResetForChannel(ResetCircuitBreakersForChannel)
 }
 
 func SnapshotSummary(now time.Time) CircuitSummary {

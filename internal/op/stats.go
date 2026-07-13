@@ -367,6 +367,16 @@ func StatsAPIKeyList() []model.StatsAPIKey {
 	return statsAPIKeyCache.Values()
 }
 
+// StatsChannelList 返回所有渠道统计的快照列表。
+func StatsChannelList() []model.StatsChannel {
+	return statsChannelCache.Values()
+}
+
+// StatsModelList 返回所有模型统计的快照列表。
+func StatsModelList() []model.StatsModel {
+	return statsModelCache.Values()
+}
+
 type StatsTokenBreakdownItem struct {
 	Key         string `json:"key"`
 	Label       string `json:"label"`

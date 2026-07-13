@@ -21,14 +21,21 @@ import {
     useCreateAPIKey,
     useUpdateAPIKey,
     useDeleteAPIKey,
+    useBatchEnableAPIKey,
+    useBatchDisableAPIKey,
+    useBatchDeleteAPIKey,
     type APIKey,
+    type BatchOperationResult,
 } from '@/api/endpoints/apikey';
 import { useCapabilityInventory } from '@/api/endpoints/model';
 import { useStatsAPIKey } from '@/api/endpoints/stats';
+import { useChannelList } from '@/api/endpoints/channel';
+import { useGroupList } from '@/api/endpoints/group';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/common/Toast';
 import { CopyIconButton } from '@/components/common/CopyButton';
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/State';
+import { BatchToolbar, BatchCheckbox, type BatchAction } from '@/components/common/BatchToolbar';
 import type { ApiError } from '@/api/types';
 
 function toExpireAt(date: Date, time: string): number {
@@ -102,6 +109,64 @@ function hasModel(supported: string | undefined, model: string): boolean {
     return parseSupportedModels(supported).includes(model);
 }
 
+// ===== API Key 权限粒度 helper =====
+
+const CAPABILITY_OPTIONS = ['chat', 'embedding', 'response', 'message'] as const;
+
+function parseJsonIntList(value?: string): number[] {
+    const trimmed = (value ?? '').trim();
+    if (!trimmed) return [];
+    try {
+        const parsed = JSON.parse(trimmed);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter((n): n is number => typeof n === 'number' && Number.isFinite(n));
+    } catch {
+        return [];
+    }
+}
+
+function normalizeJsonIntList(ids: number[]): string | undefined {
+    const sorted = Array.from(new Set(ids)).sort((a, b) => a - b);
+    return sorted.length ? JSON.stringify(sorted) : undefined;
+}
+
+function toggleIntInList(current: number[], id: number): number[] {
+    return current.includes(id) ? current.filter((n) => n !== id) : [...current, id];
+}
+
+function parseJsonStringList(value?: string): string[] {
+    const trimmed = (value ?? '').trim();
+    if (!trimmed) return [];
+    try {
+        const parsed = JSON.parse(trimmed);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter((s): s is string => typeof s === 'string' && s.trim() !== '');
+    } catch {
+        return [];
+    }
+}
+
+function normalizeJsonStringList(items: string[]): string | undefined {
+    const sorted = Array.from(new Set(items.map((s) => s.trim()).filter(Boolean))).sort();
+    return sorted.length ? JSON.stringify(sorted) : undefined;
+}
+
+function toggleStringInList(current: string[], item: string): string[] {
+    return current.includes(item) ? current.filter((s) => s !== item) : [...current, item];
+}
+
+function parseIpCidrInput(input: string): string[] {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const raw of input.split(/[\s,]+/)) {
+        const item = raw.trim();
+        if (!item || seen.has(item)) continue;
+        seen.add(item);
+        result.push(item);
+    }
+    return result;
+}
+
 interface APIKeyFormProps {
     apiKey?: APIKey;
     isPending: boolean;
@@ -113,6 +178,8 @@ interface APIKeyFormProps {
 function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKeyFormProps) {
     const t = useTranslations('setting');
     const { data: capabilityInventory } = useCapabilityInventory();
+    const { data: channelList = [] } = useChannelList();
+    const { data: groupList = [] } = useGroupList();
 
     const [form, setForm] = useState<Omit<APIKey, 'id' | 'api_key'>>(() => ({
         name: apiKey?.name ?? '',
@@ -123,6 +190,11 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
         rate_limit_rpm: apiKey?.rate_limit_rpm,
         rate_limit_tpm: apiKey?.rate_limit_tpm,
         rate_limit_daily: apiKey?.rate_limit_daily,
+        allowed_channels: apiKey?.allowed_channels,
+        allowed_groups: apiKey?.allowed_groups,
+        allowed_capabilities: apiKey?.allowed_capabilities,
+        allowed_ip_cidrs: apiKey?.allowed_ip_cidrs,
+        response_cache_enabled: apiKey?.response_cache_enabled ?? false,
     }));
     const [maxCostInput, setMaxCostInput] = useState(() =>
         apiKey?.max_cost != null ? String(apiKey.max_cost) : ''
@@ -147,6 +219,7 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
     });
     const [expireOpen, setExpireOpen] = useState(false);
     const [modelSearch, setModelSearch] = useState('');
+    const [ipCidrInput, setIpCidrInput] = useState(() => parseJsonStringList(apiKey?.allowed_ip_cidrs).join(', '));
 
     const availableModels = useMemo(() => {
         const names = (capabilityInventory?.routable_models?.length
@@ -165,6 +238,11 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
         if (!keyword) return availableModels;
         return availableModels.filter((model) => model.toLowerCase().includes(keyword));
     }, [availableModels, modelSearch]);
+
+    // 权限粒度派生状态
+    const selectedChannelIds = useMemo(() => parseJsonIntList(form.allowed_channels), [form.allowed_channels]);
+    const selectedGroupIds = useMemo(() => parseJsonIntList(form.allowed_groups), [form.allowed_groups]);
+    const selectedCapabilities = useMemo(() => parseJsonStringList(form.allowed_capabilities), [form.allowed_capabilities]);
 
     const expireDate = parseExpireDate(form.expire_at);
     const neverExpire = !form.expire_at;
@@ -235,8 +313,16 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
     const handleSubmit = useCallback((e: React.FormEvent) => {
         e.preventDefault();
         if (!form.name.trim()) return;
-        onSubmit({ ...form, supported_models: normalizeSupportedModels(form.supported_models) });
-    }, [form, onSubmit]);
+        const ipCidrs = parseIpCidrInput(ipCidrInput);
+        onSubmit({
+            ...form,
+            supported_models: normalizeSupportedModels(form.supported_models),
+            allowed_channels: normalizeJsonIntList(selectedChannelIds),
+            allowed_groups: normalizeJsonIntList(selectedGroupIds),
+            allowed_capabilities: normalizeJsonStringList(selectedCapabilities),
+            allowed_ip_cidrs: normalizeJsonStringList(ipCidrs),
+        });
+    }, [form, onSubmit, ipCidrInput, selectedChannelIds, selectedGroupIds, selectedCapabilities]);
 
     return (
         <form onSubmit={handleSubmit} className="grid gap-2">
@@ -485,6 +571,188 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
                 <div className="text-[11px] text-muted-foreground/80">{t('apiKey.form.inventoryHint')}</div>
             </div>
 
+            {/* ===== 权限粒度配置 ===== */}
+            <div className="grid gap-2 rounded-xl border border-border/60 bg-muted/20 p-3">
+                <div className="text-xs font-medium text-foreground">{t('apiKey.form.permissionsTitle')}</div>
+
+                {/* 能力限制 */}
+                <div className="grid gap-1">
+                    <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <span>{t('apiKey.form.allowedCapabilities')}</span>
+                        <span className="shrink-0 tabular-nums">
+                            {selectedCapabilities.length
+                                ? t('apiKey.form.selectedCount', { count: selectedCapabilities.length })
+                                : t('apiKey.form.noRestriction')}
+                        </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {CAPABILITY_OPTIONS.map((cap) => {
+                            const checked = selectedCapabilities.includes(cap);
+                            return (
+                                <button
+                                    key={cap}
+                                    type="button"
+                                    disabled={isPending}
+                                    onClick={() =>
+                                        updateForm({
+                                            allowed_capabilities: normalizeJsonStringList(
+                                                toggleStringInList(selectedCapabilities, cap)
+                                            ),
+                                        })
+                                    }
+                                    className="text-left disabled:opacity-50"
+                                >
+                                    <Badge
+                                        variant={checked ? 'default' : 'outline'}
+                                        className={cn(
+                                            'cursor-pointer select-none',
+                                            !checked && 'bg-background/40 hover:bg-background/70'
+                                        )}
+                                    >
+                                        {t(`apiKey.form.capability.${cap}`)}
+                                    </Badge>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground/80">{t('apiKey.form.allowedCapabilitiesHint')}</div>
+                </div>
+
+                {/* 渠道限制 */}
+                <div className="grid gap-1">
+                    <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <span>{t('apiKey.form.allowedChannels')}</span>
+                        <span className="shrink-0 tabular-nums">
+                            {selectedChannelIds.length
+                                ? t('apiKey.form.selectedCount', { count: selectedChannelIds.length })
+                                : t('apiKey.form.noRestriction')}
+                        </span>
+                    </div>
+                    {channelList.length === 0 ? (
+                        <div className="text-xs text-muted-foreground py-1">{t('apiKey.form.noChannels')}</div>
+                    ) : (
+                        <div className="max-h-32 overflow-auto rounded-xl p-1">
+                            <div className="flex flex-wrap gap-2">
+                                {channelList.map((ch) => {
+                                    const id = ch.raw.id;
+                                    if (id == null) return null;
+                                    const checked = selectedChannelIds.includes(id);
+                                    return (
+                                        <button
+                                            key={id}
+                                            type="button"
+                                            disabled={isPending}
+                                            onClick={() =>
+                                                updateForm({
+                                                    allowed_channels: normalizeJsonIntList(
+                                                        toggleIntInList(selectedChannelIds, id)
+                                                    ),
+                                                })
+                                            }
+                                            className="text-left disabled:opacity-50"
+                                        >
+                                            <Badge
+                                                variant={checked ? 'default' : 'outline'}
+                                                className={cn(
+                                                    'cursor-pointer select-none max-w-[180px] truncate',
+                                                    !checked && 'bg-background/40 hover:bg-background/70'
+                                                )}
+                                            >
+                                                {ch.raw.name || `#${id}`}
+                                            </Badge>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                    <div className="text-[11px] text-muted-foreground/80">{t('apiKey.form.allowedChannelsHint')}</div>
+                </div>
+
+                {/* 分组限制 */}
+                <div className="grid gap-1">
+                    <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <span>{t('apiKey.form.allowedGroups')}</span>
+                        <span className="shrink-0 tabular-nums">
+                            {selectedGroupIds.length
+                                ? t('apiKey.form.selectedCount', { count: selectedGroupIds.length })
+                                : t('apiKey.form.noRestriction')}
+                        </span>
+                    </div>
+                    {groupList.length === 0 ? (
+                        <div className="text-xs text-muted-foreground py-1">{t('apiKey.form.noGroups')}</div>
+                    ) : (
+                        <div className="max-h-32 overflow-auto rounded-xl p-1">
+                            <div className="flex flex-wrap gap-2">
+                                {groupList.map((g) => {
+                                    const id = g.id;
+                                    if (id == null) return null;
+                                    const checked = selectedGroupIds.includes(id);
+                                    return (
+                                        <button
+                                            key={id}
+                                            type="button"
+                                            disabled={isPending}
+                                            onClick={() =>
+                                                updateForm({
+                                                    allowed_groups: normalizeJsonIntList(
+                                                        toggleIntInList(selectedGroupIds, id)
+                                                    ),
+                                                })
+                                            }
+                                            className="text-left disabled:opacity-50"
+                                        >
+                                            <Badge
+                                                variant={checked ? 'default' : 'outline'}
+                                                className={cn(
+                                                    'cursor-pointer select-none max-w-[180px] truncate',
+                                                    !checked && 'bg-background/40 hover:bg-background/70'
+                                                )}
+                                            >
+                                                {g.name || `#${id}`}
+                                            </Badge>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                    <div className="text-[11px] text-muted-foreground/80">{t('apiKey.form.allowedGroupsHint')}</div>
+                </div>
+
+                {/* IP 白名单 */}
+                <div className="grid gap-1">
+                    <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <span>{t('apiKey.form.allowedIpCidrs')}</span>
+                        <span className="shrink-0 tabular-nums">
+                            {ipCidrInput.trim()
+                                ? t('apiKey.form.selectedCount', { count: parseIpCidrInput(ipCidrInput).length })
+                                : t('apiKey.form.noRestriction')}
+                        </span>
+                    </div>
+                    <Input
+                        type="text"
+                        value={ipCidrInput}
+                        onChange={(e) => setIpCidrInput(e.target.value)}
+                        placeholder={t('apiKey.form.allowedIpCidrsPlaceholder')}
+                        className="h-9 text-sm rounded-xl"
+                        disabled={isPending}
+                    />
+                    <div className="text-[11px] text-muted-foreground/80">{t('apiKey.form.allowedIpCidrsHint')}</div>
+                </div>
+            </div>
+
+            {apiKey && (
+                <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs text-muted-foreground">{t('apiKey.form.responseCacheEnabled')}</span>
+                    <Switch
+                        checked={form.response_cache_enabled ?? false}
+                        onCheckedChange={(checked) => updateForm({ response_cache_enabled: checked })}
+                        disabled={isPending}
+                    />
+                </div>
+            )}
+
             <div className="flex items-center justify-between pt-1">
                 <span className="text-xs text-muted-foreground">{t('apiKey.form.enabled')}</span>
                 <Switch
@@ -642,6 +910,8 @@ function APIKeyKeyItem({
     onEdit,
     onDelete,
     isDeleting,
+    selected,
+    onToggleSelect,
 }: {
     apiKey: APIKey;
     statsLayoutId: string;
@@ -651,6 +921,8 @@ function APIKeyKeyItem({
     onEdit: () => void;
     onDelete: () => void;
     isDeleting: boolean;
+    selected?: boolean;
+    onToggleSelect?: () => void;
 }) {
     const t = useTranslations('setting');
     const [confirmDelete, setConfirmDelete] = useState(false);
@@ -662,9 +934,17 @@ function APIKeyKeyItem({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
             transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-            className="group relative flex items-center justify-between gap-3 p-3 rounded-xl bg-muted/50 overflow-hidden origin-top"
+            className={cn(
+                'group relative flex items-center justify-between gap-3 p-3 rounded-xl bg-muted/50 overflow-hidden origin-top',
+                selected && 'ring-1 ring-primary/30 bg-primary/5'
+            )}
         >
-            <span className="text-sm font-medium truncate">{apiKey.name}</span>
+            <div className="flex min-w-0 items-center gap-2">
+                {onToggleSelect && (
+                    <BatchCheckbox checked={!!selected} onChange={onToggleSelect} />
+                )}
+                <span className="text-sm font-medium truncate">{apiKey.name}</span>
+            </div>
 
             <div className="flex items-center gap-1.5">
                 <motion.button
@@ -752,6 +1032,9 @@ function APIKeyPanelBase({
     const createAPIKey = useCreateAPIKey();
     const updateAPIKey = useUpdateAPIKey();
     const deleteAPIKey = useDeleteAPIKey();
+    const batchEnableAPIKey = useBatchEnableAPIKey();
+    const batchDisableAPIKey = useBatchDisableAPIKey();
+    const batchDeleteAPIKey = useBatchDeleteAPIKey();
 
     const instanceId = useId();
     const addLayoutId = `add-btn-${idPrefix}-${instanceId}`;
@@ -763,6 +1046,7 @@ function APIKeyPanelBase({
     const [viewingStats, setViewingStats] = useState<{ apiKey: APIKey; layoutId: string } | null>(null);
     const [editingKey, setEditingKey] = useState<{ apiKey: APIKey; layoutId: string } | null>(null);
     const [deletingId, setDeletingId] = useState<number | null>(null);
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
     const sortedApiKeys = useMemo(() => {
         if (!apiKeys) return [];
@@ -817,6 +1101,86 @@ function APIKeyPanelBase({
         });
     }, [t, updateAPIKey]);
 
+    const handleToggleSelect = useCallback((id: number) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    }, []);
+
+    const handleClearSelection = useCallback(() => {
+        setSelectedIds(new Set());
+    }, []);
+
+    const handleSelectAll = useCallback(() => {
+        setSelectedIds(new Set(sortedApiKeys.map((k) => k.id)));
+    }, [sortedApiKeys]);
+
+    const handleBatchResult = useCallback((result: BatchOperationResult, successMsg: string) => {
+        if (result.failed_count > 0) {
+            toast.warning(`${successMsg}：成功 ${result.success_count}，失败 ${result.failed_count}`, {
+                description: result.errors.slice(0, 3).join('\n'),
+            });
+        } else {
+            toast.success(`${successMsg}：${result.success_count} 项`);
+        }
+        setSelectedIds(new Set());
+    }, []);
+
+    const handleBatchEnable = useCallback(() => {
+        const ids = Array.from(selectedIds);
+        batchEnableAPIKey.mutate(ids, {
+            onSuccess: (result) => handleBatchResult(result, t('apiKey.batch.enableSuccess')),
+            onError: (error) => toast.error(error.message),
+        });
+    }, [selectedIds, batchEnableAPIKey, handleBatchResult, t]);
+
+    const handleBatchDisable = useCallback(() => {
+        const ids = Array.from(selectedIds);
+        batchDisableAPIKey.mutate(ids, {
+            onSuccess: (result) => handleBatchResult(result, t('apiKey.batch.disableSuccess')),
+            onError: (error) => toast.error(error.message),
+        });
+    }, [selectedIds, batchDisableAPIKey, handleBatchResult, t]);
+
+    const handleBatchDelete = useCallback(() => {
+        const ids = Array.from(selectedIds);
+        batchDeleteAPIKey.mutate(ids, {
+            onSuccess: (result) => handleBatchResult(result, t('apiKey.batch.deleteSuccess')),
+            onError: (error) => toast.error(error.message),
+        });
+    }, [selectedIds, batchDeleteAPIKey, handleBatchResult, t]);
+
+    const selectedIdArray = Array.from(selectedIds);
+    const allVisibleSelected = sortedApiKeys.length > 0 && sortedApiKeys.every((k) => selectedIds.has(k.id));
+
+    const batchActions: BatchAction[] = [
+        {
+            label: t('apiKey.batch.selectAll'),
+            onClick: () => (allVisibleSelected ? handleClearSelection() : handleSelectAll()),
+        },
+        {
+            label: t('apiKey.batch.enable'),
+            onClick: handleBatchEnable,
+        },
+        {
+            label: t('apiKey.batch.disable'),
+            onClick: handleBatchDisable,
+        },
+        {
+            label: t('apiKey.batch.delete'),
+            onClick: handleBatchDelete,
+            variant: 'destructive',
+            requireConfirm: true,
+            confirmText: t('apiKey.batch.deleteConfirm', { count: selectedIdArray.length }),
+        },
+    ];
+
     return (
         <div className={containerClassName} data-testid={containerDataTestId}>
             <div className="flex items-center justify-between gap-3">
@@ -825,6 +1189,11 @@ function APIKeyPanelBase({
                     {t('apiKey.title')}
                 </h2>
                 <div className="flex items-center gap-2">
+                    <BatchToolbar
+                        selectedIds={selectedIdArray}
+                        onClearSelection={handleClearSelection}
+                        actions={batchActions}
+                    />
                     <motion.button
                         layoutId={addLayoutId}
                         type="button"
@@ -906,6 +1275,8 @@ function APIKeyPanelBase({
                                     }}
                                     onDelete={() => handleDelete(apiKey.id)}
                                     isDeleting={deleteAPIKey.isPending && deletingId === apiKey.id}
+                                    selected={selectedIds.has(apiKey.id)}
+                                    onToggleSelect={() => handleToggleSelect(apiKey.id)}
                                 />
                             );
                         })}

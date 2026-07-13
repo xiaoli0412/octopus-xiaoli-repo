@@ -231,6 +231,10 @@ func (req *relayRequest) finalizeRaceFallbackSuccess(result attemptResult) error
 	if !result.AttemptRecorded {
 		req.iter.Record(result.Channel.ID, result.UsedKey.ID, result.Channel.Name, actualModel, dbmodel.AttemptSuccess, result.StatusCode, result.Duration, "race fallback winner")
 	}
+	if req.cacheEnabled && req.cacheKey != "" {
+		op.GetResponseCache().Set(req.cacheKey, body, req.cacheTTL)
+		req.c.Header("X-Octopus-Cache", "MISS")
+	}
 	req.c.Data(http.StatusOK, "application/json", body)
 	return nil
 }

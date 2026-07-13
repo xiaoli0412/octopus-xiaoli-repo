@@ -17,6 +17,8 @@ export enum GroupMode {
     Failover = 3,
     Weighted = 4,
     AIDynamic = 5,
+    LeastLatency = 6,
+    HealthAware = 7,
 }
 
 export interface Group {
@@ -127,4 +129,23 @@ export function useDeleteGroup() {
             logger.error('分组删除失败:', error);
         },
     });
+}
+
+export type BatchOperationResult = {
+	success_count: number;
+	failed_count: number;
+	errors: string[];
+};
+
+export function useBatchDeleteGroup() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: async (ids: number[]) => {
+			return apiClient.post<BatchOperationResult>('/api/v1/group/batch-delete', { ids });
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['groups', 'list'] });
+			queryClient.invalidateQueries({ queryKey: ['models', 'capability-inventory'] });
+		},
+	});
 }

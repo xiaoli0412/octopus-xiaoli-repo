@@ -19,6 +19,11 @@ export interface APIKey {
     rate_limit_rpm?: number; // 每分钟请求数上限，0/undefined 表示不限制
     rate_limit_tpm?: number; // 每分钟 token 数上限，0/undefined 表示不限制
     rate_limit_daily?: number; // 每日请求数上限，0/undefined 表示不限制
+    allowed_channels?: string; // JSON 数组，允许的渠道 ID 列表，不传表示不限制
+    allowed_groups?: string; // JSON 数组，允许的分组 ID 列表，不传表示不限制
+    allowed_capabilities?: string; // JSON 数组，允许的能力列表 (chat/embedding/response/message)，不传表示不限制
+    allowed_ip_cidrs?: string; // JSON 数组，允许的 IP CIDR 白名单，不传表示不限制
+    response_cache_enabled?: boolean; // 是否启用响应缓存（仅非流式请求），不传表示 false
 }
 
 /**
@@ -229,6 +234,51 @@ export function useDeleteAPIKey() {
             logger.error('API Key 删除失败:', error);
         },
     });
+}
+
+export type BatchOperationResult = {
+	success_count: number;
+	failed_count: number;
+	errors: string[];
+};
+
+export function useBatchEnableAPIKey() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: async (ids: number[]) => {
+			return apiClient.post<BatchOperationResult>('/api/v1/apikey/batch-enable', { ids });
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['apikeys', 'list'] });
+			queryClient.invalidateQueries({ queryKey: ['models', 'capability-inventory'] });
+		},
+	});
+}
+
+export function useBatchDisableAPIKey() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: async (ids: number[]) => {
+			return apiClient.post<BatchOperationResult>('/api/v1/apikey/batch-disable', { ids });
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['apikeys', 'list'] });
+			queryClient.invalidateQueries({ queryKey: ['models', 'capability-inventory'] });
+		},
+	});
+}
+
+export function useBatchDeleteAPIKey() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: async (ids: number[]) => {
+			return apiClient.post<BatchOperationResult>('/api/v1/apikey/batch-delete', { ids });
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['apikeys', 'list'] });
+			queryClient.invalidateQueries({ queryKey: ['models', 'capability-inventory'] });
+		},
+	});
 }
 
 /**

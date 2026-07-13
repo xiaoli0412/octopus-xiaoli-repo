@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: octopus
+  namespace: octopus
+  labels:
+    app: octopus
+    app.kubernetes.io/name: octopus
+    app.kubernetes.io/part-of: octopus
+spec:
+  # Octopus 默认使用 SQLite,为有状态服务,仅支持单副本。
+  # 多副本需切换到 MySQL/PostgreSQL,见 docs/RUNBOOK.md 2.4 节。
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: octopus
+  template:
+    metadata:
+      labels:
+        app: octopus
+        app.kubernetes.io/name: octopus
+        app.kubernetes.io/part-of: octopus
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "1088"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: octopus
+          image: ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.25.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 1088
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: octopus-config
+            - secretRef:
+                name: octopus-secret
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+          # 只读根文件系统需 tmpfs 给 /tmp
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "SETGID", "SETUID"]
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: data
+              mountPath: /app/data
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
+        - name: data
+          persistentVolumeClaim:
+            claimName: octopus-data

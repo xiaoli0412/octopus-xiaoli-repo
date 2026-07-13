@@ -10,6 +10,7 @@ import (
 	"github.com/dlclark/regexp2"
 	"github.com/gin-gonic/gin"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/observability"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/middleware"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/resp"
@@ -63,6 +64,10 @@ func init() {
 		AddRoute(
 			router.NewRoute("/delete/:id", http.MethodDelete).
 				Handle(deleteGroup),
+		).
+		AddRoute(
+			router.NewRoute("/batch-delete", http.MethodPost).
+				Handle(batchDeleteGroup),
 		)
 	// AddRoute(
 	// 	router.NewRoute("/auto-add-item", http.MethodPost).
@@ -145,6 +150,26 @@ func deleteGroup(c *gin.Context) {
 		return
 	}
 	resp.Success(c, "group deleted successfully")
+}
+
+// batchDeleteGroup 批量删除分组（分组无 enabled 字段，仅支持批量删除）
+func batchDeleteGroup(c *gin.Context) {
+	req, ok := parseBatchRequest(c)
+	if !ok {
+		return
+	}
+	result := runBatchOperation(c.Request.Context(), req, func(ctx context.Context, id int) error {
+		var groupName string
+		if g, err := op.GroupGet(id, ctx); err == nil {
+			groupName = g.Name
+		}
+		if err := op.GroupDel(id, ctx); err != nil {
+			return err
+		}
+		recordBatchAudit(c, observability.AuditActionDelete, observability.ResourceTypeGroup, id, groupName)
+		return nil
+	})
+	resp.Success(c, result)
 }
 
 // func autoAddGroupItem(c *gin.Context) {

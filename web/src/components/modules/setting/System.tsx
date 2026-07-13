@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { Monitor, Globe, Clock, Shield, Link2 } from 'lucide-react';
+import { Monitor, Globe, Clock, Shield, Link2, DatabaseBackup } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { usePublicAccess, useSettingList, useSetSetting, SettingKey } from '@/api/endpoints/setting';
 import { cn } from '@/lib/utils';
@@ -20,6 +20,8 @@ export function SettingSystem() {
     const [opsIPDisplayMode, setOpsIPDisplayMode] = useState<'masked' | 'full'>('masked');
     const [statsSaveInterval, setStatsSaveInterval] = useState('');
     const [corsAllowOrigins, setCorsAllowOrigins] = useState('');
+    const [backupInterval, setBackupInterval] = useState('');
+    const [backupKeepCount, setBackupKeepCount] = useState('');
 
     const initialProxyUrl = useRef('');
     const initialApiBaseUrl = useRef('');
@@ -28,6 +30,8 @@ export function SettingSystem() {
     const initialOpsIPDisplayMode = useRef('masked');
     const initialStatsSaveInterval = useRef('');
     const initialCorsAllowOrigins = useRef('');
+    const initialBackupInterval = useRef('');
+    const initialBackupKeepCount = useRef('');
 
     useEffect(() => {
         if (settings) {
@@ -38,6 +42,8 @@ export function SettingSystem() {
             const displayMode = settings.find(s => s.key === SettingKey.OpsIPDisplayMode);
             const interval = settings.find(s => s.key === SettingKey.StatsSaveInterval);
             const cors = settings.find(s => s.key === SettingKey.CORSAllowOrigins);
+            const bkInterval = settings.find(s => s.key === SettingKey.BackupInterval);
+            const bkKeepCount = settings.find(s => s.key === SettingKey.BackupKeepCount);
             if (proxy) {
                 queueMicrotask(() => setProxyUrl(proxy.value));
                 initialProxyUrl.current = proxy.value;
@@ -67,6 +73,14 @@ export function SettingSystem() {
                 queueMicrotask(() => setCorsAllowOrigins(cors.value));
                 initialCorsAllowOrigins.current = cors.value;
             }
+            if (bkInterval) {
+                queueMicrotask(() => setBackupInterval(bkInterval.value));
+                initialBackupInterval.current = bkInterval.value;
+            }
+            if (bkKeepCount) {
+                queueMicrotask(() => setBackupKeepCount(bkKeepCount.value));
+                initialBackupKeepCount.current = bkKeepCount.value;
+            }
         }
     }, [settings]);
 
@@ -89,6 +103,10 @@ export function SettingSystem() {
                     initialStatsSaveInterval.current = value;
                 } else if (key === SettingKey.CORSAllowOrigins) {
                     initialCorsAllowOrigins.current = value;
+                } else if (key === SettingKey.BackupInterval) {
+                    initialBackupInterval.current = value;
+                } else if (key === SettingKey.BackupKeepCount) {
+                    initialBackupKeepCount.current = value;
                 }
             }
         });
@@ -225,6 +243,37 @@ export function SettingSystem() {
                     value={corsAllowOrigins}
                     onChange={(e) => setCorsAllowOrigins(e.target.value)}
                     onBlur={() => handleSave(SettingKey.CORSAllowOrigins, corsAllowOrigins, initialCorsAllowOrigins.current)}
+                    className="h-9 rounded-xl"
+                />
+            </div>
+
+            {/* 定时备份间隔 */}
+            <div className="octo-setting-row">
+                <div className="octo-setting-label">
+                    <DatabaseBackup className="size-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">{t('backupInterval.label')}</span>
+                </div>
+                <Input
+                    value={backupInterval}
+                    onChange={(e) => setBackupInterval(e.target.value)}
+                    onBlur={() => handleSave(SettingKey.BackupInterval, backupInterval.trim(), initialBackupInterval.current)}
+                    placeholder={t('backupInterval.placeholder')}
+                    className="h-9 rounded-xl"
+                />
+            </div>
+
+            {/* 定时备份保留数量 */}
+            <div className="octo-setting-row">
+                <div className="octo-setting-label">
+                    <DatabaseBackup className="size-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">{t('backupKeepCount.label')}</span>
+                </div>
+                <Input
+                    type="number"
+                    value={backupKeepCount}
+                    onChange={(e) => setBackupKeepCount(e.target.value)}
+                    onBlur={() => handleSave(SettingKey.BackupKeepCount, backupKeepCount, initialBackupKeepCount.current)}
+                    placeholder={t('backupKeepCount.placeholder')}
                     className="h-9 rounded-xl"
                 />
             </div>

@@ -75,6 +75,11 @@ type relayRequest struct {
 	requestModel    string
 	iter            *balancer.Iterator
 	dynamicMode     *dynamicRoutingModeState
+
+	// 响应缓存（仅非流式请求）
+	cacheKey     string
+	cacheEnabled bool
+	cacheTTL     time.Duration
 }
 
 func requestCapabilityForAPIFormat(format model.APIFormat) string {

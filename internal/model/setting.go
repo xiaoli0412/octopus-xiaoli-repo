@@ -17,6 +17,7 @@ type SettingKey string
 
 const (
 	SettingKeyAuthTokenSecret                SettingKey = "auth_token_secret"
+	SettingKeyAuthTokenSecretSecondary       SettingKey = "auth_token_secret_secondary"
 	SettingKeyProxyURL                       SettingKey = "proxy_url"
 	SettingKeyAPIBaseURL                     SettingKey = "api_base_url" // 系统 API 地址（用于文档展示）
 	SettingKeyAPIAlternateBaseURLs           SettingKey = "api_alternate_base_urls"
@@ -55,6 +56,19 @@ const (
 	SettingKeyAIRuntimeDoubleReviewEnabled   SettingKey = "ai_runtime_double_review_enabled"
 	SettingKeyAIRuntimeFallbackDeterministic SettingKey = "ai_runtime_fallback_to_deterministic"
 	SettingKeyForcePasswordChange            SettingKey = "force_password_change"
+	SettingKeyHealthCheckInterval            SettingKey = "health_check_interval"  // 主动健康检查间隔(持续时间字符串, 如 "5m")
+	SettingKeyHealthCheckTimeout             SettingKey = "health_check_timeout"   // 单次探测超时(持续时间字符串, 如 "10s")
+	SettingKeyHealthCheckLLMProbe            SettingKey = "health_check_llm_probe" // 是否启用 LLM 1-token 探测
+	SettingKeyMetricsAuthToken               SettingKey = "metrics_auth_token"      // /metrics 端点认证 token
+	SettingKeyMetricsIPAllowlist             SettingKey = "metrics_ip_allowlist"    // /metrics 端点 IP 白名单(逗号分隔 CIDR 或 IP)
+	SettingKeyResponseCacheEnabled           SettingKey = "response_cache_enabled"           // 响应缓存全局开关
+	SettingKeyResponseCacheTTL               SettingKey = "response_cache_ttl"               // 响应缓存 TTL（秒）
+	SettingKeyResponseCacheMaxEntries        SettingKey = "response_cache_max_entries"       // 响应缓存最大条目数
+	SettingKeyCostAlertWebhookURL            SettingKey = "cost_alert_webhook_url"  // 成本告警 Webhook URL，空表示禁用
+	SettingKeyCostAlertThresholds            SettingKey = "cost_alert_thresholds"   // 成本告警阈值（逗号分隔百分比，如 "0.5,0.8,1.0"）
+	SettingKeyCostAlertFormat                SettingKey = "cost_alert_format"       // 成本告警消息格式：generic / slack / feishu / dingtalk
+	SettingKeyBackupInterval                 SettingKey = "backup_interval"         // 定时备份间隔(持续时间字符串, 如 "24h")
+	SettingKeyBackupKeepCount                SettingKey = "backup_keep_count"       // 定时备份保留数量
 )
 
 const (
@@ -128,6 +142,20 @@ func DefaultSettings() []Setting {
 		{Key: SettingKeyAIRuntimeDoubleReviewEnabled, Value: "false"},
 		{Key: SettingKeyAIRuntimeFallbackDeterministic, Value: "true"},
 		{Key: SettingKeyForcePasswordChange, Value: "false"},
+		{Key: SettingKeyHealthCheckInterval, Value: "5m"},    // 默认5分钟执行一次主动健康检查
+		{Key: SettingKeyHealthCheckTimeout, Value: "10s"},    // 默认单次探测超时10秒
+		{Key: SettingKeyHealthCheckLLMProbe, Value: "false"},  // 默认不启用 LLM 探测
+		{Key: SettingKeyMetricsAuthToken, Value: ""},          // /metrics 鉴权 token，默认空（无鉴权）
+		{Key: SettingKeyMetricsIPAllowlist, Value: ""},        // /metrics IP 白名单，默认空（无限制）
+		{Key: SettingKeyAuthTokenSecretSecondary, Value: ""},  // JWT secondary 密钥，默认空（仅 primary 生效）
+		{Key: SettingKeyCostAlertWebhookURL, Value: ""},       // 成本告警 Webhook URL，默认空（禁用）
+		{Key: SettingKeyCostAlertThresholds, Value: "0.5,0.8,1.0"}, // 默认阈值 50% / 80% / 100%
+		{Key: SettingKeyCostAlertFormat, Value: "generic"},    // 默认消息格式 generic
+		{Key: SettingKeyResponseCacheEnabled, Value: "false"}, // 默认关闭响应缓存
+		{Key: SettingKeyResponseCacheTTL, Value: "300"},       // 默认缓存 300 秒
+		{Key: SettingKeyResponseCacheMaxEntries, Value: "1000"}, // 默认最多 1000 条
+		{Key: SettingKeyBackupInterval, Value: "24h"},  // 默认每 24 小时备份一次
+		{Key: SettingKeyBackupKeepCount, Value: "7"},   // 默认保留 7 个备份
 	}
 }
 
@@ -147,7 +175,10 @@ func (s *Setting) Validate() error {
 		SettingKeyRaceProbeBudget,
 		SettingKeyActiveAIProfileID,
 		SettingKeyActiveStrategyProfileID,
-		SettingKeyAIRuntimeMaxParallelRuns:
+		SettingKeyAIRuntimeMaxParallelRuns,
+		SettingKeyResponseCacheTTL,
+		SettingKeyResponseCacheMaxEntries,
+		SettingKeyBackupKeepCount:
 		v, err := validateSettingNonNegativeInt(s.Value)
 		if err != nil {
 			return err
@@ -171,9 +202,20 @@ func (s *Setting) Validate() error {
 		SettingKeyAIAutomationUseLocalDefault,
 		SettingKeyAIRuntimeDoubleReviewEnabled,
 		SettingKeyAIRuntimeFallbackDeterministic,
-		SettingKeyForcePasswordChange:
+		SettingKeyForcePasswordChange,
+		SettingKeyHealthCheckLLMProbe,
+		SettingKeyResponseCacheEnabled:
 		if s.Value != "true" && s.Value != "false" {
 			return fmt.Errorf("setting value must be true or false")
+		}
+		return nil
+	case SettingKeyHealthCheckInterval, SettingKeyHealthCheckTimeout, SettingKeyBackupInterval:
+		d, err := time.ParseDuration(s.Value)
+		if err != nil {
+			return fmt.Errorf("setting value must be a valid duration (e.g. 5m, 10s): %w", err)
+		}
+		if d <= 0 {
+			return fmt.Errorf("setting value must be a positive duration")
 		}
 		return nil
 	case SettingKeyConfigSourceMode:
@@ -280,6 +322,56 @@ func (s *Setting) Validate() error {
 			return fmt.Errorf("auth token secret cannot be empty")
 		}
 		return nil
+	case SettingKeyAuthTokenSecretSecondary:
+		// secondary 可为空（向后兼容），非空时无额外约束
+		return nil
+	case SettingKeyMetricsAuthToken:
+		// metrics token 可为空（向后兼容），非空时无额外约束
+		return nil
+	case SettingKeyMetricsIPAllowlist:
+		for _, value := range splitSettingList(s.Value) {
+			if strings.Contains(value, "/") {
+				if _, _, err := net.ParseCIDR(value); err != nil {
+					return fmt.Errorf("metrics IP allowlist entry is invalid: %w", err)
+				}
+				continue
+			}
+			if ip := net.ParseIP(value); ip == nil {
+				return fmt.Errorf("metrics IP allowlist entry must be an IP or CIDR")
+			}
+		}
+		return nil
+	case SettingKeyCostAlertWebhookURL:
+		// 空值表示禁用，非空时校验为合法 HTTP(S) URL
+		if s.Value == "" {
+			return nil
+		}
+		if err := xurl.ValidateAbsoluteHTTPURL(s.Value, "cost alert webhook URL"); err != nil {
+			return err
+		}
+		return nil
+	case SettingKeyCostAlertThresholds:
+		// 空值表示使用默认阈值，非空时校验每个值为 (0, 2] 范围内的浮点数
+		if strings.TrimSpace(s.Value) == "" {
+			return nil
+		}
+		for _, part := range splitSettingList(s.Value) {
+			v, err := strconv.ParseFloat(part, 64)
+			if err != nil {
+				return fmt.Errorf("cost alert threshold must be a float: %q", part)
+			}
+			if v <= 0 || v > 2 {
+				return fmt.Errorf("cost alert threshold must be in (0, 2]: %q", part)
+			}
+		}
+		return nil
+	case SettingKeyCostAlertFormat:
+		switch strings.ToLower(strings.TrimSpace(s.Value)) {
+		case "", "generic", "slack", "feishu", "dingtalk":
+			return nil
+		default:
+			return fmt.Errorf("cost alert format must be one of generic, slack, feishu, dingtalk")
+		}
 	}
 
 	return nil

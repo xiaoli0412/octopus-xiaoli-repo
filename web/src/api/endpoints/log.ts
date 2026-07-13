@@ -105,6 +105,35 @@ export function useClearLogs() {
     });
 }
 
+/**
+ * 重放响应数据
+ */
+export interface ReplayResponse {
+    original: {
+        model: string;
+        channel: string;
+        content: string;
+        error?: string;
+        input_tokens: number;
+        output_tokens: number;
+        use_time: number;
+    };
+    replay: {
+        status: number;
+        content: string;
+    };
+    diff: {
+        changed: boolean;
+    };
+}
+
+/**
+ * 重放指定日志请求
+ */
+export function replayLog(logId: number | string) {
+    return apiClient.post<ReplayResponse>(`/api/v1/log/replay/${logId}`);
+}
+
 const logsInfiniteQueryKey = (pageSize: number) => ['logs', 'infinite', pageSize] as const;
 
 /**

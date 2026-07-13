@@ -7,6 +7,8 @@ export const MODE_LABELS: Record<GroupMode, string> = {
     [GroupMode.Failover]: 'failover',
     [GroupMode.Weighted]: 'weighted',
     [GroupMode.AIDynamic]: 'aiDynamic',
+    [GroupMode.LeastLatency]: 'leastLatency',
+    [GroupMode.HealthAware]: 'healthAware',
 } as const;
 
 export function normalizeKey(value: string) {

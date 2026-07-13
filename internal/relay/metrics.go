@@ -39,6 +39,9 @@ type RelayMetrics struct {
 	CacheReadTokens  int64
 	CacheWriteTokens int64
 	Dynamic          *relayDynamicAudit
+
+	// skipStats 为 true 时跳过统计写入与日志持久化（用于请求重放）
+	skipStats bool
 }
 
 var relayStatsDailyUpdate = op.StatsDailyUpdate
@@ -110,6 +113,9 @@ func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMRes
 }
 
 func (m *RelayMetrics) Save(ctx context.Context, success bool, err error, attempts []model.ChannelAttempt) {
+	if m != nil && m.skipStats {
+		return
+	}
 	duration := time.Since(m.StartTime)
 	channelID, channelName := finalChannel(attempts)
 	m.recalculateCostsForChannel(channelID)
@@ -132,6 +138,9 @@ func (m *RelayMetrics) Save(ctx context.Context, success bool, err error, attemp
 	relayStatsDailyUpdate(ctx, globalStats)
 	op.StatsAPIKeyUpdate(m.APIKeyID, globalStats)
 	op.StatsChannelUpdate(channelID, globalStats)
+
+	// Async cost alert check: fire-and-forget, never blocks relay response.
+	go triggerCostAlert(m.APIKeyID)
 	if err := op.OpsRecordRelay(ctx, op.OpsRelayEvent{
 		Time:             m.StartTime,
 		APIKeyID:         m.APIKeyID,
@@ -372,4 +381,21 @@ func (m *RelayMetrics) filterResponseForLog(resp *transformerModel.InternalLLMRe
 		filtered.Choices[i].Delta = filterMsg(choice.Delta)
 	}
 	return &filtered
+}
+
+// triggerCostAlert loads the API key and its accumulated cost stats, then
+// invokes op.CheckCostAlert asynchronously. It uses context.Background()
+// because the original request context may be canceled after the response
+// is sent. Any error is logged inside CheckCostAlert and never propagated.
+func triggerCostAlert(apiKeyID int) {
+	apiKey, err := op.APIKeyGet(apiKeyID, context.Background())
+	if err != nil {
+		return
+	}
+	if apiKey.MaxCost <= 0 {
+		return
+	}
+	stats := op.StatsAPIKeyGet(apiKeyID)
+	currentCost := stats.InputCost + stats.OutputCost
+	op.CheckCostAlert(uint(apiKeyID), apiKey.Name, currentCost, apiKey.MaxCost)
 }

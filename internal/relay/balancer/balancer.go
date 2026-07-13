@@ -32,6 +32,8 @@ func GetBalancer(mode model.GroupMode) Balancer {
 		return &Weighted{}
 	case model.GroupModeAIDynamic:
 		return &RoundRobin{}
+	case model.GroupModeLeastLatency, model.GroupModeHealthAware:
+		return &RoundRobin{} // base ordering; actual health-aware selection in iterator/Rust
 	default:
 		return &RoundRobin{}
 	}

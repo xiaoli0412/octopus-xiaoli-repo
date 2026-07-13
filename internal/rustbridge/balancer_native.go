@@ -67,7 +67,42 @@ func BalanceSelect(candidates []BalanceCandidate, strategy string, currentIdx in
 			return available[i].ID < available[j].ID
 		})
 		return BalanceResult{ID: available[0].ID}, nil
+	case "least_latency":
+		sort.Slice(available, func(i, j int) bool {
+			if available[i].Latency != available[j].Latency {
+				return available[i].Latency < available[j].Latency
+			}
+			return available[i].ID < available[j].ID
+		})
+		return BalanceResult{ID: available[0].ID}, nil
+	case "health_aware":
+		sort.Slice(available, func(i, j int) bool {
+			ci := circuitSeverityRank(available[i].CircuitState)
+			cj := circuitSeverityRank(available[j].CircuitState)
+			if ci != cj {
+				return ci < cj
+			}
+			if available[i].Latency != available[j].Latency {
+				return available[i].Latency < available[j].Latency
+			}
+			return available[i].ID < available[j].ID
+		})
+		return BalanceResult{ID: available[0].ID}, nil
 	default:
 		return BalanceResult{}, errors.New("unknown strategy")
+	}
+}
+
+// circuitSeverityRank ranks circuit states for health-aware sorting:
+// closed (0) < half-open (1) < open (2). Open candidates are already
+// filtered out by the available check, but the rank is kept for safety.
+func circuitSeverityRank(state string) int {
+	switch state {
+	case "open":
+		return 2
+	case "half-open":
+		return 1
+	default:
+		return 0
 	}
 }

@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: octopus
+  namespace: octopus
+  labels:
+    app: octopus
+    app.kubernetes.io/name: octopus
+    app.kubernetes.io/part-of: octopus
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    # 中转 LLM 请求可能包含大上下文,需放大请求体限制
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    # SSE 长连接需关闭 buffering 并放宽超时
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  ingressClassName: nginx
+  # tls:
+  #   - hosts:
+  #       - octopus.example.com
+  #     secretName: octopus-tls
+  rules:
+    - host: octopus.example.com  # 替换为实际域名
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: octopus
+                port:
+                  name: http

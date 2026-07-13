@@ -81,6 +81,7 @@
     "ops": "運用",
     "ai": "AI 自動化",
     "log": "ログ",
+    "audit": "監査ログ",
     "setting": "設定",
     "doc": "API 利用ドキュメント",
     "mainNavigation": "メインナビゲーション"
@@ -394,23 +395,68 @@
         }
       },
       "tools": {
-        "channel_inventory": { "label": "チャネル在庫を読む", "desc": "既存のチャネル、キー、ソース構成を AI に正確に理解させます。" },
-        "group_topology": { "label": "グループ構造を読む", "desc": "現在のグループとグループ項目をもとに構造を把握させます。" },
-        "price_catalog": { "label": "価格カタログを読む", "desc": "ローカル価格と無料モデル傾向を AI が分析できるようにします。" },
-        "model_catalog": { "label": "モデル一覧を読む", "desc": "既存のモデル一覧と自動発見結果を AI に見せます。" },
-        "route_overrides": { "label": "ルート上書きを読む", "desc": "route target override の特別ルールを AI に把握させます。" },
-        "learning_state": { "label": "学習状態を読む", "desc": "動的ルーティング学習サンプルを使って推奨差分を説明させます。" },
-        "profile_write": { "label": "AI プランを生成", "desc": "このタスクから直接、見返し可能で切り替え可能な AI プランを生成できるようにします。" },
-        "profile_activate": { "label": "プラン切替を許可", "desc": "手動確認のあと、AI が AI プランを直接有効化できるようにします。" },
-        "snapshot_guard": { "label": "設定スナップショットを作成", "desc": "高リスク操作の前にロールバック地点を自動記録します。" }
+        "channel_inventory": {
+          "label": "チャネル在庫を読む",
+          "desc": "既存のチャネル、キー、ソース構成を AI に正確に理解させます。"
+        },
+        "group_topology": {
+          "label": "グループ構造を読む",
+          "desc": "現在のグループとグループ項目をもとに構造を把握させます。"
+        },
+        "price_catalog": {
+          "label": "価格カタログを読む",
+          "desc": "ローカル価格と無料モデル傾向を AI が分析できるようにします。"
+        },
+        "model_catalog": {
+          "label": "モデル一覧を読む",
+          "desc": "既存のモデル一覧と自動発見結果を AI に見せます。"
+        },
+        "route_overrides": {
+          "label": "ルート上書きを読む",
+          "desc": "route target override の特別ルールを AI に把握させます。"
+        },
+        "learning_state": {
+          "label": "学習状態を読む",
+          "desc": "動的ルーティング学習サンプルを使って推奨差分を説明させます。"
+        },
+        "profile_write": {
+          "label": "AI プランを生成",
+          "desc": "このタスクから直接、見返し可能で切り替え可能な AI プランを生成できるようにします。"
+        },
+        "profile_activate": {
+          "label": "プラン切替を許可",
+          "desc": "手動確認のあと、AI が AI プランを直接有効化できるようにします。"
+        },
+        "snapshot_guard": {
+          "label": "設定スナップショットを作成",
+          "desc": "高リスク操作の前にロールバック地点を自動記録します。"
+        }
       },
       "laneStrategies": {
-        "balanced_default": { "label": "バランス既定", "desc": "推奨の開始テンプレートです。計画、実行、レビューの 3 レーンを維持し、速度と安全の両立を図ります。" },
-        "speed_first": { "label": "高速ドラフト", "desc": "計画 + 実行の 2 レーンに絞り、使える草案をすばやく出します。" },
-        "safety_first": { "label": "慎重レビュー", "desc": "レビュー レーンを残し、実設定を触る前にスナップショット保護を既定で有効化します。" },
-        "mesh_guarded": { "label": "完全保護メッシュ", "desc": "計画、実行、レビュー、保護の 4 レーンを開き、複雑な自動化や高リスク点検に向きます。" },
-        "model_taxonomy": { "label": "モデル分類ミラー", "desc": "まずモデル分類、チャネル整理、無料傾向を優先し、その後にグループ整理へ戻りやすくします。" },
-        "hybrid_orchestrator": { "label": "ハイブリッド編成ワークベンチ", "desc": "より複雑な自然言語要求を並行分流で処理し、今後の AI 自動化拡張にもつなげます。" }
+        "balanced_default": {
+          "label": "バランス既定",
+          "desc": "推奨の開始テンプレートです。計画、実行、レビューの 3 レーンを維持し、速度と安全の両立を図ります。"
+        },
+        "speed_first": {
+          "label": "高速ドラフト",
+          "desc": "計画 + 実行の 2 レーンに絞り、使える草案をすばやく出します。"
+        },
+        "safety_first": {
+          "label": "慎重レビュー",
+          "desc": "レビュー レーンを残し、実設定を触る前にスナップショット保護を既定で有効化します。"
+        },
+        "mesh_guarded": {
+          "label": "完全保護メッシュ",
+          "desc": "計画、実行、レビュー、保護の 4 レーンを開き、複雑な自動化や高リスク点検に向きます。"
+        },
+        "model_taxonomy": {
+          "label": "モデル分類ミラー",
+          "desc": "まずモデル分類、チャネル整理、無料傾向を優先し、その後にグループ整理へ戻りやすくします。"
+        },
+        "hybrid_orchestrator": {
+          "label": "ハイブリッド編成ワークベンチ",
+          "desc": "より複雑な自然言語要求を並行分流で処理し、今後の AI 自動化拡張にもつなげます。"
+        }
       },
       "presets": {
         "channel_group_rollout": {
@@ -671,6 +717,16 @@
     "listTitle": "チャネル一覧",
     "addFromUpstream": "アップストリームから追加",
     "empty": "チャネルはまだありません。アップストリームから追加するか、手動で作成してください。",
+    "batch": {
+      "selectAll": "すべて選択",
+      "enable": "一括有効化",
+      "disable": "一括無効化",
+      "delete": "一括削除",
+      "enableSuccess": "一括有効化成功",
+      "disableSuccess": "一括無効化成功",
+      "deleteSuccess": "一括削除成功",
+      "deleteConfirm": "選択した {count} 個のチャネルを削除してもよろしいですか？"
+    },
     "detail": {
       "title": {
         "edit": "チャネルを編集",
@@ -1138,7 +1194,7 @@
       "namingSectionHint": "グループ名は既定のあいまい一致に使われます。モデル名とグループ名の差が大きい場合のみ、手動でマッチ正規表現を入力してください。",
       "namingSectionDesc": "まず識別しやすく安定したグループ名を付けてください。正規表現は任意で、未入力の場合は既定でグループ名によるあいまい一致になります。",
       "modeSectionTitle": "ルーティングポリシー",
-      "modeSectionHint": "ラウンドロビンは均等配分向き、ランダムは素早い分散向き、フェイルオーバーは主従の待機構成向き、重み付き配分は能力差がある場面向き、AI 動的は実行時スコアで候補順を決める方式です。",
+      "modeSectionHint": "ラウンドロビンは均等配分向き、ランダムは素早い分散向き、フェイルオーバーは主従の待機構成向き、重み付き配分は能力差がある場面向き、AI 動的は実行時スコアで候補順を決める方式、最低レイテンシは最速のエンドポイントを選び、ヘルスアウェアは成功率とレイテンシの総合スコアで自動選択します。",
       "modeSectionDesc": "まずこのモデル群の主な分配方法を選んでください。重みは「重み付き配分」モードでのみ有効です。",
       "nameHint": "deepseek-chat、claude-code、embeddings のように、モデル系統や用途で直接命名するのがおすすめです。名前が安定しているほど既定マッチも扱いやすくなります。",
       "matchRegexHint": "モデル名とグループ名がうまく対応しない場合や、より細かくモデル集合を絞りたい場合にのみ入力してください。",
@@ -1194,7 +1250,9 @@
       "random": "ランダム",
       "failover": "フェイルオーバー",
       "weighted": "重み付き配分",
-      "aiDynamic": "AI 動的"
+      "aiDynamic": "AI 動的",
+      "leastLatency": "最低レイテンシ",
+      "healthAware": "ヘルスアウェア"
     },
     "empty": "グループはまだありません。左上のボタンから作成してください"
   },
@@ -1260,7 +1318,12 @@
       "retryDetails": "再試行详情",
       "attempts": "回試行",
       "success": "成功",
-      "failed": "失敗"
+      "failed": "失敗",
+      "replay": "リプレイ",
+      "replayResult": "リプレイ結果",
+      "replayStatus": "ステータス",
+      "replayDiff": "差分あり",
+      "replaySame": "一致"
     }
   },
   "home": {
@@ -1358,57 +1421,57 @@
   "setting": {
     "appearance": "外観",
     "system": "システム",
-      "aiAutomationSource": {
-        "title": "AI 設定ソース",
-        "desc": "ここには軽量な切替入口だけを置きます。モデル取得、タスク進捗、AI プラン、動的ルーティング学習は専用の AI 自動化画面で扱い、設定画面を重くしません。",
-        "mode": "現在の参照元",
-        "manual": "手動設定",
-        "aiProfile": "AI 生成プラン",
-        "profileLabel": "AI プラン",
-        "profilePlaceholder": "AI プランを選択",
-        "activeProfile": "有効なプラン ID: {id}",
-        "noActiveProfile": "有効な AI プランはまだありません。先に AI 自動化画面で選択してください。",
-        "profileEmpty": "切り替え可能な AI プランはまだありません。先に AI 自動化画面でプランを生成してください。",
-        "selectedProfile": "選択中のプラン",
-        "selectedProfilePending": "選択中のプランはまだ有効化されていません。AI プランモードに切り替える前に有効化します。",
-        "status": "プラン状態",
-        "profileId": "プラン ID",
-        "profileVersion": "バージョン",
-        "profileConfidence": "信頼度",
-        "profileUpdatedAt": "更新日時",
-        "profileSummaryFallback": "プランの説明はまだありません。AI 自動化画面でタスク結果の詳細を確認してください。",
-        "inUseBadge": "実行時はこのプランを参照中です",
-        "riskTitle": "リスクとフォールバックの注意",
-        "readyHint": "このプランは切り替え可能です。有効化しても既存の手動設定はそのまま残ります。",
-        "riskDraft": "この AI プランはまだ下書きです。実行時の参照先に切り替える前に、AI 自動化で生成内容を確認してください。",
-        "riskArchived": "アーカイブ済みの AI プランは確認用です。再度有効化することはできません。",
-        "riskInvalid": "この AI プランは検証に失敗しています。以前に選択されていても、Octopus は実行時に手動設定へフォールバックします。",
-        "riskLowConfidence": "現在の信頼度は {confidence} です。実行時の参照先として使う前に、生成されたチャネル・グループ・価格提案を確認してください。",
-        "profileBlocked": "選択中の AI プランは無効またはアーカイブ済みです。先に AI 自動化で別のプランを選んでください。",
-        "runtimeFallbackTitle": "実行時はすでに手動設定へ戻っています",
-        "runtimeFallbackNotice": "以前に選択した AI プランが欠落・無効・検証失敗のため、別の有効なプランを有効化するまでは Octopus が手動設定を読み続けます。",
-        "fallbackReasons": {
-          "profile_missing": "要求された AI プランは既に存在しないため、実行時は手動設定へ戻っています。",
-          "profile_unusable": "要求された AI プランは無効またはアーカイブ済みのため、実行時は手動設定へ戻っています。",
-          "profile_missing_content": "要求された AI プランに利用可能な実行時設定が含まれていないため、実行時は手動設定へ戻っています。",
-          "profile_invalid_content": "要求された AI プランの内容を実行時設定として解釈できないため、実行時は手動設定へ戻っています。"
-        },
-        "manualSafety": "切り替わるのは参照元だけで、既存の手動設定は上書きされません。",
-        "fallbackHint": "選択したプランが無効、欠損、または検証に失敗した場合は、自動的に手動設定へ戻ります。",
-        "statusValues": {
-          "draft": "下書き",
-          "ready": "有効化可能",
-          "active": "有効",
-          "archived": "アーカイブ済み",
-          "invalid": "無効",
-          "unknown": "不明"
-        },
-        "useSelected": "選択中のプランを使う",
-        "usingSelected": "適用中...",
-        "activateFailed": "AI プランの有効化に失敗しました",
-        "selectProfileFirst": "先に AI 自動化画面で AI プランを選択してください",
-        "openCenter": "AI 自動化を開く"
+    "aiAutomationSource": {
+      "title": "AI 設定ソース",
+      "desc": "ここには軽量な切替入口だけを置きます。モデル取得、タスク進捗、AI プラン、動的ルーティング学習は専用の AI 自動化画面で扱い、設定画面を重くしません。",
+      "mode": "現在の参照元",
+      "manual": "手動設定",
+      "aiProfile": "AI 生成プラン",
+      "profileLabel": "AI プラン",
+      "profilePlaceholder": "AI プランを選択",
+      "activeProfile": "有効なプラン ID: {id}",
+      "noActiveProfile": "有効な AI プランはまだありません。先に AI 自動化画面で選択してください。",
+      "profileEmpty": "切り替え可能な AI プランはまだありません。先に AI 自動化画面でプランを生成してください。",
+      "selectedProfile": "選択中のプラン",
+      "selectedProfilePending": "選択中のプランはまだ有効化されていません。AI プランモードに切り替える前に有効化します。",
+      "status": "プラン状態",
+      "profileId": "プラン ID",
+      "profileVersion": "バージョン",
+      "profileConfidence": "信頼度",
+      "profileUpdatedAt": "更新日時",
+      "profileSummaryFallback": "プランの説明はまだありません。AI 自動化画面でタスク結果の詳細を確認してください。",
+      "inUseBadge": "実行時はこのプランを参照中です",
+      "riskTitle": "リスクとフォールバックの注意",
+      "readyHint": "このプランは切り替え可能です。有効化しても既存の手動設定はそのまま残ります。",
+      "riskDraft": "この AI プランはまだ下書きです。実行時の参照先に切り替える前に、AI 自動化で生成内容を確認してください。",
+      "riskArchived": "アーカイブ済みの AI プランは確認用です。再度有効化することはできません。",
+      "riskInvalid": "この AI プランは検証に失敗しています。以前に選択されていても、Octopus は実行時に手動設定へフォールバックします。",
+      "riskLowConfidence": "現在の信頼度は {confidence} です。実行時の参照先として使う前に、生成されたチャネル・グループ・価格提案を確認してください。",
+      "profileBlocked": "選択中の AI プランは無効またはアーカイブ済みです。先に AI 自動化で別のプランを選んでください。",
+      "runtimeFallbackTitle": "実行時はすでに手動設定へ戻っています",
+      "runtimeFallbackNotice": "以前に選択した AI プランが欠落・無効・検証失敗のため、別の有効なプランを有効化するまでは Octopus が手動設定を読み続けます。",
+      "fallbackReasons": {
+        "profile_missing": "要求された AI プランは既に存在しないため、実行時は手動設定へ戻っています。",
+        "profile_unusable": "要求された AI プランは無効またはアーカイブ済みのため、実行時は手動設定へ戻っています。",
+        "profile_missing_content": "要求された AI プランに利用可能な実行時設定が含まれていないため、実行時は手動設定へ戻っています。",
+        "profile_invalid_content": "要求された AI プランの内容を実行時設定として解釈できないため、実行時は手動設定へ戻っています。"
       },
+      "manualSafety": "切り替わるのは参照元だけで、既存の手動設定は上書きされません。",
+      "fallbackHint": "選択したプランが無効、欠損、または検証に失敗した場合は、自動的に手動設定へ戻ります。",
+      "statusValues": {
+        "draft": "下書き",
+        "ready": "有効化可能",
+        "active": "有効",
+        "archived": "アーカイブ済み",
+        "invalid": "無効",
+        "unknown": "不明"
+      },
+      "useSelected": "選択中のプランを使う",
+      "usingSelected": "適用中...",
+      "activateFailed": "AI プランの有効化に失敗しました",
+      "selectProfileFirst": "先に AI 自動化画面で AI プランを選択してください",
+      "openCenter": "AI 自動化を開く"
+    },
     "theme": {
       "label": "テーマ",
       "light": "ライト",
@@ -1434,6 +1497,14 @@
       "label": "CORS 許可オリジン",
       "hint": "空欄は全拒否、* は全許可",
       "example": "指定ドメインのみ: https://example.com,https://example2.com"
+    },
+    "backupInterval": {
+      "label": "バックアップ間隔",
+      "placeholder": "例: 24h（空欄でデフォルト 24h）"
+    },
+    "backupKeepCount": {
+      "label": "バックアップ保持数",
+      "placeholder": "例: 7（空欄でデフォルト 7）"
     },
     "publicAccess": {
       "title": "パブリックアクセスアドレス",
@@ -1734,6 +1805,16 @@
       "editTitle": "キーを編集",
       "closeTitle": "パネルを閉じる",
       "loadFailed": "読み込みに失敗しました",
+      "batch": {
+        "selectAll": "すべて選択",
+        "enable": "一括有効化",
+        "disable": "一括無効化",
+        "delete": "一括削除",
+        "enableSuccess": "一括有効化成功",
+        "disableSuccess": "一括無効化成功",
+        "deleteSuccess": "一括削除成功",
+        "deleteConfirm": "選択した {count} 個の API Key を削除してもよろしいですか？"
+      },
       "form": {
         "name": "名前",
         "maxCost": "上限金額",
@@ -1750,7 +1831,28 @@
         "savedMissingModels": "保存済みですが現在の在庫にありません",
         "noMatchedModels": "一致するモデルはありません",
         "inventoryHint": "未選択の場合は無制限です。候補は提供可能な在庫、グループ、保存済みバインドから取得します。",
+        "permissionsTitle": "権限粒度",
+        "allowedCapabilities": "機能制限",
+        "allowedCapabilitiesHint": "許可する機能タイプを選択してください。未選択は無制限を意味します。",
+        "allowedChannels": "チャネル制限",
+        "allowedChannelsHint": "許可するチャネルを選択してください。未選択は無制限を意味します。",
+        "noChannels": "利用可能なチャネルがありません",
+        "allowedGroups": "グループ制限",
+        "allowedGroupsHint": "許可するグループを選択してください。未選択は無制限を意味します。",
+        "noGroups": "利用可能なグループがありません",
+        "allowedIpCidrs": "IP ホワイトリスト",
+        "allowedIpCidrsPlaceholder": "10.0.0.0/8, 192.168.1.0/24",
+        "allowedIpCidrsHint": "CIDR 形式、カンマ区切り、IPv4/IPv6 対応。空欄は無制限を意味します。",
+        "noRestriction": "無制限",
+        "selectedCount": "{count} 件選択",
+        "capability": {
+          "chat": "チャット",
+          "embedding": "エンベディング",
+          "response": "レスポンス",
+          "message": "メッセージ"
+        },
         "enabled": "有効化",
+        "responseCacheEnabled": "レスポンスキャッシュ",
         "cancel": "キャンセル",
         "create": "作成",
         "save": "保存",
@@ -1938,6 +2040,14 @@
         "change": "パスワードを変更",
         "success": "パスワードの変更に成功しました",
         "failed": "パスワードの変更に失敗しました"
+      },
+      "rotateSecret": {
+        "label": "JWT シークレットローテーション",
+        "hint": "JWT 署名キーをローテーションします。既存のトークンは有効期限まで古いキーで検証されます。",
+        "button": "シークレットをローテーション",
+        "confirm": "JWT 署名キーをローテーションしますか？ログアウトします。",
+        "success": "JWT シークレットのローテーションに成功しました",
+        "failed": "JWT シークレットのローテーションに失敗しました"
       }
     },
     "info": {
@@ -1991,6 +2101,23 @@
       "label": "システム API アドレス",
       "placeholder": "http://127.0.0.1:1088",
       "hint": "ドキュメントダイアログ内の curl 例で使うアドレスです。既定値は http://127.0.0.1:1088 です"
+    },
+    "costAlert": {
+      "thresholds": {
+        "label": "閾値",
+        "hint": "カンマ区切りのパーセンテージ（0-2）。例：0.5,0.8,1.0 は MaxCost の 50%、80%、100% で発火します。"
+      },
+      "webhookURL": {
+        "label": "Webhook URL",
+        "placeholder": "https://hooks.slack.com/services/...",
+        "hint": "空の場合はアラートを無効にします。Slack、Feishu、DingTalk、または汎用 Webhook エンドポイントをサポートします。"
+      },
+      "format": {
+        "label": "メッセージ形式",
+        "hint": "Webhook プラットフォームを選択して、メッセージ本文を正しくフォーマットします。"
+      },
+      "description": "API Key の累計コストが MaxCost 制限の設定された閾値に達したとき、Webhook 通知をトリガーします。",
+      "title": "コストアラート"
     }
   },
   "model": {
@@ -2114,5 +2241,28 @@
     "ccswitchStepPending": "未完了",
     "ccswitchAppClaude": "Claude クライアント",
     "ccswitchAppCodex": "Codex クライアント"
+  },
+  "audit": {
+    "title": "監査ログ",
+    "user": "ユーザー",
+    "action": "操作",
+    "resourceType": "リソースタイプ",
+    "resourceId": "リソースID",
+    "resourceName": "リソース名",
+    "ip": "IP",
+    "time": "時間",
+    "before": "変更前",
+    "after": "変更後",
+    "diff": "差分比較",
+    "timeRange": "時間範囲",
+    "allActions": "すべての操作",
+    "allTypes": "すべてのタイプ",
+    "reset": "リセット",
+    "filter": "フィルター",
+    "empty": "監査ログがありません",
+    "total": "全 {count} 件",
+    "prev": "前へ",
+    "next": "次へ",
+    "page": "{page} / {pages} ページ"
   }
 }

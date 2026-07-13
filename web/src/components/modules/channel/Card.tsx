@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from '@/components/common/Toast';
 import { ChannelType } from '@/api/endpoints/channel';
 import type { ChannelCardDensity } from '@/components/modules/toolbar/view-options-store';
+import { BatchCheckbox } from '@/components/common/BatchToolbar';
 
 function getChannelTypeLabel(type: ChannelType, t: ReturnType<typeof useTranslations>) {
     switch (type) {
@@ -42,7 +43,7 @@ function getChannelTypeLabel(type: ChannelType, t: ReturnType<typeof useTranslat
     }
 }
 
-export function Card({ channel, stats, density = 'normal' }: { channel: Channel; stats: StatsMetricsFormatted; density?: ChannelCardDensity }) {
+export function Card({ channel, stats, density = 'normal', selected, onToggleSelect }: { channel: Channel; stats: StatsMetricsFormatted; density?: ChannelCardDensity; selected?: boolean; onToggleSelect?: () => void }) {
     const t = useTranslations('channel.card');
     const enableChannel = useEnableChannel();
     const keyCount = channel.keys?.length ?? 0;
@@ -82,21 +83,27 @@ export function Card({ channel, stats, density = 'normal' }: { channel: Channel;
                     data-density={density}
                     className={cn(
                         'relative flex flex-col overflow-hidden border border-border bg-card text-card-foreground transition-all duration-300',
-                        isCompact ? 'min-h-[13rem] gap-2.5 rounded-[1.6rem] p-3' : 'min-h-[15rem] gap-3 rounded-3xl p-4'
+                        isCompact ? 'min-h-[13rem] gap-2.5 rounded-[1.6rem] p-3' : 'min-h-[15rem] gap-3 rounded-3xl p-4',
+                        selected && 'border-primary/50 ring-1 ring-primary/20'
                     )}
                 >
                     <header className={cn('relative flex items-start justify-between', isCompact ? 'gap-2.5' : 'gap-3')}>
-                        <div className="min-w-0 space-y-1">
-                            <Tooltip side="top" sideOffset={10} align="center">
-                                <TooltipTrigger asChild>
-                                    <h3 className={cn('min-w-0 truncate font-bold leading-tight', isCompact ? 'text-[15px]' : 'text-base')}>{channel.name}</h3>
-                                </TooltipTrigger>
-                                <TooltipContent key={channel.name}>{channel.name}</TooltipContent>
-                            </Tooltip>
-                            <div className={cn('flex flex-wrap items-center gap-y-1 text-muted-foreground', isCompact ? 'gap-x-1.5 text-[11px]' : 'gap-x-2 text-xs')}>
-                                <span>{channelTypeLabel}</span>
-                                <span className="text-border">•</span>
-                                {t('keyCount', { count: keyCount })}
+                        <div className="flex min-w-0 items-start gap-2 space-y-0">
+                            {onToggleSelect && (
+                                <BatchCheckbox checked={!!selected} onChange={onToggleSelect} />
+                            )}
+                            <div className="min-w-0 space-y-1">
+                                <Tooltip side="top" sideOffset={10} align="center">
+                                    <TooltipTrigger asChild>
+                                        <h3 className={cn('min-w-0 truncate font-bold leading-tight', isCompact ? 'text-[15px]' : 'text-base')}>{channel.name}</h3>
+                                    </TooltipTrigger>
+                                    <TooltipContent key={channel.name}>{channel.name}</TooltipContent>
+                                </Tooltip>
+                                <div className={cn('flex flex-wrap items-center gap-y-1 text-muted-foreground', isCompact ? 'gap-x-1.5 text-[11px]' : 'gap-x-2 text-xs')}>
+                                    <span>{channelTypeLabel}</span>
+                                    <span className="text-border">•</span>
+                                    {t('keyCount', { count: keyCount })}
+                                </div>
                             </div>
                         </div>
                         <Switch

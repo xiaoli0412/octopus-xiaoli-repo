@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/components/common/Toast';
 import { CopyIconButton } from '@/components/common/CopyButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/animate-ui/components/animate/tooltip';
+import { BatchCheckbox } from '@/components/common/BatchToolbar';
 import type { SelectedMember } from './ItemList';
 import { MemberList } from './ItemList';
 import { GroupEditor, type GroupEditorValues } from './Editor';
@@ -74,7 +75,7 @@ function EditDialogContent({ group, displayMembers, isSubmitting, onSubmit }: Ed
     );
 }
 
-export function GroupCard({ group }: { group: Group }) {
+export function GroupCard({ group, selected, onToggleSelect }: { group: Group; selected?: boolean; onToggleSelect?: () => void }) {
     const t = useTranslations('group');
     const updateGroup = useUpdateGroup();
     const deleteGroup = useDeleteGroup();
@@ -257,9 +258,15 @@ export function GroupCard({ group }: { group: Group }) {
     }, [group.failover_window_sec, group.first_token_time_out, group.race_after_fails, group.race_concurrency, group.retry_delay_ms, group.retry_rounds, group.session_keep_time, group.id, group.items, group.match_regex, group.mode, group.name, onSuccess, onError, updateGroup]);
 
     return (
-        <article className="flex flex-col rounded-3xl border border-border bg-card text-card-foreground p-4 custom-shadow">
+        <article className={cn(
+            'flex flex-col rounded-3xl border border-border bg-card text-card-foreground p-4 custom-shadow',
+            selected && 'border-primary/50 ring-1 ring-primary/20'
+        )}>
             <header className="flex items-start justify-between mb-3 relative overflow-visible rounded-xl -mx-1 px-1 -my-1 py-1">
-                <div className="relative flex-1 mr-2 min-w-0 group/title">
+                <div className="relative flex flex-1 mr-2 min-w-0 items-start gap-2 group/title">
+                    {onToggleSelect && (
+                        <BatchCheckbox checked={!!selected} onChange={onToggleSelect} />
+                    )}
                     <Tooltip side="top" sideOffset={10} align="center">
                         <TooltipTrigger asChild>
                             <h3 className="text-lg font-bold truncate">{group.name}</h3>
@@ -331,7 +338,7 @@ export function GroupCard({ group }: { group: Group }) {
 
             {/* Mode: quick switch (no need to enter Edit) */}
             <div className="flex gap-1 mb-3">
-                {([GroupMode.RoundRobin, GroupMode.Random, GroupMode.Failover, GroupMode.Weighted, GroupMode.AIDynamic] as const).map((m) => (
+                {([GroupMode.RoundRobin, GroupMode.Random, GroupMode.Failover, GroupMode.Weighted, GroupMode.AIDynamic, GroupMode.LeastLatency, GroupMode.HealthAware] as const).map((m) => (
                     <button
                         key={m}
                         type="button"

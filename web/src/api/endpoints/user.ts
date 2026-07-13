@@ -252,6 +252,19 @@ export function useChangeUsername() {
     });
 }
 
+export function useRotateJWTSecret() {
+    const { logout } = useAuthStore();
+    return useMutation({
+        mutationFn: async () => apiClient.post<string>('/api/v1/user/rotate-secret', {}),
+        onSuccess: () => {
+            setTimeout(() => logout(), 1500);
+        },
+        onError: (error) => {
+            logger.error('JWT secret rotation failed:', error);
+        },
+    });
+}
+
 export function useAuth() {
     const store = useAuthStore();
     const { checkAuth, isLoading } = store;

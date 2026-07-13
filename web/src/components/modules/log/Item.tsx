@@ -1,14 +1,14 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
-import { Clock, Cpu, Zap, AlertCircle, ArrowDownToLine, ArrowUpFromLine, DollarSign, ArrowRight, ArrowDown, Send, MessageSquare, Loader2, RotateCw, ChevronDown, ChevronUp, Pin } from 'lucide-react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
+import { Clock, Cpu, Zap, AlertCircle, ArrowDownToLine, ArrowUpFromLine, DollarSign, ArrowRight, ArrowDown, Send, MessageSquare, Loader2, RotateCw, ChevronDown, ChevronUp, Pin, Repeat } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { motion, AnimatePresence } from 'motion/react';
 import JsonView from '@uiw/react-json-view';
 import { githubDarkTheme } from '@uiw/react-json-view/githubDark';
 import { githubLightTheme } from '@uiw/react-json-view/githubLight';
 import { useTheme } from 'next-themes';
-import { type RelayLog, type ChannelAttempt } from '@/api/endpoints/log';
+import { type RelayLog, type ChannelAttempt, type ReplayResponse, replayLog as replayLogApi } from '@/api/endpoints/log';
 import { getModelIcon } from '@/lib/model-icons';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -197,6 +197,22 @@ export function LogCard({ log }: { log: RelayLog }) {
     const hasError = !!log.error;
     const hasMultipleAttempts = log.attempts && log.attempts.length > 1;
     const [isDiagnosticExpanded, setIsDiagnosticExpanded] = useState(false);
+    const [isReplaying, setIsReplaying] = useState(false);
+    const [replayResult, setReplayResult] = useState<ReplayResponse | null>(null);
+    const [replayError, setReplayError] = useState<string | null>(null);
+
+    const handleReplay = useCallback(async () => {
+        setIsReplaying(true);
+        setReplayError(null);
+        try {
+            const result = await replayLogApi(log.id);
+            setReplayResult(result);
+        } catch (err) {
+            setReplayError(err instanceof Error ? err.message : String(err));
+        } finally {
+            setIsReplaying(false);
+        }
+    }, [log.id]);
 
     return (
         <TooltipProvider>
@@ -308,6 +324,20 @@ export function LogCard({ log }: { log: RelayLog }) {
                             {log.attempts?.some(a => a.sticky) && (
                                 <Pin className="size-3.5 shrink-0 text-amber-500" />
                             )}
+                            <button
+                                type="button"
+                                onClick={() => void handleReplay()}
+                                disabled={isReplaying}
+                                className="ml-auto flex items-center gap-1 rounded-lg border border-border bg-muted/30 px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
+                                title={t('replay')}
+                            >
+                                {isReplaying ? (
+                                    <Loader2 className="size-3 animate-spin" />
+                                ) : (
+                                    <Repeat className="size-3" />
+                                )}
+                                <span>{t('replay')}</span>
+                            </button>
                         </MorphingDialogTitle>
 
                         <MorphingDialogDescription className="flex-1 min-h-0">
@@ -451,6 +481,51 @@ export function LogCard({ log }: { log: RelayLog }) {
                                         </div>
                                     </div>
                                 </div>
+                                <AnimatePresence initial={false}>
+                                    {(replayResult || replayError) && (
+                                        <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: "auto", opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            transition={{ duration: 0.2, ease: "easeInOut" }}
+                                            className="flex-initial min-h-0 overflow-hidden"
+                                        >
+                                            <div className="flex flex-col rounded-2xl border border-border bg-muted/30 overflow-hidden max-h-[35%]">
+                                                <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-muted/50 shrink-0">
+                                                    <Repeat className="size-4 text-blue-500" />
+                                                    <span className="text-sm font-medium text-card-foreground">{t('replayResult')}</span>
+                                                    {replayResult && (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className={cn(
+                                                                "ml-auto text-xs border-0",
+                                                                replayResult.diff.changed
+                                                                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                                                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                                            )}
+                                                        >
+                                                            {replayResult.diff.changed ? t('replayDiff') : t('replaySame')}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 overflow-auto p-3 min-h-0">
+                                                    {replayError ? (
+                                                        <p className="text-xs text-destructive whitespace-pre-wrap">{replayError}</p>
+                                                    ) : replayResult ? (
+                                                        <div className="flex flex-col gap-2">
+                                                            <div className="text-xs text-muted-foreground">
+                                                                <span className="font-medium">{t('replayStatus')}:</span> {replayResult.replay.status}
+                                                            </div>
+                                                            <pre className="text-xs text-card-foreground whitespace-pre-wrap wrap-break-word font-mono leading-relaxed">
+                                                                {replayResult.replay.content}
+                                                            </pre>
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
                         </MorphingDialogDescription>
 

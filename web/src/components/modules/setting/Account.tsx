@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { User, KeyRound, Lock, Eye, EyeOff } from 'lucide-react';
+import { User, KeyRound, Lock, Eye, EyeOff, RotateCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { useChangeUsername, useChangePassword, useAuth } from '@/api/endpoints/user';
+import { useChangeUsername, useChangePassword, useAuth, useRotateJWTSecret } from '@/api/endpoints/user';
 import { toast } from '@/components/common/Toast';
 
 export function SettingAccount() {
@@ -13,6 +13,7 @@ export function SettingAccount() {
     const { logout } = useAuth();
     const changeUsername = useChangeUsername();
     const changePassword = useChangePassword();
+    const rotateJWTSecret = useRotateJWTSecret();
 
     const [newUsername, setNewUsername] = useState('');
     const [usernamePassword, setUsernamePassword] = useState('');
@@ -79,6 +80,20 @@ export function SettingAccount() {
                 },
             }
         );
+    };
+
+    const handleRotateJWTSecret = () => {
+        if (!window.confirm(t('account.rotateSecret.confirm'))) {
+            return;
+        }
+        rotateJWTSecret.mutate(undefined, {
+            onSuccess: () => {
+                toast.success(t('account.rotateSecret.success'));
+            },
+            onError: () => {
+                toast.error(t('account.rotateSecret.failed'));
+            },
+        });
     };
 
     return (
@@ -192,6 +207,25 @@ export function SettingAccount() {
                         </Button>
                     </div>
                 </div>
+            </div>
+
+            {/* 轮换 JWT 密钥 */}
+            <div className="rounded-2xl border border-border/60 bg-background/55 p-3">
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <RotateCw className="size-4" />
+                    {t('account.rotateSecret.label')}
+                </div>
+                <p className="mb-2 text-xs text-muted-foreground">
+                    {t('account.rotateSecret.hint')}
+                </p>
+                <Button
+                    onClick={handleRotateJWTSecret}
+                    disabled={rotateJWTSecret.isPending}
+                    variant="outline"
+                    className="h-9 w-full rounded-xl"
+                >
+                    {rotateJWTSecret.isPending ? t('account.saving') : t('account.rotateSecret.button')}
+                </Button>
             </div>
         </div>
     );

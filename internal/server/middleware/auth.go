@@ -66,6 +66,38 @@ func Auth() gin.HandlerFunc {
 	}
 }
 
+// AuthSSE authenticates SSE endpoints. Browsers cannot attach custom headers
+// to EventSource requests, so in addition to the Authorization header the JWT
+// may be supplied via the "token" query parameter. This keeps the same JWT
+// trust model as Auth() while remaining compatible with the EventSource API.
+func AuthSSE() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token, ok := bearerTokenFromHeader(c.GetHeader("Authorization"))
+		if !ok {
+			if q := strings.TrimSpace(c.Query("token")); q != "" {
+				token = q
+				ok = true
+			}
+		}
+		if !ok {
+			resp.Error(c, http.StatusBadRequest, resp.ErrBadRequest)
+			c.Abort()
+			return
+		}
+		if !auth.VerifyJWTToken(token) {
+			resp.Error(c, http.StatusUnauthorized, resp.ErrUnauthorized)
+			c.Abort()
+			return
+		}
+		if !allowRequestDuringForcedPasswordChange(c) {
+			resp.Error(c, http.StatusForbidden, "password change required before accessing other management routes")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
 func APIKeyAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var apiKey string
@@ -123,6 +155,11 @@ func APIKeyAuth() gin.HandlerFunc {
 		c.Set("supported_models", apiKeyObj.SupportedModels)
 		c.Set("api_key_id", apiKeyObj.ID)
 		c.Set("api_key", apiKeyObj)
+
+		// 权限粒度校验：能力/IP CIDR/渠道/分组限制
+		if !enforceAPIKeyPermissions(c, apiKeyObj) {
+			return
+		}
 
 		if _, allowed := APIKeyRateLimitCheck(c); !allowed {
 			return

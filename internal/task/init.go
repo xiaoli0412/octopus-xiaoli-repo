@@ -23,6 +23,7 @@ const (
 )
 
 func Init() {
+	op.SetTaskRegister(Register)
 	initTasks(func(key model.SettingKey) (int, error) {
 		return op.SettingGetInt(key)
 	})

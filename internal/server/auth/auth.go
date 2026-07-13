@@ -74,6 +74,17 @@ func VerifyJWTToken(token string) bool {
 	if err != nil {
 		return false
 	}
+	if verifyJWTTokenWithSecret(token, secret) {
+		return true
+	}
+	secondary, err := jwtSecondarySigningSecret()
+	if err != nil {
+		return false
+	}
+	return verifyJWTTokenWithSecret(token, secondary)
+}
+
+func verifyJWTTokenWithSecret(token string, secret []byte) bool {
 	claims := &jwt.RegisteredClaims{}
 	jwtToken, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
 		return secret, nil
@@ -124,8 +135,24 @@ func jwtSigningSecret() ([]byte, error) {
 	return []byte(secret), nil
 }
 
+func jwtSecondarySigningSecret() ([]byte, error) {
+	secret, err := op.SettingGetString(model.SettingKeyAuthTokenSecretSecondary)
+	if err != nil {
+		return nil, fmt.Errorf("load auth token secondary secret: %w", err)
+	}
+	secret = strings.TrimSpace(secret)
+	if secret == "" {
+		return nil, fmt.Errorf("auth token secondary secret is empty")
+	}
+	return []byte(secret), nil
+}
+
 func JWTSigningSecretForTests() ([]byte, error) {
 	return jwtSigningSecret()
+}
+
+func JWTSecondarySigningSecretForTests() ([]byte, error) {
+	return jwtSecondarySigningSecret()
 }
 
 func GenerateAPIKey() string {

@@ -73,15 +73,16 @@
     }
   },
   "navbar": {
-      "home": "Home",
-      "channel": "Channel",
-      "upstream": "Upstream",
-      "group": "Group",
+    "home": "Home",
+    "channel": "Channel",
+    "upstream": "Upstream",
+    "group": "Group",
     "key": "Key",
     "model": "Price",
     "ops": "Ops",
     "ai": "AI Automation",
     "log": "Log",
+    "audit": "Audit Log",
     "setting": "Setting",
     "doc": "API Usage Docs",
     "mainNavigation": "Main navigation"
@@ -395,23 +396,68 @@
         }
       },
       "tools": {
-        "channel_inventory": { "label": "Read channel inventory", "desc": "Let AI understand the current channel, key, and source layout." },
-        "group_topology": { "label": "Read group topology", "desc": "Let AI understand the current structure from groups and group_items." },
-        "price_catalog": { "label": "Read pricing catalog", "desc": "Let AI analyze local pricing and likely-free models." },
-        "model_catalog": { "label": "Read model catalog", "desc": "Let AI see the current model list and auto-discovery results." },
-        "route_overrides": { "label": "Read route overrides", "desc": "Let AI detect special route target override rules." },
-        "learning_state": { "label": "Read learning state", "desc": "Let AI explain recommendation differences with dynamic-routing samples." },
-        "profile_write": { "label": "Generate AI Profile", "desc": "Allow this task to produce a reviewable and switchable AI Profile directly." },
-        "profile_activate": { "label": "Allow profile activation", "desc": "After manual confirmation, allow AI to activate an AI Profile directly." },
-        "snapshot_guard": { "label": "Create config snapshot", "desc": "Automatically record a rollback point before higher-risk actions." }
+        "channel_inventory": {
+          "label": "Read channel inventory",
+          "desc": "Let AI understand the current channel, key, and source layout."
+        },
+        "group_topology": {
+          "label": "Read group topology",
+          "desc": "Let AI understand the current structure from groups and group_items."
+        },
+        "price_catalog": {
+          "label": "Read pricing catalog",
+          "desc": "Let AI analyze local pricing and likely-free models."
+        },
+        "model_catalog": {
+          "label": "Read model catalog",
+          "desc": "Let AI see the current model list and auto-discovery results."
+        },
+        "route_overrides": {
+          "label": "Read route overrides",
+          "desc": "Let AI detect special route target override rules."
+        },
+        "learning_state": {
+          "label": "Read learning state",
+          "desc": "Let AI explain recommendation differences with dynamic-routing samples."
+        },
+        "profile_write": {
+          "label": "Generate AI Profile",
+          "desc": "Allow this task to produce a reviewable and switchable AI Profile directly."
+        },
+        "profile_activate": {
+          "label": "Allow profile activation",
+          "desc": "After manual confirmation, allow AI to activate an AI Profile directly."
+        },
+        "snapshot_guard": {
+          "label": "Create config snapshot",
+          "desc": "Automatically record a rollback point before higher-risk actions."
+        }
       },
       "laneStrategies": {
-        "balanced_default": { "label": "Balanced default", "desc": "Recommended starting template with planner, executor, and reviewer lanes for a good speed and safety balance." },
-        "speed_first": { "label": "Fast draft", "desc": "Compresses the flow into planner plus executor so a usable draft appears quickly." },
-        "safety_first": { "label": "Careful review", "desc": "Keeps the reviewer lane and enables snapshot protection by default before touching real configuration." },
-        "mesh_guarded": { "label": "Fully guarded mesh", "desc": "Opens planner, executor, reviewer, and guard lanes for complex automation or higher-risk checks." },
-        "model_taxonomy": { "label": "Model taxonomy mirror", "desc": "Prioritizes model classification, channel mapping, and free-model tendency before deeper grouping work." },
-        "hybrid_orchestrator": { "label": "Hybrid dispatch workbench", "desc": "Uses concurrent lane dispatch for more complex natural-language requests and future AI automation expansion." }
+        "balanced_default": {
+          "label": "Balanced default",
+          "desc": "Recommended starting template with planner, executor, and reviewer lanes for a good speed and safety balance."
+        },
+        "speed_first": {
+          "label": "Fast draft",
+          "desc": "Compresses the flow into planner plus executor so a usable draft appears quickly."
+        },
+        "safety_first": {
+          "label": "Careful review",
+          "desc": "Keeps the reviewer lane and enables snapshot protection by default before touching real configuration."
+        },
+        "mesh_guarded": {
+          "label": "Fully guarded mesh",
+          "desc": "Opens planner, executor, reviewer, and guard lanes for complex automation or higher-risk checks."
+        },
+        "model_taxonomy": {
+          "label": "Model taxonomy mirror",
+          "desc": "Prioritizes model classification, channel mapping, and free-model tendency before deeper grouping work."
+        },
+        "hybrid_orchestrator": {
+          "label": "Hybrid dispatch workbench",
+          "desc": "Uses concurrent lane dispatch for more complex natural-language requests and future AI automation expansion."
+        }
       },
       "presets": {
         "channel_group_rollout": {
@@ -824,6 +870,16 @@
     "listTitle": "Channel List",
     "addFromUpstream": "Add from Upstream",
     "empty": "No channels yet. Add from upstream or create one manually.",
+    "batch": {
+      "selectAll": "Select All",
+      "enable": "Batch Enable",
+      "disable": "Batch Disable",
+      "delete": "Batch Delete",
+      "enableSuccess": "Batch enable succeeded",
+      "disableSuccess": "Batch disable succeeded",
+      "deleteSuccess": "Batch delete succeeded",
+      "deleteConfirm": "Are you sure you want to delete {count} selected channels?"
+    },
     "detail": {
       "title": {
         "edit": "Edit Channel",
@@ -1291,7 +1347,7 @@
       "namingSectionHint": "The group name participates in the default fuzzy match. Add a regex only when model names do not line up well with the group name.",
       "namingSectionDesc": "Set the name first. Regex is optional.",
       "modeSectionTitle": "Routing Mode",
-      "modeSectionHint": "Round robin spreads traffic evenly, random spreads quickly, failover fits primary-backup flows, weighted mode fits uneven capacity, and AI dynamic ranks candidates by runtime score.",
+      "modeSectionHint": "Round robin spreads traffic evenly, random spreads quickly, failover fits primary-backup flows, weighted mode fits uneven capacity, AI dynamic ranks candidates by runtime score, least latency picks the fastest endpoint, and health aware scores by success rate and latency.",
       "modeSectionDesc": "Choose the distribution strategy first.",
       "nameHint": "Use a stable model family or usage name such as deepseek-chat, claude-code, or embeddings so the default match stays easy to reason about.",
       "matchRegexHint": "Only fill this when the model names do not line up with the group name, or when you need a more targeted model set.",
@@ -1347,9 +1403,18 @@
       "random": "Random",
       "failover": "Failover",
       "weighted": "Weighted",
-      "aiDynamic": "AI Dynamic"
+      "aiDynamic": "AI Dynamic",
+      "leastLatency": "Least Latency",
+      "healthAware": "Health Aware"
     },
-    "empty": "No groups yet, click the button above to create one"
+    "empty": "No groups yet, click the button above to create one",
+    "listTitle": "Group List",
+    "batch": {
+      "selectAll": "Select All",
+      "delete": "Batch Delete",
+      "deleteSuccess": "Batch delete succeeded",
+      "deleteConfirm": "Are you sure you want to delete {count} selected groups?"
+    }
   },
   "common": {
     "helpHint": {
@@ -1413,7 +1478,12 @@
       "retryDetails": "Retry Details",
       "attempts": "attempts",
       "success": "Success",
-      "failed": "Failed"
+      "failed": "Failed",
+      "replay": "Replay",
+      "replayResult": "Replay Result",
+      "replayStatus": "Status",
+      "replayDiff": "Changed",
+      "replaySame": "Identical"
     }
   },
   "home": {
@@ -1439,7 +1509,13 @@
       "outputCost": "Output Cost",
       "successRequests": "Successful Requests",
       "failedRequests": "Failed Requests",
-      "successRate": "Success Rate"
+      "successRate": "Success Rate",
+      "exportCsv": "Export CSV",
+      "exportSuccess": "Export succeeded",
+      "exportFailed": "Export failed",
+      "exportDimensionChannel": "By Channel",
+      "exportDimensionModel": "By Model",
+      "exportDimensionApiKey": "By API Key"
     },
     "chart": {
       "totalRequests": "Total Requests",
@@ -1511,57 +1587,57 @@
   "setting": {
     "appearance": "Appearance",
     "system": "System",
-      "aiAutomationSource": {
-        "title": "AI config source",
-        "desc": "This card is intentionally lightweight. Model fetching, task progress, AI Profiles, and dynamic-routing learning live in the dedicated AI Automation page so Settings stays fast.",
-        "mode": "Current source",
-        "manual": "Manual config",
-        "aiProfile": "AI-generated Profile",
-        "profileLabel": "AI plan",
-        "profilePlaceholder": "Choose an AI Profile",
-        "activeProfile": "Active Profile ID: {id}",
-        "noActiveProfile": "No AI Profile is active yet. Open AI Automation and choose one first.",
-        "profileEmpty": "No switchable AI Profile is available yet. Generate one in AI Automation first.",
-        "selectedProfile": "Selected plan",
-        "selectedProfilePending": "The selected plan is not active yet. It will be activated before AI Profile mode is used.",
-        "status": "Profile status",
-        "profileId": "Profile ID",
-        "profileVersion": "Version",
-        "profileConfidence": "Confidence",
-        "profileUpdatedAt": "Updated",
-        "profileSummaryFallback": "No plan summary yet. Open AI Automation to review the task result details.",
-        "inUseBadge": "Runtime is using this plan",
-        "riskTitle": "Risk and fallback notes",
-        "readyHint": "This plan is switchable. Manual config remains intact even after you enable it.",
-        "riskDraft": "This Profile is still a draft. Review its generated content in AI Automation before switching runtime reads to it.",
-        "riskArchived": "Archived Profiles are kept for review only. They cannot be activated again.",
-        "riskInvalid": "This Profile failed validation. If it was previously selected, Octopus falls back to manual config instead of using it at runtime.",
-        "riskLowConfidence": "Confidence is currently {confidence}. Review the generated channel, group, or pricing suggestions before treating it as the runtime source.",
-        "profileBlocked": "The selected AI Profile is invalid or archived. Choose another plan in AI Automation first.",
-        "runtimeFallbackTitle": "Runtime already fell back to manual",
-        "runtimeFallbackNotice": "The previously selected AI Profile is missing, invalid, or failed validation. Octopus is currently reading manual config until you activate another valid plan.",
-        "fallbackReasons": {
-          "profile_missing": "The requested AI Profile no longer exists, so runtime reverted to manual config.",
-          "profile_unusable": "The requested AI Profile is archived or invalid, so runtime reverted to manual config.",
-          "profile_missing_content": "The requested AI Profile does not contain usable runtime config, so runtime reverted to manual config.",
-          "profile_invalid_content": "The requested AI Profile content could not be parsed into runtime config, so runtime reverted to manual config."
-        },
-        "manualSafety": "Switching only changes the read source. It never overwrites the existing manual config.",
-        "fallbackHint": "If the selected plan is invalid, missing, or fails validation, Octopus automatically falls back to manual config.",
-        "statusValues": {
-          "draft": "Draft",
-          "ready": "Ready",
-          "active": "Active",
-          "archived": "Archived",
-          "invalid": "Invalid",
-          "unknown": "Unknown"
-        },
-        "useSelected": "Use selected plan",
-        "usingSelected": "Applying...",
-        "activateFailed": "Failed to activate AI plan",
-        "selectProfileFirst": "Choose an AI Profile in AI Automation first",
-        "openCenter": "Open AI Automation"
+    "aiAutomationSource": {
+      "title": "AI config source",
+      "desc": "This card is intentionally lightweight. Model fetching, task progress, AI Profiles, and dynamic-routing learning live in the dedicated AI Automation page so Settings stays fast.",
+      "mode": "Current source",
+      "manual": "Manual config",
+      "aiProfile": "AI-generated Profile",
+      "profileLabel": "AI plan",
+      "profilePlaceholder": "Choose an AI Profile",
+      "activeProfile": "Active Profile ID: {id}",
+      "noActiveProfile": "No AI Profile is active yet. Open AI Automation and choose one first.",
+      "profileEmpty": "No switchable AI Profile is available yet. Generate one in AI Automation first.",
+      "selectedProfile": "Selected plan",
+      "selectedProfilePending": "The selected plan is not active yet. It will be activated before AI Profile mode is used.",
+      "status": "Profile status",
+      "profileId": "Profile ID",
+      "profileVersion": "Version",
+      "profileConfidence": "Confidence",
+      "profileUpdatedAt": "Updated",
+      "profileSummaryFallback": "No plan summary yet. Open AI Automation to review the task result details.",
+      "inUseBadge": "Runtime is using this plan",
+      "riskTitle": "Risk and fallback notes",
+      "readyHint": "This plan is switchable. Manual config remains intact even after you enable it.",
+      "riskDraft": "This Profile is still a draft. Review its generated content in AI Automation before switching runtime reads to it.",
+      "riskArchived": "Archived Profiles are kept for review only. They cannot be activated again.",
+      "riskInvalid": "This Profile failed validation. If it was previously selected, Octopus falls back to manual config instead of using it at runtime.",
+      "riskLowConfidence": "Confidence is currently {confidence}. Review the generated channel, group, or pricing suggestions before treating it as the runtime source.",
+      "profileBlocked": "The selected AI Profile is invalid or archived. Choose another plan in AI Automation first.",
+      "runtimeFallbackTitle": "Runtime already fell back to manual",
+      "runtimeFallbackNotice": "The previously selected AI Profile is missing, invalid, or failed validation. Octopus is currently reading manual config until you activate another valid plan.",
+      "fallbackReasons": {
+        "profile_missing": "The requested AI Profile no longer exists, so runtime reverted to manual config.",
+        "profile_unusable": "The requested AI Profile is archived or invalid, so runtime reverted to manual config.",
+        "profile_missing_content": "The requested AI Profile does not contain usable runtime config, so runtime reverted to manual config.",
+        "profile_invalid_content": "The requested AI Profile content could not be parsed into runtime config, so runtime reverted to manual config."
       },
+      "manualSafety": "Switching only changes the read source. It never overwrites the existing manual config.",
+      "fallbackHint": "If the selected plan is invalid, missing, or fails validation, Octopus automatically falls back to manual config.",
+      "statusValues": {
+        "draft": "Draft",
+        "ready": "Ready",
+        "active": "Active",
+        "archived": "Archived",
+        "invalid": "Invalid",
+        "unknown": "Unknown"
+      },
+      "useSelected": "Use selected plan",
+      "usingSelected": "Applying...",
+      "activateFailed": "Failed to activate AI plan",
+      "selectProfileFirst": "Choose an AI Profile in AI Automation first",
+      "openCenter": "Open AI Automation"
+    },
     "theme": {
       "label": "Theme",
       "light": "Light",
@@ -1587,6 +1663,14 @@
       "label": "CORS Allowed Origins",
       "hint": "Empty denies all, * allows all",
       "example": "Only specified domains: https://example.com,https://example2.com"
+    },
+    "backupInterval": {
+      "label": "Backup Interval",
+      "placeholder": "e.g. 24h (leave empty for default 24h)"
+    },
+    "backupKeepCount": {
+      "label": "Backup Keep Count",
+      "placeholder": "e.g. 7 (leave empty for default 7)"
     },
     "publicAccess": {
       "title": "Public Access Address",
@@ -1887,6 +1971,16 @@
       "editTitle": "Edit key",
       "closeTitle": "Close panel",
       "loadFailed": "Failed to load",
+      "batch": {
+        "selectAll": "Select All",
+        "enable": "Batch Enable",
+        "disable": "Batch Disable",
+        "delete": "Batch Delete",
+        "enableSuccess": "Batch enable succeeded",
+        "disableSuccess": "Batch disable succeeded",
+        "deleteSuccess": "Batch delete succeeded",
+        "deleteConfirm": "Are you sure you want to delete {count} selected API Keys?"
+      },
       "form": {
         "name": "Name",
         "maxCost": "Max Cost",
@@ -1911,7 +2005,28 @@
         "savedMissingModels": "Saved but not found in current inventory",
         "noMatchedModels": "No matching models",
         "inventoryHint": "Leave empty for unrestricted access. Candidates come from serviceable inventory, groups, and saved bindings.",
+        "permissionsTitle": "Permissions",
+        "allowedCapabilities": "Capability restrictions",
+        "allowedCapabilitiesHint": "Select allowed capabilities. Leave empty for no restriction.",
+        "allowedChannels": "Channel restrictions",
+        "allowedChannelsHint": "Select allowed channels. Leave empty for no restriction.",
+        "noChannels": "No channels available",
+        "allowedGroups": "Group restrictions",
+        "allowedGroupsHint": "Select allowed groups. Leave empty for no restriction.",
+        "noGroups": "No groups available",
+        "allowedIpCidrs": "IP allowlist",
+        "allowedIpCidrsPlaceholder": "10.0.0.0/8, 192.168.1.0/24",
+        "allowedIpCidrsHint": "CIDR notation, comma-separated, supports IPv4/IPv6. Leave empty for no restriction.",
+        "noRestriction": "No restriction",
+        "selectedCount": "{count} selected",
+        "capability": {
+          "chat": "Chat",
+          "embedding": "Embedding",
+          "response": "Response",
+          "message": "Message"
+        },
         "enabled": "Enabled",
+        "responseCacheEnabled": "Response Cache",
         "cancel": "Cancel",
         "create": "Create",
         "save": "Save",
@@ -2099,6 +2214,14 @@
         "change": "Change Password",
         "success": "Password changed successfully",
         "failed": "Failed to change password"
+      },
+      "rotateSecret": {
+        "label": "Rotate JWT Secret",
+        "hint": "Rotate the JWT signing key. Existing tokens remain valid via the previous key until expiry.",
+        "button": "Rotate Secret",
+        "confirm": "Are you sure you want to rotate the JWT signing key? You will be logged out.",
+        "success": "JWT secret rotated successfully",
+        "failed": "Failed to rotate JWT secret"
       }
     },
     "info": {
@@ -2152,6 +2275,23 @@
       "label": "System API Base URL",
       "placeholder": "http://127.0.0.1:1088",
       "hint": "Used in API docs curl example. Default: http://127.0.0.1:1088"
+    },
+    "costAlert": {
+      "thresholds": {
+        "label": "Thresholds",
+        "hint": "Comma-separated percentages (0-2). E.g. 0.5,0.8,1.0 fires at 50%, 80%, and 100% of MaxCost."
+      },
+      "webhookURL": {
+        "label": "Webhook URL",
+        "placeholder": "https://hooks.slack.com/services/...",
+        "hint": "Leave empty to disable alerts. Supports Slack, Feishu, DingTalk, or any generic webhook endpoint."
+      },
+      "format": {
+        "label": "Message Format",
+        "hint": "Select the webhook platform to format the message body correctly."
+      },
+      "description": "Trigger webhook notifications when an API Key's accumulated cost reaches configured thresholds of its MaxCost limit.",
+      "title": "Cost Alert"
     }
   },
   "model": {
@@ -2275,5 +2415,28 @@
     "ccswitchStepPending": "Pending",
     "ccswitchAppClaude": "Claude client",
     "ccswitchAppCodex": "Codex client"
+  },
+  "audit": {
+    "title": "Audit Log",
+    "user": "User",
+    "action": "Action",
+    "resourceType": "Resource Type",
+    "resourceId": "Resource ID",
+    "resourceName": "Resource Name",
+    "ip": "IP",
+    "time": "Time",
+    "before": "Before",
+    "after": "After",
+    "diff": "Diff",
+    "timeRange": "Time Range",
+    "allActions": "All Actions",
+    "allTypes": "All Types",
+    "reset": "Reset",
+    "filter": "Filter",
+    "empty": "No audit logs",
+    "total": "{count} total",
+    "prev": "Prev",
+    "next": "Next",
+    "page": "Page {page} / {pages}"
   }
 }

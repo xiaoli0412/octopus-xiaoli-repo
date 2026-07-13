@@ -42,6 +42,11 @@ export const SettingKey = {
     ApiAlternateBaseUrls: 'api_alternate_base_urls',
     TrustedProxyCIDRs: 'trusted_proxy_cidrs',
     OpsIPDisplayMode: 'ops_ip_display_mode',
+    CostAlertWebhookURL: 'cost_alert_webhook_url',
+    CostAlertThresholds: 'cost_alert_thresholds',
+    CostAlertFormat: 'cost_alert_format',
+    BackupInterval: 'backup_interval',
+    BackupKeepCount: 'backup_keep_count',
 } as const;
 
 export interface PublicAccessInfo {

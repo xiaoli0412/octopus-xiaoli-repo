@@ -73,15 +73,16 @@
     }
   },
   "navbar": {
-      "home": "主頁",
-      "channel": "供應源",
-      "upstream": "上游",
-      "group": "分組",
+    "home": "主頁",
+    "channel": "供應源",
+    "upstream": "上游",
+    "group": "分組",
     "key": "金鑰",
     "model": "價格",
     "ops": "運維",
     "ai": "AI 自動化",
     "log": "日誌",
+    "audit": "稽核日誌",
     "setting": "設定",
     "doc": "API 使用文件",
     "mainNavigation": "主導覽"
@@ -395,23 +396,68 @@
         }
       },
       "tools": {
-        "channel_inventory": { "label": "讀取供應源庫存", "desc": "讓 AI 明確知道現有供應源、密鑰和來源結構。" },
-        "group_topology": { "label": "讀取分組拓撲", "desc": "讓 AI 按現有分組與分組條目理解結構。" },
-        "price_catalog": { "label": "讀取價格目錄", "desc": "讓 AI 分析本地價格與免費模型傾向。" },
-        "model_catalog": { "label": "讀取模型目錄", "desc": "讓 AI 看見現有模型列表與自動發現結果。" },
-        "route_overrides": { "label": "讀取路由覆蓋", "desc": "讓 AI 識別 route target override 的特殊規則。" },
-        "learning_state": { "label": "讀取學習狀態", "desc": "讓 AI 用動態路由學習樣本解釋推薦差異。" },
-        "profile_write": { "label": "生成 AI 方案檔案", "desc": "允許任務直接產出可回看、可切換的 AI 方案檔案。" },
-        "profile_activate": { "label": "允許切換方案檔案", "desc": "配合人工確認後直接啟用 AI 方案檔案。" },
-        "snapshot_guard": { "label": "建立設定快照", "desc": "在高風險動作前自動記錄回退點。" }
+        "channel_inventory": {
+          "label": "讀取供應源庫存",
+          "desc": "讓 AI 明確知道現有供應源、密鑰和來源結構。"
+        },
+        "group_topology": {
+          "label": "讀取分組拓撲",
+          "desc": "讓 AI 按現有分組與分組條目理解結構。"
+        },
+        "price_catalog": {
+          "label": "讀取價格目錄",
+          "desc": "讓 AI 分析本地價格與免費模型傾向。"
+        },
+        "model_catalog": {
+          "label": "讀取模型目錄",
+          "desc": "讓 AI 看見現有模型列表與自動發現結果。"
+        },
+        "route_overrides": {
+          "label": "讀取路由覆蓋",
+          "desc": "讓 AI 識別 route target override 的特殊規則。"
+        },
+        "learning_state": {
+          "label": "讀取學習狀態",
+          "desc": "讓 AI 用動態路由學習樣本解釋推薦差異。"
+        },
+        "profile_write": {
+          "label": "生成 AI 方案檔案",
+          "desc": "允許任務直接產出可回看、可切換的 AI 方案檔案。"
+        },
+        "profile_activate": {
+          "label": "允許切換方案檔案",
+          "desc": "配合人工確認後直接啟用 AI 方案檔案。"
+        },
+        "snapshot_guard": {
+          "label": "建立設定快照",
+          "desc": "在高風險動作前自動記錄回退點。"
+        }
       },
       "laneStrategies": {
-        "balanced_default": { "label": "平衡預設", "desc": "推薦起步模板，保留規劃、執行、審核三條車道，兼顧速度和安全。" },
-        "speed_first": { "label": "極速出稿", "desc": "壓縮為規劃 + 執行雙車道，優先快速給出可用草案。" },
-        "safety_first": { "label": "穩健審閱", "desc": "保留審核車道並預設啟用快照保護，適合你準備動真實設定前先跑一遍。" },
-        "mesh_guarded": { "label": "全量守護網格", "desc": "打開規劃、執行、審核、守護四條車道，適合複雜自動化任務和高風險檢查。" },
-        "model_taxonomy": { "label": "模型歸類鏡像", "desc": "優先歸類模型、供應源和免費傾向，適合先整理模型層，再回頭補分組。" },
-        "hybrid_orchestrator": { "label": "混合編排工作台", "desc": "用並發分流處理更複雜的自然語言請求，適合後續接更多 AI 自動化任務。" }
+        "balanced_default": {
+          "label": "平衡預設",
+          "desc": "推薦起步模板，保留規劃、執行、審核三條車道，兼顧速度和安全。"
+        },
+        "speed_first": {
+          "label": "極速出稿",
+          "desc": "壓縮為規劃 + 執行雙車道，優先快速給出可用草案。"
+        },
+        "safety_first": {
+          "label": "穩健審閱",
+          "desc": "保留審核車道並預設啟用快照保護，適合你準備動真實設定前先跑一遍。"
+        },
+        "mesh_guarded": {
+          "label": "全量守護網格",
+          "desc": "打開規劃、執行、審核、守護四條車道，適合複雜自動化任務和高風險檢查。"
+        },
+        "model_taxonomy": {
+          "label": "模型歸類鏡像",
+          "desc": "優先歸類模型、供應源和免費傾向，適合先整理模型層，再回頭補分組。"
+        },
+        "hybrid_orchestrator": {
+          "label": "混合編排工作台",
+          "desc": "用並發分流處理更複雜的自然語言請求，適合後續接更多 AI 自動化任務。"
+        }
       },
       "presets": {
         "channel_group_rollout": {
@@ -1291,7 +1337,7 @@
       "namingSectionHint": "分組名稱會參與預設模糊比對；只有模型命名和分組名稱差異較大時，才需要手動寫匹配正規。",
       "namingSectionDesc": "先給分組一個穩定、好辨認的名字。正規是可選項，不寫時預設按分組名稱做模糊比對。",
       "modeSectionTitle": "路由策略",
-      "modeSectionHint": "輪詢適合平均分配，隨機適合快速分散，故障轉移適合主備兜底，加權分配適合能力差異場景，AI 動態適合按執行時評分直接排序。",
+      "modeSectionHint": "輪詢適合平均分配，隨機適合快速分散，故障轉移適合主備兜底，加權分配適合能力差異場景，AI 動態適合按執行時評分直接排序，最低延遲適合對回應時間敏感的場景，健康感知綜合成功率與延遲評分自動選擇。",
       "modeSectionDesc": "先選擇這組模型的主要分發方式。權重只會在「加權分配」模式下生效。",
       "nameHint": "建議直接使用模型家族或用途命名，例如 deepseek-chat、claude-code、embeddings。名稱越穩定，預設匹配越省心。",
       "matchRegexHint": "只有在模型名和分組名對不上，或者你需要更精細地圈定模型集合時，才需要填寫這裡。",
@@ -1347,7 +1393,9 @@
       "random": "隨機",
       "failover": "故障轉移",
       "weighted": "加權分配",
-      "aiDynamic": "AI 動態"
+      "aiDynamic": "AI 動態",
+      "leastLatency": "最低延遲",
+      "healthAware": "健康感知"
     },
     "empty": "暫無分組，點擊左上角按鈕建立"
   },
@@ -1413,7 +1461,12 @@
       "retryDetails": "重試詳情",
       "attempts": "次嘗試",
       "success": "成功",
-      "failed": "失敗"
+      "failed": "失敗",
+      "replay": "重放",
+      "replayResult": "重放結果",
+      "replayStatus": "狀態碼",
+      "replayDiff": "有差異",
+      "replaySame": "一致"
     }
   },
   "home": {
@@ -1439,7 +1492,13 @@
       "outputCost": "輸出費用",
       "successRequests": "成功請求",
       "failedRequests": "失敗請求",
-      "successRate": "成功率"
+      "successRate": "成功率",
+      "exportCsv": "匯出 CSV",
+      "exportSuccess": "匯出成功",
+      "exportFailed": "匯出失敗",
+      "exportDimensionChannel": "按渠道",
+      "exportDimensionModel": "按模型",
+      "exportDimensionApiKey": "按 API Key"
     },
     "chart": {
       "totalRequests": "請求次數",
@@ -1511,57 +1570,57 @@
   "setting": {
     "appearance": "外觀",
     "system": "系統",
-      "aiAutomationSource": {
-        "title": "AI 設定來源",
-        "desc": "這裡只保留輕量切換入口。模型取得、任務進度、方案檔案和動態路由學習都在獨立的 AI 自動化欄目中處理，避免設定頁變慢。",
-        "mode": "目前讀取來源",
-        "manual": "手動設定",
-        "aiProfile": "AI 生成方案檔案",
-        "profileLabel": "AI 方案",
-        "profilePlaceholder": "選擇一個 AI 方案檔案",
-        "activeProfile": "目前啟用方案檔案 ID：{id}",
-        "noActiveProfile": "尚未啟用 AI 方案檔案。請先進入 AI 自動化欄目選擇方案。",
-        "profileEmpty": "還沒有可切換的 AI 方案檔案。請先進入 AI 自動化中心生成方案。",
-        "selectedProfile": "目前選中的方案",
-        "selectedProfilePending": "目前選中的方案尚未啟用；切到 AI 方案時會先啟用它。",
-        "status": "方案狀態",
-        "profileId": "方案檔案 ID",
-        "profileVersion": "版本",
-        "profileConfidence": "置信度",
-        "profileUpdatedAt": "更新時間",
-        "profileSummaryFallback": "暫無方案說明。建議先進入 AI 自動化中心查看任務結果詳情。",
-        "inUseBadge": "執行時正在讀取此方案",
-        "riskTitle": "風險與回退提示",
-        "readyHint": "這個方案可以切換使用；即使啟用後，現有手動設定也會完整保留。",
-        "riskDraft": "這個方案檔案仍是草稿。建議先到 AI 自動化中心核對生成內容，再把執行時讀取切到它。",
-        "riskArchived": "已歸檔方案僅供回看，不能再次啟用。",
-        "riskInvalid": "這個方案檔案沒有通過校驗。若它曾被選為來源，Octopus 會回退到手動設定，而不會繼續在執行時使用它。",
-        "riskLowConfidence": "目前置信度只有 {confidence}。建議先複核生成的渠道、分組或價格建議，再把它當作執行時來源。",
-        "profileBlocked": "目前選中的 AI 方案檔案已失效或已歸檔，請先到 AI 自動化中心選擇其他方案。",
-        "runtimeFallbackTitle": "執行時已回退到手動設定",
-        "runtimeFallbackNotice": "之前選中的 AI 方案檔案已缺失、無效或校驗失敗；在你重新啟用有效方案前，Octopus 目前會繼續讀取手動設定。",
-        "fallbackReasons": {
-          "profile_missing": "要求使用的 AI 方案檔案已不存在，所以執行時已回退到手動設定。",
-          "profile_unusable": "要求使用的 AI 方案檔案已歸檔或無效，所以執行時已回退到手動設定。",
-          "profile_missing_content": "要求使用的 AI 方案檔案缺少可用的執行時配置內容，所以執行時已回退到手動設定。",
-          "profile_invalid_content": "要求使用的 AI 方案檔案內容無法解析成執行時配置，所以執行時已回退到手動設定。"
-        },
-        "manualSafety": "只會切換讀取來源，不會覆蓋現有手動設定。",
-        "fallbackHint": "如果方案無效、缺失或未通過校驗，系統會自動回退到手動設定。",
-        "statusValues": {
-          "draft": "草稿",
-          "ready": "可啟用",
-          "active": "已啟用",
-          "archived": "已歸檔",
-          "invalid": "無效",
-          "unknown": "未知"
-        },
-        "useSelected": "啟用所選方案",
-        "usingSelected": "啟用中...",
-        "activateFailed": "啟用 AI 方案失敗",
-        "selectProfileFirst": "請先在 AI 自動化欄目選擇一個 AI 方案檔案",
-        "openCenter": "開啟 AI 自動化中心"
+    "aiAutomationSource": {
+      "title": "AI 設定來源",
+      "desc": "這裡只保留輕量切換入口。模型取得、任務進度、方案檔案和動態路由學習都在獨立的 AI 自動化欄目中處理，避免設定頁變慢。",
+      "mode": "目前讀取來源",
+      "manual": "手動設定",
+      "aiProfile": "AI 生成方案檔案",
+      "profileLabel": "AI 方案",
+      "profilePlaceholder": "選擇一個 AI 方案檔案",
+      "activeProfile": "目前啟用方案檔案 ID：{id}",
+      "noActiveProfile": "尚未啟用 AI 方案檔案。請先進入 AI 自動化欄目選擇方案。",
+      "profileEmpty": "還沒有可切換的 AI 方案檔案。請先進入 AI 自動化中心生成方案。",
+      "selectedProfile": "目前選中的方案",
+      "selectedProfilePending": "目前選中的方案尚未啟用；切到 AI 方案時會先啟用它。",
+      "status": "方案狀態",
+      "profileId": "方案檔案 ID",
+      "profileVersion": "版本",
+      "profileConfidence": "置信度",
+      "profileUpdatedAt": "更新時間",
+      "profileSummaryFallback": "暫無方案說明。建議先進入 AI 自動化中心查看任務結果詳情。",
+      "inUseBadge": "執行時正在讀取此方案",
+      "riskTitle": "風險與回退提示",
+      "readyHint": "這個方案可以切換使用；即使啟用後，現有手動設定也會完整保留。",
+      "riskDraft": "這個方案檔案仍是草稿。建議先到 AI 自動化中心核對生成內容，再把執行時讀取切到它。",
+      "riskArchived": "已歸檔方案僅供回看，不能再次啟用。",
+      "riskInvalid": "這個方案檔案沒有通過校驗。若它曾被選為來源，Octopus 會回退到手動設定，而不會繼續在執行時使用它。",
+      "riskLowConfidence": "目前置信度只有 {confidence}。建議先複核生成的渠道、分組或價格建議，再把它當作執行時來源。",
+      "profileBlocked": "目前選中的 AI 方案檔案已失效或已歸檔，請先到 AI 自動化中心選擇其他方案。",
+      "runtimeFallbackTitle": "執行時已回退到手動設定",
+      "runtimeFallbackNotice": "之前選中的 AI 方案檔案已缺失、無效或校驗失敗；在你重新啟用有效方案前，Octopus 目前會繼續讀取手動設定。",
+      "fallbackReasons": {
+        "profile_missing": "要求使用的 AI 方案檔案已不存在，所以執行時已回退到手動設定。",
+        "profile_unusable": "要求使用的 AI 方案檔案已歸檔或無效，所以執行時已回退到手動設定。",
+        "profile_missing_content": "要求使用的 AI 方案檔案缺少可用的執行時配置內容，所以執行時已回退到手動設定。",
+        "profile_invalid_content": "要求使用的 AI 方案檔案內容無法解析成執行時配置，所以執行時已回退到手動設定。"
       },
+      "manualSafety": "只會切換讀取來源，不會覆蓋現有手動設定。",
+      "fallbackHint": "如果方案無效、缺失或未通過校驗，系統會自動回退到手動設定。",
+      "statusValues": {
+        "draft": "草稿",
+        "ready": "可啟用",
+        "active": "已啟用",
+        "archived": "已歸檔",
+        "invalid": "無效",
+        "unknown": "未知"
+      },
+      "useSelected": "啟用所選方案",
+      "usingSelected": "啟用中...",
+      "activateFailed": "啟用 AI 方案失敗",
+      "selectProfileFirst": "請先在 AI 自動化欄目選擇一個 AI 方案檔案",
+      "openCenter": "開啟 AI 自動化中心"
+    },
     "theme": {
       "label": "主題",
       "light": "淺色",
@@ -1587,6 +1646,14 @@
       "label": "CORS 跨網域白名單",
       "hint": "為空禁止跨網域，* 允許所有",
       "example": "只允許指定域名: https://example.com,https://example2.com"
+    },
+    "backupInterval": {
+      "label": "定時備份間隔",
+      "placeholder": "如 24h（留空使用預設 24h）"
+    },
+    "backupKeepCount": {
+      "label": "備份保留數量",
+      "placeholder": "如 7（留空使用預設 7）"
     },
     "publicAccess": {
       "title": "公共訪問地址",
@@ -1911,7 +1978,28 @@
         "savedMissingModels": "已儲存但目前庫存未命中",
         "noMatchedModels": "無匹配模型",
         "inventoryHint": "不選擇表示不限制；候選來自真實能力庫存、分組和已儲存綁定。",
+        "permissionsTitle": "權限粒度",
+        "allowedCapabilities": "能力限制",
+        "allowedCapabilitiesHint": "勾選允許調用的能力類型，不選表示不限制",
+        "allowedChannels": "渠道限制",
+        "allowedChannelsHint": "勾選允許調用的渠道，不選表示不限制",
+        "noChannels": "暫無可用渠道",
+        "allowedGroups": "分組限制",
+        "allowedGroupsHint": "勾選允許調用的分組，不選表示不限制",
+        "noGroups": "暫無可用分組",
+        "allowedIpCidrs": "IP 白名單",
+        "allowedIpCidrsPlaceholder": "10.0.0.0/8, 192.168.1.0/24",
+        "allowedIpCidrsHint": "CIDR 格式，逗號分隔，支援 IPv4/IPv6，留空表示不限制",
+        "noRestriction": "不限制",
+        "selectedCount": "已選 {count}",
+        "capability": {
+          "chat": "對話",
+          "embedding": "向量",
+          "response": "回應",
+          "message": "訊息"
+        },
         "enabled": "是否啟用",
+        "responseCacheEnabled": "回應快取",
         "cancel": "取消",
         "create": "建立",
         "save": "儲存",
@@ -2099,6 +2187,14 @@
         "change": "修改密碼",
         "success": "密碼修改成功",
         "failed": "密碼修改失敗"
+      },
+      "rotateSecret": {
+        "label": "輪換 JWT 金鑰",
+        "hint": "輪換 JWT 簽署金鑰。舊金鑰在過期前仍可驗證已簽發的權杖。",
+        "button": "輪換金鑰",
+        "confirm": "確定要輪換 JWT 簽署金鑰嗎？操作後將自動登出。",
+        "success": "JWT 金鑰輪換成功",
+        "failed": "JWT 金鑰輪換失敗"
       }
     },
     "info": {
@@ -2150,8 +2246,25 @@
     },
     "apiBaseUrl": {
       "label": "系統 API 地址",
-    "placeholder": "http://127.0.0.1:1088",
-    "hint": "用於文件彈框中的 curl 範例地址，預設為 http://127.0.0.1:1088"
+      "placeholder": "http://127.0.0.1:1088",
+      "hint": "用於文件彈框中的 curl 範例地址，預設為 http://127.0.0.1:1088"
+    },
+    "costAlert": {
+      "thresholds": {
+        "label": "閾值",
+        "hint": "逗號分隔的百分比（0-2）。如 0.5,0.8,1.0 表示在 MaxCost 的 50%、80% 和 100% 時觸發。"
+      },
+      "webhookURL": {
+        "label": "Webhook URL",
+        "placeholder": "https://hooks.slack.com/services/...",
+        "hint": "留空則停用告警。支援 Slack、飛書、釘釘或任意通用 Webhook 端點。"
+      },
+      "format": {
+        "label": "訊息格式",
+        "hint": "選擇 Webhook 平台以正確格式化訊息內容。"
+      },
+      "description": "當 API Key 的累計成本達到其 MaxCost 限制的設定閾值時觸發 Webhook 通知。",
+      "title": "成本告警"
     }
   },
   "model": {
@@ -2275,5 +2388,28 @@
     "ccswitchStepPending": "待完成",
     "ccswitchAppClaude": "Claude 客戶端",
     "ccswitchAppCodex": "Codex 客戶端"
+  },
+  "audit": {
+    "title": "稽核日誌",
+    "user": "使用者",
+    "action": "操作",
+    "resourceType": "資源類型",
+    "resourceId": "資源ID",
+    "resourceName": "資源名稱",
+    "ip": "IP",
+    "time": "時間",
+    "before": "變更前",
+    "after": "變更後",
+    "diff": "差異對比",
+    "timeRange": "時間範圍",
+    "allActions": "所有操作",
+    "allTypes": "所有類型",
+    "reset": "重設",
+    "filter": "篩選",
+    "empty": "暫無稽核日誌",
+    "total": "共 {count} 條",
+    "prev": "上一頁",
+    "next": "下一頁",
+    "page": "第 {page} / {pages} 頁"
   }
 }

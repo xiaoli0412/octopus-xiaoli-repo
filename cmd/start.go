@@ -22,6 +22,7 @@ var startCmd = &cobra.Command{
 			return err
 		}
 		log.SetLevel(conf.AppConfig.Log.Level)
+		log.Configure(conf.AppConfig.Log.File, conf.AppConfig.Log.MaxSize, conf.AppConfig.Log.MaxBackups, conf.AppConfig.Log.MaxAge)
 		return nil
 	},
 	Run: func(cmd *cobra.Command, args []string) {
@@ -48,8 +49,11 @@ var startCmd = &cobra.Command{
 		shutdown.Register(server.Close)
 
 		task.Init()
-		shutdown.Register(task.StopAll)
-		go task.RUN()
+	shutdown.Register(task.StopAll)
+	op.StartHealthCheckTask()
+	op.StartResponseCacheEvictTask()
+	op.StartBackupTask()
+	go task.RUN()
 
 		shutdown.Listen()
 	},

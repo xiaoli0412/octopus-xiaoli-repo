@@ -3,11 +3,13 @@ package model
 type GroupMode int
 
 const (
-	GroupModeRoundRobin GroupMode = 1 // 轮询：依次循环选择渠道
-	GroupModeRandom     GroupMode = 2 // 随机：每次随机选择一个渠道
-	GroupModeFailover   GroupMode = 3 // 故障转移：按优先级选择，失败时降级到下一个
-	GroupModeWeighted   GroupMode = 4 // 加权分配：按优权重分配流量
-	GroupModeAIDynamic  GroupMode = 5 // AI 动态：基于运行时评分对现有候选排序，不回写配置
+	GroupModeRoundRobin   GroupMode = 1 // 轮询：依次循环选择渠道
+	GroupModeRandom       GroupMode = 2 // 随机：每次随机选择一个渠道
+	GroupModeFailover     GroupMode = 3 // 故障转移：按优先级选择，失败时降级到下一个
+	GroupModeWeighted     GroupMode = 4 // 加权分配：按优权重分配流量
+	GroupModeAIDynamic    GroupMode = 5 // AI 动态：基于运行时评分对现有候选排序，不回写配置
+	GroupModeLeastLatency GroupMode = 6 // 最低延迟：优先选择延迟最低的渠道
+	GroupModeHealthAware  GroupMode = 7 // 健康感知：综合成功率和延迟评分选择
 )
 
 type Group struct {

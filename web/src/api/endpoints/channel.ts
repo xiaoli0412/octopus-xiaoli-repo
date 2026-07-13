@@ -503,6 +503,50 @@ export function useEnableChannel() {
     });
 }
 
+export type BatchOperationResult = {
+	success_count: number;
+	failed_count: number;
+	errors: string[];
+};
+
+export function useBatchEnableChannel() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: async (ids: number[]) => {
+			return apiClient.post<BatchOperationResult>('/api/v1/channel/batch-enable', { ids });
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['channels', 'list'] });
+		},
+	});
+}
+
+export function useBatchDisableChannel() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: async (ids: number[]) => {
+			return apiClient.post<BatchOperationResult>('/api/v1/channel/batch-disable', { ids });
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['channels', 'list'] });
+		},
+	});
+}
+
+export function useBatchDeleteChannel() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: async (ids: number[]) => {
+			return apiClient.post<BatchOperationResult>('/api/v1/channel/batch-delete', { ids });
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['channels', 'list'] });
+			queryClient.invalidateQueries({ queryKey: ['models', 'channel'] });
+			queryClient.invalidateQueries({ queryKey: ['models', 'capability-inventory'] });
+		},
+	});
+}
+
 export function useRouteTargetOverrideList(channelId?: number) {
     return useQuery({
         queryKey: ['route-target', 'list', channelId ?? 'all'],

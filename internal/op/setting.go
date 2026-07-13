@@ -11,6 +11,7 @@ import (
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/model"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/cache"
+	"gorm.io/gorm"
 )
 
 var settingCache = cache.New[model.SettingKey, string](16)
@@ -18,6 +19,7 @@ var settingCache = cache.New[model.SettingKey, string](16)
 func IsSecretSettingKey(key model.SettingKey) bool {
 	switch key {
 	case model.SettingKeyAuthTokenSecret,
+		model.SettingKeyAuthTokenSecretSecondary,
 		model.SettingKeyAIAutomationAPIKey:
 		return true
 	default:
@@ -114,6 +116,42 @@ func SettingSetInt(key model.SettingKey, value int) error {
 		return fmt.Errorf("failed to set setting, key not found")
 	}
 	settingCache.Set(key, strconv.Itoa(value))
+	return nil
+}
+
+// RotateAuthTokenSecret performs JWT secret rotation by moving the current
+// primary secret to secondary and generating a new primary. After rotation,
+// tokens signed with the old primary remain valid via the secondary until
+// secondary is cleared or overwritten by a subsequent rotation.
+func RotateAuthTokenSecret(ctx context.Context) error {
+	currentPrimary, ok := settingCache.Get(model.SettingKeyAuthTokenSecret)
+	if !ok || strings.TrimSpace(currentPrimary) == "" {
+		return fmt.Errorf("auth token secret is not initialized")
+	}
+
+	newSecret, err := generateSettingSecret()
+	if err != nil {
+		return fmt.Errorf("generate new auth token secret: %w", err)
+	}
+
+	conn := db.GetDB().WithContext(ctx)
+	err = conn.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.Setting{Key: model.SettingKeyAuthTokenSecretSecondary}).
+			Update("Value", currentPrimary).Error; err != nil {
+			return fmt.Errorf("update secondary secret: %w", err)
+		}
+		if err := tx.Model(&model.Setting{Key: model.SettingKeyAuthTokenSecret}).
+			Update("Value", newSecret).Error; err != nil {
+			return fmt.Errorf("update primary secret: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	settingCache.Set(model.SettingKeyAuthTokenSecretSecondary, currentPrimary)
+	settingCache.Set(model.SettingKeyAuthTokenSecret, newSecret)
 	return nil
 }
 

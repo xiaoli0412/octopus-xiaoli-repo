@@ -359,6 +359,25 @@ func RelayLogClear(ctx context.Context) error {
 	return db.GetDB().WithContext(ctx).Where("1 = 1").Delete(&model.RelayLog{}).Error
 }
 
+// RelayLogGetByID 按 Snowflake ID 查询单条 RelayLog，优先查缓存，未命中时回源数据库。
+func RelayLogGetByID(ctx context.Context, id int64) (model.RelayLog, error) {
+	relayLogCacheLock.Lock()
+	for _, entry := range relayLogCache {
+		if entry.ID == id {
+			result := entry
+			relayLogCacheLock.Unlock()
+			return result, nil
+		}
+	}
+	relayLogCacheLock.Unlock()
+
+	var entry model.RelayLog
+	if err := db.GetDB().WithContext(ctx).Where("id = ?", id).First(&entry).Error; err != nil {
+		return model.RelayLog{}, err
+	}
+	return entry, nil
+}
+
 // RelayLogExport returns logs in descending id order without page slicing.
 // This is intended for explicit export use, so callers should always provide a sane limit.
 func RelayLogExport(ctx context.Context, startTime, endTime *int, limit int) ([]model.RelayLog, error) {

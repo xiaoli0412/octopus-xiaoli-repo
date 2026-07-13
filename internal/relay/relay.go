@@ -2,6 +2,7 @@ package relay
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -55,6 +56,19 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 		return
 	}
 
+	// API Key 权限粒度：分组白名单校验
+	if allowedGroups := middleware.APIKeyAllowedGroupsFromContext(c); allowedGroups != nil {
+		if !slices.Contains(allowedGroups, group.ID) {
+			resp.Error(c, http.StatusForbidden, "API key not allowed to access this group")
+			return
+		}
+	}
+
+	// API Key 权限粒度：渠道白名单过滤候选
+	if allowedChannels := middleware.APIKeyAllowedChannelsFromContext(c); allowedChannels != nil {
+		group.Items = filterGroupItemsByAllowedChannels(group.Items, allowedChannels)
+	}
+
 	requestCapability := requestCapabilityForInternalRequest(internalRequest)
 	modeState := initDynamicRoutingModeState(group, requestModel, requestCapability)
 
@@ -68,6 +82,11 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 	// 初始化 Metrics
 	metrics := NewRelayMetrics(apiKeyID, requestModel, internalRequest)
 	metrics.SetClientIP(op.ClientIPFromRequest(c.Request))
+
+	// 请求重放：跳过统计写入，避免污染正常指标与 API Key 配额
+	if c.GetHeader("X-Octopus-Replay") == "true" {
+		metrics.skipStats = true
+	}
 
 	// 请求级上下文
 	req := &relayRequest{
@@ -83,6 +102,25 @@ func Handler(inboundType inbound.InboundType, c *gin.Context) {
 		iter:            iter,
 	}
 	modeState.apply(req)
+
+	// 响应缓存：仅非流式请求、全局开关开启且 API Key 启用缓存时生效
+	if !req.isStreaming && op.ResponseCacheEnabled() {
+		if apiKeyVal, exists := c.Get("api_key"); exists {
+			if apiKey, ok := apiKeyVal.(dbmodel.APIKey); ok && apiKey.ResponseCacheEnabled {
+				if reqBody, err := json.Marshal(internalRequest); err == nil {
+					cacheKey := op.ComputeCacheKey(internalRequest.Model, reqBody, nil)
+					req.cacheKey = cacheKey
+					req.cacheEnabled = true
+					req.cacheTTL = op.ResponseCacheTTL()
+					if cached, hit := op.GetResponseCache().Get(cacheKey); hit {
+						c.Header("X-Octopus-Cache", "HIT")
+						c.Data(http.StatusOK, "application/json", cached)
+						return
+					}
+				}
+			}
+		}
+	}
 
 	var lastErr error
 	retryRounds := group.RetryRounds
@@ -209,9 +247,60 @@ roundLoop:
 					metrics.Save(c.Request.Context(), false, result.Err, iter.Attempts())
 					return
 				}
+				// ====== 失败分类处理 ======
+				errorClass := ClassifyHTTPError(result.StatusCode, result.Err)
+
+				// 429 (RateLimited): 对当前 key 执行退避后重试（最多 2 次），不 failover
+				if ShouldRetry(errorClass) {
+					for retryAttempt := 1; retryAttempt <= maxRateLimitRetries; retryAttempt++ {
+						backoff := ComputeBackoff(retryAttempt, group.RetryDelayMs)
+						if !waitForRetryDelay(c.Request.Context(), backoff) {
+							log.Infof("request context canceled while waiting for rate-limit backoff")
+							metrics.Save(c.Request.Context(), false, context.Canceled, iter.Attempts())
+							return
+						}
+						result = ra.attempt()
+						if result.Success {
+							consecutiveFails = 0
+							recordRelayTokensForRateLimit(c, metrics)
+							metrics.Save(c.Request.Context(), true, nil, iter.Attempts())
+							return
+						}
+						if result.Written {
+							recordRelayTokensForRateLimit(c, metrics)
+							metrics.Save(c.Request.Context(), false, result.Err, iter.Attempts())
+							return
+						}
+						errorClass = ClassifyHTTPError(result.StatusCode, result.Err)
+						if !ShouldRetry(errorClass) {
+							break
+						}
+					}
+				}
+
+				// ClientError 或重试耗尽的 RateLimited: 直接返回原始错误响应给客户端，不重试不 failover
+				if !ShouldFailover(errorClass) {
+					lastErr = result.Err
+					recordRelayTokensForRateLimit(c, metrics)
+					metrics.Save(c.Request.Context(), false, lastErr, iter.Attempts())
+					statusCode := result.StatusCode
+					if statusCode <= 0 {
+						statusCode = http.StatusBadGateway
+					}
+					resp.Error(c, statusCode, result.Err.Error())
+					return
+				}
+
+				// AuthFailed/ServerError/Timeout/NetworkError: failover
 				lastErr = result.Err
 				consecutiveFails++
 				excludedKeys[usedKey.ID] = struct{}{}
+
+				// 401/403 (AuthFailed): 记录审计日志
+				if errorClass == ErrorClassAuthFailed {
+					log.Warnf("auth failed for channel %s (id=%d) key %d (status=%d), failing over",
+						channel.Name, channel.ID, usedKey.ID, result.StatusCode)
+				}
 
 				nextKey := channel.GetChannelKeyForRequestExcept(targetModel, requestFormat, excludedKeys)
 				if !req.isStreaming && strings.TrimSpace(nextKey.ChannelKey) == "" {
@@ -268,7 +357,7 @@ func failoverWindowExceeded(group dbmodel.Group, startedAt time.Time) bool {
 // recordRelayTokensForRateLimit 把本次请求实际消耗的 token 写回 request context，
 // 供 auth 中间件在请求结束后进行 TPM 限流统计。
 func recordRelayTokensForRateLimit(c *gin.Context, metrics *RelayMetrics) {
-	if metrics == nil || metrics.InternalResponse == nil || metrics.InternalResponse.Usage == nil {
+	if metrics == nil || metrics.skipStats || metrics.InternalResponse == nil || metrics.InternalResponse.Usage == nil {
 		return
 	}
 	usage := metrics.InternalResponse.Usage
@@ -634,6 +723,10 @@ func (ra *relayAttempt) handleResponse(ctx context.Context, response *http.Respo
 		return fmt.Errorf("failed to transform inbound response: %w", err)
 	}
 
+	if ra.cacheEnabled && ra.cacheKey != "" {
+		op.GetResponseCache().Set(ra.cacheKey, inResponse, ra.cacheTTL)
+		ra.c.Header("X-Octopus-Cache", "MISS")
+	}
 	ra.c.Data(http.StatusOK, "application/json", inResponse)
 	return nil
 }
@@ -646,4 +739,23 @@ func (ra *relayAttempt) collectResponse() {
 	}
 
 	ra.metrics.SetInternalResponse(internalResponse, ra.internalRequest.Model)
+}
+
+// filterGroupItemsByAllowedChannels 按 API Key 允许的渠道 ID 列表过滤分组候选。
+// allowed 为 nil 或空时返回原始 items（不限制）。
+func filterGroupItemsByAllowedChannels(items []dbmodel.GroupItem, allowed []int) []dbmodel.GroupItem {
+	if len(allowed) == 0 || len(items) == 0 {
+		return items
+	}
+	allowedSet := make(map[int]struct{}, len(allowed))
+	for _, id := range allowed {
+		allowedSet[id] = struct{}{}
+	}
+	filtered := make([]dbmodel.GroupItem, 0, len(items))
+	for _, item := range items {
+		if _, ok := allowedSet[item.ChannelID]; ok {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
 }

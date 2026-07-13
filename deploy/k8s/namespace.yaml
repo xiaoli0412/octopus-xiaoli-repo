@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: octopus
+  labels:
+    app.kubernetes.io/name: octopus
+    app.kubernetes.io/part-of: octopus

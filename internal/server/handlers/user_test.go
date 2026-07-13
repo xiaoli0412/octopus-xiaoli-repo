@@ -472,3 +472,70 @@ func loginThrottleKeyForTest(t *testing.T, remoteAddr string, username string) s
 	ctx.Request.RemoteAddr = remoteAddr
 	return loginThrottleKey(ctx, username)
 }
+
+func TestRotateSecretSucceeds(t *testing.T) {
+	setupHandlerTest(t)
+
+	token, _, err := serverauth.GenerateJWTToken(0)
+	if err != nil {
+		t.Fatalf("GenerateJWTToken() error = %v", err)
+	}
+	if !serverauth.VerifyJWTToken(token) {
+		t.Fatalf("VerifyJWTToken() before rotation = false, want true")
+	}
+
+	recorder := performJSONHandlerRequest(t, http.MethodPost, "/api/v1/user/rotate-secret", nil, rotateSecret)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	res := decodeHandlerResponse(t, recorder)
+	var dataStr string
+	if err := json.Unmarshal(res.Data, &dataStr); err != nil {
+		t.Fatalf("unmarshal rotate-secret data error = %v", err)
+	}
+	if !strings.Contains(strings.ToLower(dataStr), "rotated") {
+		t.Fatalf("data = %q, want rotation success message", dataStr)
+	}
+
+	if !serverauth.VerifyJWTToken(token) {
+		t.Fatalf("VerifyJWTToken() after rotation = false, want true (old token should verify via secondary)")
+	}
+
+	newToken, _, err := serverauth.GenerateJWTToken(0)
+	if err != nil {
+		t.Fatalf("GenerateJWTToken() after rotation error = %v", err)
+	}
+	if !serverauth.VerifyJWTToken(newToken) {
+		t.Fatalf("VerifyJWTToken() for new token = false, want true")
+	}
+}
+
+func TestRotateSecretChangesPrimaryKey(t *testing.T) {
+	setupHandlerTest(t)
+
+	primaryBefore, err := serverauth.JWTSigningSecretForTests()
+	if err != nil {
+		t.Fatalf("JWTSigningSecretForTests() before rotation error = %v", err)
+	}
+
+	recorder := performJSONHandlerRequest(t, http.MethodPost, "/api/v1/user/rotate-secret", nil, rotateSecret)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+
+	primaryAfter, err := serverauth.JWTSigningSecretForTests()
+	if err != nil {
+		t.Fatalf("JWTSigningSecretForTests() after rotation error = %v", err)
+	}
+	if string(primaryAfter) == string(primaryBefore) {
+		t.Fatal("primary secret did not change after rotation")
+	}
+
+	secondaryAfter, err := serverauth.JWTSecondarySigningSecretForTests()
+	if err != nil {
+		t.Fatalf("JWTSecondarySigningSecretForTests() after rotation error = %v", err)
+	}
+	if string(secondaryAfter) != string(primaryBefore) {
+		t.Fatal("secondary secret should equal the original primary after rotation")
+	}
+}
