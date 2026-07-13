@@ -72,7 +72,11 @@ func newEngine() (*gin.Engine, error) {
 		r.Use(middleware.Logger())
 	}
 	r.GET("/healthz", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		frontend := "degraded"
+		if static.HasFrontend() {
+			frontend = "ok"
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "frontend": frontend})
 	})
 	r.GET("/metrics", middleware.MetricsAuthMiddleware(), gin.WrapH(promhttp.Handler()))
 	r.Use(middleware.Cors())

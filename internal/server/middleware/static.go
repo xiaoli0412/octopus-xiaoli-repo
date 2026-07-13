@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"io"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -35,6 +36,18 @@ func static(urlPrefix string, fileSystem http.FileSystem) gin.HandlerFunc {
 		}
 		f, err := fileSystem.Open(openPath)
 		if err != nil {
+			if strings.Contains(c.GetHeader("Accept"), "text/html") {
+				idx, idxErr := fileSystem.Open("/index.html")
+				if idxErr == nil {
+					defer idx.Close()
+					c.Header("Content-Type", "text/html; charset=utf-8")
+					c.Header("Cache-Control", "no-cache")
+					c.Status(http.StatusOK)
+					io.Copy(c.Writer, idx)
+					c.Abort()
+					return
+				}
+			}
 			c.Next()
 			return
 		}

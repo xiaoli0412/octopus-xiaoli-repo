@@ -34,6 +34,10 @@ func init() {
 
 // listAuditLogs 分页查询审计日志，支持按 time_range/user_id/action/resource_type 过滤
 func listAuditLogs(c *gin.Context) {
+	if auditRecorderInstance == nil {
+		resp.Success(c, gin.H{"list": []interface{}{}, "total": 0, "page": 1, "page_size": 20})
+		return
+	}
 	page, _, err := parseOptionalBoundedIntQuery(c, "page", 1, 1, 0)
 	if err != nil {
 		resp.Error(c, http.StatusBadRequest, "invalid page")
@@ -93,6 +97,10 @@ func listAuditLogs(c *gin.Context) {
 
 // getAuditLog 按 ID 查询单条审计日志
 func getAuditLog(c *gin.Context) {
+	if auditRecorderInstance == nil {
+		resp.Error(c, http.StatusNotFound, "audit log not found")
+		return
+	}
 	idStr := c.Param("id")
 	if idStr == "" {
 		resp.Error(c, http.StatusBadRequest, "missing id")

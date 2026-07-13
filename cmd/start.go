@@ -3,8 +3,10 @@ package cmd
 import (
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/conf"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/db"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/observability"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/op"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server"
+	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/server/handlers"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/task"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/log"
 	"github.com/xiaoli0412/octopus-xiaoli-repo/internal/utils/shutdown"
@@ -32,6 +34,8 @@ var startCmd = &cobra.Command{
 			return
 		}
 		shutdown.Register(db.Close)
+
+		handlers.SetAuditRecorder(observability.NewAuditRecorder(db.GetDB()))
 
 		if err := op.InitCache(); err != nil {
 			log.Errorf("cache init error: %v", err)
