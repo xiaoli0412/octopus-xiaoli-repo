@@ -1498,7 +1498,7 @@
       "exportFailed": "匯出失敗",
       "exportDimensionChannel": "按渠道",
       "exportDimensionModel": "按模型",
-      "exportDimensionApiKey": "按 API Key"
+      "exportDimensionApiKey": "按 API 金鑰"
     },
     "chart": {
       "totalRequests": "請求次數",
@@ -2263,7 +2263,7 @@
         "label": "訊息格式",
         "hint": "選擇 Webhook 平台以正確格式化訊息內容。"
       },
-      "description": "當 API Key 的累計成本達到其 MaxCost 限制的設定閾值時觸發 Webhook 通知。",
+      "description": "當 API 金鑰的累計成本達到其 MaxCost 限制的設定閾值時觸發 Webhook 通知。",
       "title": "成本告警"
     }
   },

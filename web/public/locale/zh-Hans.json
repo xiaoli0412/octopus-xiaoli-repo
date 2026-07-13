@@ -1528,7 +1528,7 @@
       "exportFailed": "导出失败",
       "exportDimensionChannel": "按渠道",
       "exportDimensionModel": "按模型",
-      "exportDimensionApiKey": "按 API Key"
+      "exportDimensionApiKey": "按 API 密钥"
     },
     "chart": {
       "title": "趋势",
@@ -2019,7 +2019,7 @@
         "enableSuccess": "批量启用成功",
         "disableSuccess": "批量禁用成功",
         "deleteSuccess": "批量删除成功",
-        "deleteConfirm": "确定要删除选中的 {count} 个 API Key 吗？"
+        "deleteConfirm": "确定要删除选中的 {count} 个 API 密钥吗？"
       },
       "form": {
         "name": "名称",
@@ -2330,7 +2330,7 @@
         "label": "消息格式",
         "hint": "选择 Webhook 平台以正确格式化消息体。"
       },
-      "description": "当 API Key 的累计成本达到其 MaxCost 限制的配置阈值时触发 Webhook 通知。",
+      "description": "当 API 密钥的累计成本达到其 MaxCost 限制的配置阈值时触发 Webhook 通知。",
       "title": "成本告警"
     }
   },
