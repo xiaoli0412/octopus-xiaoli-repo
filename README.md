@@ -2,556 +2,434 @@
 
 <img src="web/public/logo.svg" alt="Octopus Logo" width="120" height="120">
 
-### Octopus
+# Octopus
 
-**A Simple, Beautiful, and Elegant LLM API Aggregation & Load Balancing Service for Individuals**
+### Enterprise-Grade LLM API Aggregation, Load Balancing & Governance Platform
+
+[![Release](https://img.shields.io/github/v/release/xiaoli0412/octopus-xiaoli-repo?style=flat-square)](https://github.com/xiaoli0412/octopus-xiaoli-repo/releases)
+[![License](https://img.shields.io/github/license/xiaoli0412/octopus-xiaoli-repo?style=flat-square)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.24.4-00ADD8?style=flat-square&logo=go)](https://go.dev)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker)](https://github.com/xiaoli0412/octopus-xiaoli-repo/pkgs/container/octopus-xiaoli-repo)
 
 English | [简体中文](README_zh.md)
 
 </div>
 
+---
 
-## ✨ Features
+## Overview
 
-### Core
+Octopus is a production-ready LLM API gateway that aggregates multiple upstream providers (OpenAI, Anthropic, Gemini, Copilot, etc.) behind a single unified API surface. It provides intelligent load balancing, circuit breaking, health-aware routing, fine-grained access control, full audit logging, and comprehensive observability — designed for teams that need enterprise-grade reliability for their LLM infrastructure.
 
-- 🔀 **Multi-Channel Aggregation** - Connect multiple LLM provider channels with unified management
-- 🔑 **Multi-Key Support** - Support multiple API keys for a single channel with intelligent rotation
-- ⚡ **Smart Selection** - Multiple endpoints per channel, smart selection of the endpoint with the shortest delay
-- ⚖️ **Load Balancing** - Round-robin, random, failover, and weighted request distribution
-- 🔄 **Protocol Conversion** - Seamless conversion between OpenAI Chat / OpenAI Responses / Anthropic Messages / Gemini / Embeddings
-- 💰 **Price Sync** - Automatic model pricing updates from models.dev and other public sources
-- 🔃 **Model Sync** - Automatic synchronization of available model lists with channels
-- 📊 **Analytics** - Comprehensive request statistics, token consumption, and cost tracking
-- 🗄️ **Multi-Database Support** - SQLite, MySQL, PostgreSQL
+### Why Octopus?
 
-### Highlights in v1.23
+| Capability | What It Means |
+|---|---|
+| **Multi-Provider Aggregation** | Connect dozens of LLM channels under one API key. Clients see a single endpoint; Octopus handles routing, failover, and protocol conversion transparently. |
+| **Health-Aware Routing** | Active health probes + circuit breakers + latency-aware selection ensure requests go to the fastest healthy upstream. No more manual failover. |
+| **Enterprise Security** | Per-key channel/group/capability/IP-CIDR permissions, JWT dual-key rotation, audit logging with before/after diff, `/metrics` auth, and read-only container hardening. |
+| **Full Observability** | Prometheus metrics, OpenTelemetry tracing, structured logging with rotation, and a built-in audit log UI — everything you need for production monitoring. |
+| **Operational Excellence** | Automated SQLite backups, one-click data export, request replay for debugging, K8s deployment templates, and zero-downtime rolling upgrades. |
+| **Protocol Conversion** | Seamless translation between OpenAI Chat/Responses, Anthropic Messages, Gemini, and Embeddings APIs — clients can use any SDK against any upstream. |
 
-- 🦀 **Rust FFI in Production Hot Paths** - Token counting, SSE stream parsing, load-balancer selection, and streaming response aggregation can run through the Rust FFI core; Go fallbacks remain available via environment switches for non-Rust builds
-- 🔗 **Upstream Deep Link V2** - Deep integration with New API / sub2API / OpenAI Compatible upstreams: real endpoint probing, model/key/group discovery, balance/subscription tracking, upstream key creation, auto-checkin, balance alerts, model connectivity testing, and one-click sync to local channels/groups/prices
-- 🚦 **API Key Rate Limiting** - Per-key RPM, TPM, and daily request quotas with in-memory token-bucket and sliding-window middleware
-- 🐳 **Docker-First Deployment & Updates** - One-line installer with GHCR image pull, source-backed Docker build fallback, in-Docker update hints (`docker compose pull && docker compose up -d`), and optional binary-backed image build for low-memory servers
-- 🌐 **Multi-Language UI** - Web management panel supports English, Simplified Chinese, and Traditional Chinese
+---
 
-### More Extras (vs upstream)
-
-- 🤖 **GitHub Copilot OAuth** - One-click GitHub Copilot OAuth Device Flow login
-- 🌌 **Antigravity (Google Gemini Code Assist)** - OAuth Web Flow integration with automatic project ID retrieval
-- 🧪 **Model Testing UI** - Test channel model connectivity before saving; supports batch testing, 429 treated as pass
-- 🔌 **Built-in Providers** - 20+ pre-configured provider templates (OpenAI, Anthropic, Gemini, Zhipu, Volcengine, Copilot, etc.)
-- 📋 **CC Switch Integration** - Generate `ccswitch://` deep links to import provider config into Claude / Codex / Gemini CLI tools
-- 🎯 **Zen Channel** - Smart protocol routing based on model name prefix
-- ⚙️ **API Base URL Setting** - Configure the externally accessible base URL for generated curl examples and client config instructions
-
-
-## 🏗️ Architecture
+## Architecture
 
 ```mermaid
-flowchart LR
-    subgraph Client
-        A[OpenAI SDK / Claude Code / Codex / Gemini CLI]
+flowchart TB
+    subgraph Clients
+        A[OpenAI SDK] & B[Claude Code] & C[Codex CLI] & D[Gemini CLI]
     end
-    subgraph Octopus
-        B[Next.js UI] --> C[Gin Server]
-        C --> D[Relay Engine]
-        D --> E[Rust FFI Core<br/>token count / JSON / SSE]
-        D --> F[Transformer Adapters]
-        F --> G[Outbound Providers]
-        C --> H[Operations Layer]
-        H --> I[(Database)]
+
+    subgraph Octopus Gateway
+        E[Next.js Admin UI] --> F[Gin HTTP Server]
+        F --> G[Auth & Rate Limit Middleware]
+        G --> H[Relay Engine]
+        H --> I[Error Classifier & Retry]
+        I --> J[Load Balancer]
+        J --> K[Health-Aware Selector]
+        H --> L[Transformer Adapters]
+        L --> M[Outbound Providers]
+        H --> N[Response Cache]
+        F --> O[Operations Layer]
+        O --> P[(SQLite / MySQL / PostgreSQL)]
+        O --> Q[Backup Task]
+        O --> R[Cost Alert Webhook]
+        F --> S[Metrics & Tracing]
     end
-    subgraph Upstream
-        J[New API / sub2API / OpenAI Compatible]
+
+    subgraph Upstream Providers
+        T[OpenAI] & U[Anthropic] & V[Gemini] & W[Copilot] & X[Volcengine]
     end
-    subgraph Providers
-        K[OpenAI / Anthropic / Gemini / Volcengine / Copilot]
-    end
-    A -->|API Key + /v1/*| C
-    G --> K
-    H -->|probe / sync / checkin| J
+
+    A & B & C & D -->|API Key + /v1/*| F
+    M --> T & U & V & W & X
+    S -->|Prometheus / OTLP| Grafana[Monitoring Stack]
 ```
 
-Key components:
+### Core Components
 
-- **Relay Engine** - Routes incoming requests to the selected channel/group, applies rate limits, and records usage.
-- **Rust FFI Core** (`rust/core/` + `internal/rustbridge/`) - Handles token counting, JSON parsing/transformation, and SSE aggregation.
-- **Transformer Adapters** - Inbound (OpenAI Chat/Responses, Anthropic, Embeddings) and outbound (OpenAI, Anthropic, Gemini, Volcengine, Copilot, Antigravity, Zen) protocol conversion.
-- **Upstream Gateway** - Probes and synchronizes upstream sites, manages upstream keys, auto-checkin, and balance alerts.
-- **Load Balancer** - Round-robin, random, failover, weighted.
-- **Statistics & Logs** - In-memory aggregation with periodic batch flush to the database.
+| Component | Location | Responsibility |
+|---|---|---|
+| **Relay Engine** | `internal/relay/` | Request routing, error classification, differentiated retry (429 backoff / 401-403 failover / 5xx failover / timeout failover) |
+| **Load Balancer** | `internal/relay/balancer/` | Round-robin, random, failover, weighted, `least_latency`, `health_aware` modes with circuit breaker |
+| **Health Checker** | `internal/op/health_check_task.go` | Background HEAD + optional LLM probe, auto-recovery on circuit breaker |
+| **Transformer** | `internal/transformer/` | Inbound (OpenAI/Anthropic/Gemini) and outbound (OpenAI/Anthropic/Gemini/Copilot/Volcengine) protocol conversion |
+| **Rust FFI Core** | `rust/core/` + `internal/rustbridge/` | Token counting, SSE stream parsing, balancer selection, streaming aggregation — Go fallbacks available |
+| **Observability** | `internal/observability/` | Prometheus metrics, OTel tracing, audit logging |
+| **Operations** | `internal/op/` | Channel/group/APIKey management, stats, backup, cost alerts, response cache |
+| **Admin UI** | `web/` | Next.js 16 dashboard with audit log viewer, batch operations, CSV export, hotkey support |
 
+---
 
-## 🚀 Quick Start
+## Quick Start
 
-### 🐳 Docker (Recommended)
-
-One-line install:
+### Docker (Recommended)
 
 ```bash
+# One-line install
 curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | bash
 ```
 
-The installer keeps `1088` as the default external port, probes the port before startup, auto-switches to a free port in non-interactive runs, reuses the existing `octopus` container data mount when `OCTOPUS_DATA_DIR` is not set, tries the official GHCR image first, falls back to a local source-backed Docker build from the matching release tag when GHCR is denied or unreachable, and can finally build a local Docker image from a known-good Linux binary when the server-side source build is still blocked. Docker Hub is no longer an official install source.
-
-If your SSH host has unstable access to `raw.githubusercontent.com`, prefer the two-step flow:
-
-```bash
-curl -fsSL -o install-octopus.sh https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh
-bash install-octopus.sh
-```
-
-Non-interactive custom port example:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/xiaoli0412/octopus-xiaoli-repo/main/scripts/install.sh | OCTOPUS_PORT=1088 bash
-```
-
-If your network restricts GHCR, you can still pin a reachable private or mirrored registry image explicitly:
-
-```bash
-OCTOPUS_IMAGE=registry.example.com/octopus-xiaoli-repo:v1.23.1 bash install-octopus.sh
-```
-
-If GHCR is blocked and the server-side source build still fails, provide a known-good Linux binary and let the installer build a local Docker image from it:
-
-```bash
-OCTOPUS_BINARY_PATH=/root/octopus-linux-amd64 bash install-octopus.sh
-```
-
-Direct GHCR `docker run` is only recommended after you have confirmed this host can pull the GHCR package:
-
-```bash
-docker run -d --name octopus -v /path/to/data:/app/data -p 1088:1088 ghcr.io/xiaoli0412/octopus-xiaoli-repo:v1.23.1
-```
-
-If you prefer the manual path, clone the repository and run compose directly:
+Or manual docker-compose:
 
 ```bash
 git clone https://github.com/xiaoli0412/octopus-xiaoli-repo.git
 cd octopus-xiaoli-repo
-docker compose up -d --build
-```
-
-If you use the compose file in this repository directly, the default persistent data directory is `./data`. For upgrades of an existing server, set `OCTOPUS_DATA_DIR` to the real old data directory before running compose; the one-line installer does this automatically when it can inspect the existing `octopus` container mount.
-
-You can also override the default compose runtime parameters without editing the file itself:
-
-```bash
-OCTOPUS_PORT=1088 \
-OCTOPUS_DATA_DIR=./build/compose-smoke-data \
-OCTOPUS_CONTAINER_NAME=octopus-smoke \
 docker compose up -d
 ```
 
-The container startup path refuses to silently fall back to a root runtime when `PUID` / `PGID` requests an unprivileged user but the mounted data directory is not writable. Fix the host volume ownership instead. If you need a temporary compatibility escape hatch for an existing deployment, set `ALLOW_ROOT_FALLBACK_ON_DATA_DIR_ERROR=true` explicitly and remove it after repairing the mount permissions.
+The service will be available at `http://localhost:1088`.
 
+**Custom configuration:**
 
-### 📦 Download from Release
+```bash
+OCTOPUS_PORT=1088 \
+OCTOPUS_DATA_DIR=/data/octopus \
+docker compose up -d
+```
 
-Download the binary for your platform from [Releases](https://github.com/xiaoli0412/octopus-xiaoli-repo/releases), then run:
+**Direct GHCR image:**
+
+```bash
+docker run -d --name octopus \
+  -v /path/to/data:/app/data \
+  -p 1088:1088 \
+  ghcr.io/xiaoli0412/octopus-xiaoli-repo:latest
+```
+
+### Kubernetes
+
+Production K8s templates are included in `deploy/k8s/`:
+
+```bash
+kubectl apply -f deploy/k8s/namespace.yaml
+kubectl apply -f deploy/k8s/secret.yaml
+kubectl apply -f deploy/k8s/configmap.yaml
+kubectl apply -f deploy/k8s/pvc.yaml
+kubectl apply -f deploy/k8s/deployment.yaml
+kubectl apply -f deploy/k8s/service.yaml
+kubectl apply -f deploy/k8s/ingress.yaml
+```
+
+Includes liveness/readiness probes, resource limits, `runAsNonRoot`, `readOnlyRootFilesystem`, and `cap_drop: ALL`.
+
+### Binary
+
+Download from [Releases](https://github.com/xiaoli0412/octopus-xiaoli-repo/releases):
 
 ```bash
 ./octopus start
 ```
 
-### 🛠️ Build from Source
+### Build from Source
 
-**Requirements:**
-- Go 1.24.4+
-- Node.js 18+
-- pnpm
-- Rust toolchain (cargo, rustc) - required for the Rust FFI core
+**Requirements:** Go 1.24.4+, Node.js 22+, pnpm 10+, Rust toolchain
 
 ```bash
-# Clone the repository
 git clone https://github.com/xiaoli0412/octopus-xiaoli-repo.git
 cd octopus-xiaoli-repo
-# Build frontend and sync the exported assets into static/out
+
+# Build frontend
 cd web && pnpm install && pnpm run build:static && cd ..
-# Build the Rust FFI core
+
+# Build Rust FFI core
 ./scripts/build.sh rust-core
-# Start the backend service
-go run main.go start 
-```
 
-> 💡 **Tip**: The frontend build artifacts are embedded into the Go binary, so you must build the frontend before starting the backend.
-
-**Windows Build**
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\build-win.ps1
-```
-
-This script will build the frontend, sync the exported assets into `static/out`, compile the Rust FFI core, and generate `build/bin/octopus-windows-amd64.exe`.
-
-**Windows Development Mode**
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\dev-win.ps1
-```
-
-**Linux Development Mode**
-
-```bash
-chmod +x ./scripts/dev-linux.sh
-./scripts/dev-linux.sh
-```
-
-**Linux Server Binary Only**
-
-```bash
-chmod +x ./scripts/build.sh
-./scripts/build.sh linux-binary
-```
-
-This path builds only `build/bin/octopus-linux-x86_64` and skips the frontend and price-update pipeline when you only need a Linux server binary.
-
-**Linux Backend Smoke**
-
-```bash
-chmod +x ./scripts/smoke-linux-backend.sh
-./scripts/smoke-linux-backend.sh
-```
-
-This smoke path builds a temporary local binary, starts a local mock upstream, and verifies the minimal backend flow end-to-end:
-- `/`
-- `/manifest.json`
-- `/healthz`
-- `/api/v1/user/login`
-- `/api/v1/channel/create`
-- `/api/v1/group/create`
-- `/api/v1/apikey/create`
-- `/v1/chat/completions`
-
-**Docker Compose Runtime Smoke**
-
-```bash
-chmod +x ./scripts/smoke-docker-compose.sh
-./scripts/smoke-docker-compose.sh
-```
-
-This smoke path verifies the repository `docker-compose.yml` end-to-end with a temporary, parameterized runtime.
-
-**Repository Validation Workflow**
-
-The repository also includes a GitHub Actions validation workflow at `.github/workflows/validation.yaml`:
-- `go build ./...`
-- Go tests
-- frontend `pnpm exec tsc --noEmit`
-- Linux backend smoke via `scripts/smoke-linux-backend.sh`
-- Docker compose runtime smoke via `scripts/smoke-docker-compose.sh`
-
-**Manual Frontend Checklist**
-
-Complex UI acceptance remains `runtime smoke + manual checklist`.
-The repository-tracked checklist lives at `docs/MANUAL_FRONTEND_CHECKLIST.zh-CN.md` and should be run on both desktop and `375px` width before claiming final UI acceptance.
-
-**Backup / Import Contract**
-
-- `/api/v1/setting/export` defaults to a full restore-ready snapshot when `include_secrets` is omitted
-- only explicit `include_secrets=false` produces a redacted snapshot
-- the daily background dynamic-routing task is a `dynamic summary scan`; it does not persist new thresholds or reorder user routing
-
-**Development Mode**
-
-```bash
-cd web && pnpm install && NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:1088" pnpm run dev
-## Open a new terminal, start the backend service
+# Start
 go run main.go start
-## Access the frontend at
-http://localhost:3000
 ```
 
-### 🔐 Bootstrap Credentials
+---
 
-After first launch, Octopus creates the initial administrator with:
+## Bootstrap Credentials
 
-- **Username**: `admin` by default, or `OCTOPUS_ADMIN_USERNAME` if set
-- **Password**: a random one-time bootstrap password printed in the startup logs, or `OCTOPUS_ADMIN_PASSWORD` if set
+On first launch, Octopus creates an administrator account:
 
-If you do not provide `OCTOPUS_ADMIN_PASSWORD`, check `docker logs octopus` or the server startup logs for the generated initial password.
-After the first successful login with the generated or environment-provided bootstrap password, Octopus blocks the rest of the management console until you set a new administrator password.
-Changing the username during that first-login flow is optional; changing the password is mandatory.
+- **Username:** `admin` (or `OCTOPUS_ADMIN_USERNAME`)
+- **Password:** Auto-generated, printed in startup logs (or set via `OCTOPUS_ADMIN_PASSWORD`)
 
-### 📝 Configuration File
+```bash
+docker logs octopus 2>&1 | grep "bootstrap"
+```
 
-The configuration file is located at `data/config.json` by default and is automatically generated on first startup.
+After first login, a mandatory password change is required before the management console becomes accessible.
 
-**Complete Configuration Example:**
+---
+
+## Configuration
+
+### Configuration File
+
+Located at `data/config.json`, auto-generated on first start:
 
 ```json
 {
-  "server": {
-    "host": "0.0.0.0",
-    "port": 8080,
-    "static_dir": "static/out"
-  },
-  "database": {
-    "type": "sqlite",
-    "path": "data/data.db"
-  },
-  "log": {
-    "level": "info"
-  }
+  "server": { "host": "0.0.0.0", "port": 8080, "static_dir": "static/out" },
+  "database": { "type": "sqlite", "path": "data/data.db" },
+  "log": { "level": "info" }
 }
 ```
 
-**Configuration Options:**
+### Environment Variables
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `server.host` | Listen address | `0.0.0.0` |
-| `server.port` | Server port | `8080` |
-| `server.static_dir` | Preferred local static asset directory; falls back to embedded assets when unavailable | `static/out` |
-| `database.type` | Database type | `sqlite` |
-| `database.path` | Database connection string | `data/data.db` |
-| `log.level` | Log level | `info` |
+All config options can be overridden via `OCTOPUS_` prefixed environment variables:
 
-> **Note**: The default port in `config.json` is `8080`. If you deploy via Docker (install script or docker-compose), the external port is mapped to `1088` by default.
+| Variable | Description | Default |
+|---|---|---|
+| `OCTOPUS_SERVER_HOST` | Listen address | `0.0.0.0` |
+| `OCTOPUS_SERVER_PORT` | Server port | `8080` |
+| `OCTOPUS_DATABASE_TYPE` | `sqlite` / `mysql` / `postgres` | `sqlite` |
+| `OCTOPUS_DATABASE_PATH` | DB connection string | `data/data.db` |
+| `OCTOPUS_LOG_LEVEL` | `debug` / `info` / `warn` / `error` | `info` |
+| `OCTOPUS_LOG_FILE` | Log file path (enables lumberjack rotation) | *(stderr only)* |
+| `OCTOPUS_SHUTDOWN_TIMEOUT` | Graceful shutdown timeout | `30s` |
+| `OCTOPUS_ADMIN_USERNAME` | Initial admin username | `admin` |
+| `OCTOPUS_ADMIN_PASSWORD` | Initial admin password | *(auto-generated)* |
+| `OCTOPUS_GITHUB_PAT` | GitHub PAT for version checks | — |
 
-For the `octopus healthcheck` CLI, wildcard listen addresses such as `0.0.0.0` and `::` are automatically mapped to `127.0.0.1` so the probe uses a client-reachable target.
+### Database Support
 
-**Database Configuration:**
+| Type | Connection String Format |
+|---|---|
+| SQLite | `data/data.db` |
+| MySQL | `user:password@tcp(host:port)/dbname` |
+| PostgreSQL | `postgresql://user:password@host:port/dbname?sslmode=disable` |
 
-Three database types are supported:
-
-| Type | `database.type` | `database.path` Format |
-|------|-----------------|-----------------------|
-| SQLite | `sqlite` | `data/data.db` |
-| MySQL | `mysql` | `user:password@tcp(host:port)/dbname` |
-| PostgreSQL | `postgres` | `postgresql://user:password@host:port/dbname?sslmode=disable` |
-
-**MySQL Configuration Example:**
-
-```json
-{
-  "database": {
-    "type": "mysql",
-    "path": "root:password@tcp(127.0.0.1:3306)/octopus"
-  }
-}
-```
-
-**PostgreSQL Configuration Example:**
-
-```json
-{
-  "database": {
-    "type": "postgres",
-    "path": "postgresql://user:password@localhost:5432/octopus?sslmode=disable"
-  }
-}
-```
-
-> 💡 **Tip**: MySQL and PostgreSQL require manual database creation. The application will automatically create the table structure.
-
-### 🌐 Environment Variables
-
-All configuration options can be overridden via environment variables using the format `OCTOPUS_` + configuration path (joined with `_`):
-
-| Environment Variable | Configuration Option |
-|---------------------|---------------------|
-| `OCTOPUS_SERVER_PORT` | `server.port` |
-| `OCTOPUS_SERVER_HOST` | `server.host` |
-| `OCTOPUS_SERVER_STATIC_DIR` | `server.static_dir` |
-| `OCTOPUS_DATABASE_TYPE` | `database.type` |
-| `OCTOPUS_DATABASE_PATH` | `database.path` |
-| `OCTOPUS_LOG_LEVEL` | `log.level` |
-| `OCTOPUS_GITHUB_PAT` | For rate limiting when getting the latest version (optional) |
-| `OCTOPUS_RELAY_MAX_SSE_EVENT_SIZE` | Maximum SSE event size (optional) |
-
-### OAuth Environment Overrides (Optional)
-
-Octopus includes built-in defaults for Copilot OAuth login.
-Antigravity OAuth requires `OCTOPUS_ANTIGRAVITY_CLIENT_ID` and `OCTOPUS_ANTIGRAVITY_CLIENT_SECRET` before the web flow can start.
-You can still override any OAuth value via environment variables.
-
-| Environment Variable | Default |
-|---------------------|---------|
-| `OCTOPUS_COPILOT_CLIENT_ID` | `151ef1b1b0345b2351ca` |
-| `OCTOPUS_COPILOT_SCOPE` | `copilot` |
-| `OCTOPUS_COPILOT_DEVICE_CODE_URL` | `https://github.com/login/device/code` |
-| `OCTOPUS_COPILOT_ACCESS_TOKEN_URL` | `https://github.com/login/oauth/access_token` |
-| `OCTOPUS_ANTIGRAVITY_CLIENT_ID` | *(required, set via environment variable)* |
-| `OCTOPUS_ANTIGRAVITY_CLIENT_SECRET` | *(required, set via environment variable)* |
-| `OCTOPUS_ANTIGRAVITY_AUTHORIZE_URL` | `https://accounts.google.com/o/oauth2/v2/auth` |
-| `OCTOPUS_ANTIGRAVITY_TOKEN_URL` | `https://oauth2.googleapis.com/token` |
-| `OCTOPUS_ANTIGRAVITY_SCOPE` | `https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile` |
-
-Notes:
-- Antigravity uses Octopus's own callback endpoint (`/api/v1/channel/antigravity/oauth/callback`) and polling flow.
-- `ANTIGRAVITY_*` / `COPILOT_*` aliases are also supported for compatibility.
-
-
-## ⚠️ Upgrade Notes
-
-### Upgrading to v1.23.1
-
-1. **Rust FFI Core**: v1.23 extends the Rust FFI core (`rust/core/`) into relay streaming, balancer selection, and streaming aggregation. When building from source, ensure the Rust toolchain is installed. Prebuilt release binaries already bundle the Rust library.
-2. **Database Migrations**: v1.23 includes new migrations. Back up your data directory before upgrading. The application will run migrations automatically on startup.
-3. **Docker Update**: If running inside Docker, use the update command shown in the web UI version card:
-   ```bash
-   docker compose pull && docker compose up -d
-   ```
-   In-container self-update is disabled to avoid replacing the container binary incorrectly.
-4. **API Key Rate Limits**: After upgrading, existing API keys have no rate limits by default. Visit **Settings → API Key** to configure RPM / TPM / Daily quotas.
-5. **Upstream Gateway**: The upstream probing layer has been hardened with multi-endpoint fallback, credential degradation, and cookie fallback. Existing upstream sites will be re-probed on the next refresh.
-6. **Backup First**: Use `/api/v1/setting/export` (or the Settings → Backup UI) to take a full snapshot before major upgrades.
-
-
-## 📖 Documentation
-
-### 📡 Channel Management
-
-Channels are the basic configuration units for connecting to LLM providers.
-
-**Base URL Guide:**
-
-The program automatically appends API paths based on channel type. You only need to provide the base URL:
-
-| Channel Type | Auto-appended Path | Base URL | Full Request URL Example |
-|--------------|-------------------|----------|--------------------------|
-| OpenAI Chat | `/chat/completions` | `https://api.openai.com/v1` | `https://api.openai.com/v1/chat/completions` |
-| OpenAI Responses | `/responses` | `https://api.openai.com/v1` | `https://api.openai.com/v1/responses` |
-| Anthropic | `/messages` | `https://api.anthropic.com/v1` | `https://api.anthropic.com/v1/messages` |
-| Gemini | `/models/:model:generateContent` | `https://generativelanguage.googleapis.com/v1beta` | `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent` |
-
-> 💡 **Tip**: No need to include specific API endpoint paths in the Base URL - the program handles this automatically.
+> MySQL and PostgreSQL require manual database creation. Tables are auto-migrated on startup.
 
 ---
 
-### 📁 Group Management
+## Enterprise Features
 
-Groups aggregate multiple channels into a unified external model name.
+### Security & Access Control
 
-**Core Concepts:**
+- **API Key Permission Granularity:** Per-key `AllowedChannels`, `AllowedGroups`, `AllowedCapabilities` (chat/embedding/response/message), and `AllowedIPCIDRs` — four-dimensional access control.
+- **JWT Dual-Key Rotation:** Primary + secondary secrets for zero-downtime key rotation via `POST /api/v1/user/rotate-secret`.
+- **Metrics Authentication:** `/metrics` endpoint supports Bearer token + IP allowlist (`metrics_auth_token`, `metrics_ip_allowlist`).
+- **Audit Logging:** All sensitive operations (login, CRUD on channels/groups/APIKeys, config changes) are logged with before/after JSON diff. Sensitive fields are redacted.
+- **Container Hardening:** `read_only: true`, `no-new-privileges`, `cap_drop: ALL`, non-root user (UID 10001), tmpfs for `/tmp`.
 
-- **Group name** is the model name exposed by the program
-- When calling the API, set the `model` parameter to the group name
+### Reliability & Resilience
 
-**Load Balancing Modes:**
+- **Error Classification & Differentiated Retry:** 429 → exponential backoff + jitter (same key, max 2 retries); 401/403 → mark key invalid + failover; 5xx → immediate failover; 408/504 → timeout failover; other 4xx → direct return.
+- **Circuit Breaker:** Per-channel circuit breaker with configurable thresholds. Auto-recovery on successful health probe.
+- **Health-Aware Routing:** `least_latency` and `health_aware` balancer modes aggregate success rate, latency, and circuit breaker state to select the optimal channel.
+- **Active Health Probes:** Background task (5-min interval, configurable) performs HEAD probes on base URLs with optional LLM 1-token probes. Results feed back into routing decisions.
+- **Response Cache:** Non-streaming requests support SHA256-keyed LRU cache with TTL and concurrent-safe access. `X-Octopus-Cache: HIT/MISS` header indicates cache status.
+- **Graceful Shutdown:** Context + timeout (default 30s), concurrent cleanup of background tasks, in-memory stats flushed to DB before exit.
 
-| Mode | Description |
-|------|-------------|
-| 🔄 **Round Robin** | Cycles through channels sequentially for each request |
-| 🎲 **Random** | Randomly selects an available channel for each request |
-| 🛡️ **Failover** | Prioritizes high-priority channels, switches to lower priority only on failure |
-| ⚖️ **Weighted** | Distributes requests based on configured channel weights |
+### Observability
 
-> 💡 **Example**: Create a group named `gpt-4o`, add multiple providers' GPT-4o channels to it, then access all channels via a unified `model: gpt-4o`.
+- **Prometheus Metrics** (`/metrics`): `relay_requests_total`, `relay_duration_seconds` (histogram), `channel_health`, `circuit_breaker_state`, `token_throughput_total`, `http_client_pool_idle`, and more.
+- **OpenTelemetry Tracing:** Full relay span chain (`relay.handle` → `balancer.pick` → `outbound.forward` → `stream.aggregate`), OTLP export, W3C TraceContext propagation.
+- **Structured Logging:** Configurable level, optional file output with lumberjack rotation (MaxSize/MaxBackups/MaxAge).
+- **Audit Log UI:** Web panel with time/user/action/resource filtering, before/after JSON diff viewer with field-level highlighting.
 
----
+### Operations & Maintenance
 
-### 💰 Price Management
-
-Manage model pricing information in the system.
-
-**Data Sources:**
-
-- The system periodically syncs model pricing data from [models.dev](https://github.com/sst/models.dev)
-- When creating a channel, if the channel contains models not in models.dev, the system automatically creates pricing information for those models on this page
-- Manual creation of models that exist in models.dev is also supported for custom pricing
-
-**Price Priority:**
-
-| Priority | Source | Description |
-|:--------:|--------|-------------|
-| 🥇 High | This Page | Prices set by user in price management page |
-| 🥈 Low | models.dev | Auto-synced default prices |
-
-> 💡 **Tip**: To override a model's default price, simply set a custom price for it in the price management page.
+- **Automated Backups:** SQLite database auto-backed up to `data/backups/backup-<timestamp>.db`. Configurable retention count, old backups auto-deleted.
+- **Data Export:** Statistics CSV export by channel/model/APIKey dimension with time range filtering (`GET /api/v1/stats/export`).
+- **Batch Operations:** Bulk enable/disable/delete for channels, groups, and API keys (max 100 per batch, each action audit-logged).
+- **Request Replay:** `POST /api/v1/log/replay/:id` re-runs a logged request through the relay pipeline for debugging (marked `X-Octopus-Replay: true`, excluded from stats).
+- **Cost Alert Webhooks:** Per-API-key cost thresholds (50%/80%/100%) with deduplication. Supports Slack, Feishu, and DingTalk message formats.
+- **Version Endpoint:** `GET /version` returns version/commit/buildTime/goVersion (no auth required).
 
 ---
 
-### ⚙️ Settings
-
-Global system configuration.
-
-**Statistics Save Interval (minutes):**
-
-Since the program handles numerous statistics, writing to the database on every request would impact read/write performance. The program uses this strategy:
-
-- Statistics are first stored in **memory**
-- Periodically **batch-written** to the database at the configured interval
-
-> ⚠️ **Important**: When exiting the program, use proper shutdown methods (like `Ctrl+C` or sending `SIGTERM` signal) to ensure in-memory statistics are correctly written to the database. **Do NOT use `kill -9` or other forced termination methods**, as this may result in statistics data loss.
-
----
-
-## 🔌 Client Integration
+## Client Integration
 
 ### OpenAI SDK
 
 ```python
 from openai import OpenAI
-import os
 
-client = OpenAI(   
-base_url="http://127.0.0.1:1088/v1",
-    api_key="sk-octopus-P48ROljwJmWBYVARjwQM8Nkiezlg7WOrXXOWDYY8TI5p9Mzg", 
+client = OpenAI(
+    base_url="http://127.0.0.1:1088/v1",
+    api_key="sk-octopus-xxxxxxxxxxxx",
 )
 completion = client.chat.completions.create(
-    model="octopus-openai",  # Use the correct group name
-    messages = [
-        {"role": "user", "content": "Hello"},
-    ],
+    model="gpt-4o",  # group name
+    messages=[{"role": "user", "content": "Hello"}],
 )
-print(completion.choices[0].message.content)
 ```
 
 ### Claude Code
 
-Edit `~/.claude/settings.json`
-
 ```json
+// ~/.claude/settings.json
 {
   "env": {
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:1088",
-    "ANTHROPIC_AUTH_TOKEN": "sk-octopus-P48ROljwJmWBYVARjwQM8Nkiezlg7WOrXXOWDYY8TI5p9Mzg",
-    "API_TIMEOUT_MS": "3000000",
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-    "ANTHROPIC_MODEL": "octopus-sonnet-4-5",
-    "ANTHROPIC_SMALL_FAST_MODEL": "octopus-haiku-4-5",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "octopus-sonnet-4-5",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "octopus-sonnet-4-5",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "octopus-haiku-4-5"
+    "ANTHROPIC_AUTH_TOKEN": "sk-octopus-xxxxxxxxxxxx",
+    "ANTHROPIC_MODEL": "claude-sonnet-4-5"
   }
 }
 ```
 
-### Codex
-
-Edit `~/.codex/config.toml`
+### Codex CLI
 
 ```toml
-model = "octopus-codex" # Use the correct group name
-
-model_provider = "octopus"
-
+# ~/.codex/config.toml
+model = "gpt-4o"
 [model_providers.octopus]
-name = "octopus"
 base_url = "http://127.0.0.1:1088/v1"
 ```
 
-Edit `~/.codex/auth.json`
+### CC Switch (One-Click Import)
 
-```json
-{
-  "OPENAI_API_KEY": "sk-octopus-P48ROljwJmWBYVARjwQM8Nkiezlg7WOrXXOWDYY8TI5p9Mzg"
-}
-```
-
-### CC Switch (One-click CLI Import)
-
-In the web UI, click the **API Docs** button → **CC Switch** tab to generate a deep link that imports your Octopus provider config directly into CLI tools.
-
-Supported tools: **Claude Code**, **Codex**, **Gemini CLI**
-
-For Claude Code, you can also configure separate model mappings for Haiku / Sonnet / Opus roles.
+The web UI's **API Docs** → **CC Switch** tab generates deep links that import your Octopus provider config directly into Claude Code, Codex, or Gemini CLI.
 
 ---
 
-## 🤝 Acknowledgments
+## Load Balancing Modes
 
-- 🙏 [looplj/axonhub](https://github.com/looplj/axonhub) - The LLM API adaptation module in this project is directly derived from this repository
-- 📊 [sst/models.dev](https://github.com/sst/models.dev) - AI model database providing model pricing data
+| Mode | Description | Use Case |
+|---|---|---|
+| **Round Robin** | Cycles through channels sequentially | Equal-cost providers |
+| **Random** | Random selection | Simple distribution |
+| **Failover** | Priority-ordered, falls back on failure | Primary + backup setup |
+| **Weighted** | Distribution based on configured weights | Mixed-capacity providers |
+| **Least Latency** | Selects lowest-latency channel | Performance-critical workloads |
+| **Health Aware** | Aggregates success rate + latency + circuit state | Maximum reliability |
+
+---
+
+## Upgrade Guide
+
+### Upgrading to v1.25
+
+1. **Backup:** Use Settings → Backup or `GET /api/v1/setting/export` to take a full snapshot.
+2. **Docker:** `docker compose pull && docker compose up -d`
+3. **Database Migrations:** Run automatically on startup. New migrations: audit log table, API key permissions, backup metadata.
+4. **API Key Permissions:** Existing keys have no restrictions by default (backward compatible). Configure per-key permissions in Settings → API Key.
+5. **Health Check Task:** Enabled by default (5-min interval). Configure in Settings → System.
+6. **Metrics Auth:** If `metrics_auth_token` is not set, `/metrics` remains open (backward compatible).
+
+### Version Compatibility
+
+- v1.25 is backward compatible with v1.24 data.
+- Rust FFI core is bundled in release binaries. Source builds require Rust toolchain.
+- Go 1.24.4+ required for source builds.
+
+---
+
+## Monitoring & Alerting
+
+### Prometheus Metrics
+
+```
+relay_requests_total{channel,group,model,status}
+relay_duration_seconds_bucket{channel,group,model}
+channel_health{channel}
+circuit_breaker_state{channel}
+token_throughput_total{type,prompt,completion}
+http_client_pool_idle
+```
+
+### Grafana Dashboard
+
+Import the Prometheus datasource and create panels for:
+- Request rate and error rate by channel
+- P50/P95/P99 latency distribution
+- Circuit breaker state heatmap
+- Token throughput trends
+- Cache hit rate
+
+### Alerting Rules
+
+```yaml
+# Prometheus Alertmanager
+- alert: ChannelCircuitOpen
+  expr: circuit_breaker_state == 1
+  for: 5m
+  labels: { severity: critical }
+
+- alert: HighErrorRate
+  expr: rate(relay_requests_total{status="error"}[5m]) > 0.1
+  for: 10m
+  labels: { severity: warning }
+```
+
+---
+
+## Project Structure
+
+```
+octopus-xiaoli-repo/
+├── cmd/                    # CLI entrypoints (start, healthcheck, version)
+├── internal/
+│   ├── conf/               # Configuration
+│   ├── db/migrate/         # Database migrations (001-020)
+│   ├── model/              # Data models
+│   ├── op/                 # Operations layer (channels, groups, APIKeys, stats, backup, alerts)
+│   ├── relay/              # Relay engine, balancer, error classifier
+│   ├── rustbridge/         # Rust FFI bindings
+│   ├── server/             # HTTP server, handlers, middleware
+│   ├── observability/      # Metrics, tracing, audit
+│   ├── task/               # Background tasks
+│   ├── transformer/        # Protocol conversion adapters
+│   └── utils/              # Shared utilities
+├── rust/core/              # Rust FFI core library
+├── web/                    # Next.js admin UI
+├── deploy/k8s/             # Kubernetes deployment templates
+├── scripts/                # Build, deploy, smoke test scripts
+└── docker-compose.yml      # Docker Compose configuration
+```
+
+---
+
+## Development
+
+```bash
+# Frontend dev server (port 3000)
+cd web && pnpm install && pnpm run dev
+
+# Backend dev server (port 1088)
+go run main.go start
+
+# Run tests
+go test ./internal/op ./internal/server/handlers ./internal/relay/... -count=1
+cd web && pnpm run test
+
+# Windows build
+powershell -ExecutionPolicy Bypass -File .\scripts\build-win.ps1
+
+# Linux binary
+./scripts/build.sh linux-binary
+```
+
+---
+
+## Acknowledgments
+
+- [looplj/axonhub](https://github.com/looplj/axonhub) — LLM API adaptation module
+- [sst/models.dev](https://github.com/sst/models.dev) — AI model pricing database
+- [bestruirui/octopus](https://github.com/bestruirui/octopus) — Original project
+
+---
+
+## License
+
+[MIT](LICENSE)

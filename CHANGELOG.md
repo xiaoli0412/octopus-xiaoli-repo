@@ -4,6 +4,18 @@
 
 ---
 
+## 1.25.2 - 2026-07-13
+
+### 📦 发布修复与企业级 README
+
+- 修复 go.mod Go 版本要求（1.25.0 → 1.24.4）与 Dockerfile/CI 不匹配导致构建失败
+- 排除 e2e 测试目录从主 tsconfig 类型检查（修复 CI `tsc --noEmit` 失败）
+- 修复 SettingState 缺少 hotkeyEnabled 字段的 TypeScript 编译错误
+- 重写 README 为企业级落地交付文档（架构图、安全特性、可观测性、运维指南、监控告警）
+- .gitignore 增加 .trae-cn/ 排除
+
+---
+
 ## 1.25.0 - 2026-07-13
 
 ### 🛡️ 深度稳定性与功能扩展
