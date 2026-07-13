@@ -23,7 +23,7 @@ typedef struct {
     long long latency;
     long long priority;
     int healthy;
-    int circuit_open;
+    int circuit_state;
 } OctopusBalanceCandidate;
 extern int octopus_balance_select_v2(const OctopusBalanceCandidate* candidates, int candidates_len, const char* strategy, int current_idx, long long* out_id, int* out_next_index);
 extern void* octopus_stream_buffer_create(void);

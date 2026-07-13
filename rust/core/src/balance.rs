@@ -24,7 +24,7 @@ pub struct BalanceCandidateFFI {
     pub latency: i64,
     pub priority: i64,
     pub healthy: i32,
-    pub circuit_open: i32,
+    pub circuit_state: i32,
 }
 
 fn default_true() -> bool {
@@ -39,7 +39,7 @@ impl Candidate {
 
 impl BalanceCandidateFFI {
     fn is_available(&self) -> bool {
-        self.healthy != 0 && self.circuit_open == 0
+        self.healthy != 0 && self.circuit_state != 2
     }
 }
 
@@ -62,10 +62,41 @@ pub fn balance_select(candidates_json: &str, strategy: &str, current_idx: c_int)
         "round_robin" => select_round_robin(&available, current_idx),
         "random" => select_random(&available),
         "failover" => select_failover(&available),
+        "least_latency" => select_least_latency(&available),
+        "health_aware" => select_health_aware(&available),
         _ => return Err(-8),
     };
 
     Ok(json!({"id": selected_id, "next_index": next_index}).to_string())
+}
+
+fn circuit_severity_rank(state: &str) -> i32 {
+    match state {
+        "open" => 2,
+        "half-open" => 1,
+        _ => 0,
+    }
+}
+
+fn select_least_latency(candidates: &[&Candidate]) -> (i64, c_int) {
+    let mut sorted: Vec<&Candidate> = candidates.to_vec();
+    sorted.sort_by(|a, b| {
+        a.latency
+            .cmp(&b.latency)
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    (sorted[0].id, 0)
+}
+
+fn select_health_aware(candidates: &[&Candidate]) -> (i64, c_int) {
+    let mut sorted: Vec<&Candidate> = candidates.to_vec();
+    sorted.sort_by(|a, b| {
+        circuit_severity_rank(&a.circuit_state)
+            .cmp(&circuit_severity_rank(&b.circuit_state))
+            .then_with(|| a.latency.cmp(&b.latency))
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    (sorted[0].id, 0)
 }
 
 fn select_weighted(candidates: &[&Candidate], current_idx: c_int) -> (i64, c_int) {
@@ -145,6 +176,8 @@ pub fn balance_select_v2(
         "round_robin" => select_round_robin_ffi(&available, current_idx),
         "random" => select_random_ffi(&available),
         "failover" => select_failover_ffi(&available),
+        "least_latency" => select_least_latency_ffi(&available),
+        "health_aware" => select_health_aware_ffi(&available),
         _ => return Err(-8),
     };
     Ok((selected_id, next_index))
@@ -203,9 +236,31 @@ fn select_failover_ffi(candidates: &[&BalanceCandidateFFI]) -> (i64, c_int) {
     (sorted[0].id, 0)
 }
 
+fn select_least_latency_ffi(candidates: &[&BalanceCandidateFFI]) -> (i64, c_int) {
+    let mut sorted: Vec<&BalanceCandidateFFI> = candidates.to_vec();
+    sorted.sort_by(|a, b| {
+        a.latency
+            .cmp(&b.latency)
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    (sorted[0].id, 0)
+}
+
+fn select_health_aware_ffi(candidates: &[&BalanceCandidateFFI]) -> (i64, c_int) {
+    let mut sorted: Vec<&BalanceCandidateFFI> = candidates.to_vec();
+    sorted.sort_by(|a, b| {
+        a.circuit_state
+            .cmp(&b.circuit_state)
+            .then_with(|| a.latency.cmp(&b.latency))
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    (sorted[0].id, 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Value;
 
     fn make_candidates() -> Vec<Candidate> {
         vec![

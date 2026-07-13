@@ -70,6 +70,7 @@ pub fn stats_quantile(values_json: &str, quantile: f64) -> Result<String, c_int>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Value;
 
     #[test]
     fn merge_adds_fields() {

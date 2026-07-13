@@ -698,7 +698,8 @@ pub extern "C" fn octopus_transform_embedding_request(
 
 /// Select a candidate according to the given strategy.
 /// `candidates_json` is an array of objects with id, weight, latency, priority,
-/// healthy and circuit_state fields. `strategy` is weighted/round_robin/random/failover.
+/// healthy and circuit_state fields. `strategy` is weighted/round_robin/random/failover/
+/// least_latency/health_aware.
 /// `current_idx` is the current round-robin/weighted cursor.
 /// On success returns 0 and writes `{"id":..., "next_index":...}` through `out`.
 #[no_mangle]

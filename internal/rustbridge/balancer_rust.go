@@ -14,7 +14,7 @@ typedef struct {
     long long latency;
     long long priority;
     int healthy;
-    int circuit_open;
+    int circuit_state;
 } OctopusBalanceCandidate;
 extern int octopus_balance_select(const char* candidates_json, const char* strategy, int current_idx, char** out);
 extern int octopus_balance_select_v2(const OctopusBalanceCandidate* candidates, int candidates_len, const char* strategy, int current_idx, long long* out_id, int* out_next_index);
@@ -41,12 +41,12 @@ func balanceSelectRust(candidates []BalanceCandidate, strategy string, currentId
 	ccands := make([]C.OctopusBalanceCandidate, len(candidates))
 	for i, c := range candidates {
 		ccands[i] = C.OctopusBalanceCandidate{
-			id:           C.longlong(c.ID),
-			weight:       C.longlong(c.Weight),
-			latency:      C.longlong(c.Latency),
-			priority:     C.longlong(c.Priority),
-			healthy:      cbool(c.Healthy),
-			circuit_open: cbool(c.CircuitState == "open"),
+			id:            C.longlong(c.ID),
+			weight:        C.longlong(c.Weight),
+			latency:       C.longlong(c.Latency),
+			priority:      C.longlong(c.Priority),
+			healthy:       cbool(c.Healthy),
+			circuit_state: circuitStateToInt(c.CircuitState),
 		}
 	}
 	cstrategy := C.CString(strategy)
@@ -71,6 +71,17 @@ func cbool(v bool) C.int {
 		return 1
 	}
 	return 0
+}
+
+func circuitStateToInt(state string) C.int {
+	switch state {
+	case "open":
+		return 2
+	case "half-open":
+		return 1
+	default:
+		return 0
+	}
 }
 
 // balanceSelectGo is the pure-Go implementation kept in the Rust build for

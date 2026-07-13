@@ -39,7 +39,8 @@ int octopus_transform_embedding_request(const char *json, const char *target, ch
 
 /* Select a candidate according to the given strategy.
  * `candidates_json` is an array of objects with id, weight, latency, priority,
- * healthy and circuit_state fields. `strategy` is weighted/round_robin/random/failover.
+ * healthy and circuit_state fields. `strategy` is weighted/round_robin/random/failover/
+ * least_latency/health_aware.
  * `current_idx` is the current round-robin/weighted cursor.
  * On success returns 0 and writes `{"id":..., "next_index":...}` through *out. */
 int octopus_balance_select(const char *candidates_json, const char *strategy, int current_idx, char **out);
@@ -51,7 +52,7 @@ typedef struct {
     long long latency;
     long long priority;
     int healthy;
-    int circuit_open;
+    int circuit_state;
 } OctopusBalanceCandidate;
 
 /* High-performance binary variant of octopus_balance_select.
