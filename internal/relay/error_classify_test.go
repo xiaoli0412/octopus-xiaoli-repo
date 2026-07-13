@@ -129,7 +129,7 @@ func TestComputeBackoffRange(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		attempt    int
+		attempt     int
 		baseDelayMs int
 	}{
 		{attempt: 0, baseDelayMs: 1000},
@@ -147,9 +147,13 @@ func TestComputeBackoffRange(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 			t.Parallel()
 
-			expectedBase := float64(tc.baseDelayMs) * math.Pow(1.5, float64(tc.attempt))
-			minExpected := time.Duration(expectedBase) * time.Millisecond
-			maxExpected := minExpected + maxJitter
+			// Compute expected range in nanoseconds using the same float-to-int
+			// truncation as ComputeBackoff to avoid sub-millisecond drift (e.g.
+			// 200 * 1.5^5 = 1518.75ms — truncating to 1518ms before multiplying
+			// loses 0.75ms and makes the upper bound too tight).
+			expectedBaseNs := float64(tc.baseDelayMs) * math.Pow(1.5, float64(tc.attempt)) * float64(time.Millisecond)
+			minExpected := time.Duration(expectedBaseNs)
+			maxExpected := time.Duration(expectedBaseNs + float64(maxJitter))
 
 			// Run multiple times to check range due to random jitter
 			for i := 0; i < 100; i++ {
