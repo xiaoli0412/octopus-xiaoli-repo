@@ -54,7 +54,7 @@ assert.match(channelIndexSource, /data-density=\{channelDensity\}/);
 assert.match(channelIndexSource, /columns=\{\{ default: 1, md: 2, lg: 3, xl: 3, '2xl': 3 \}\}/);
 assert.match(channelIndexSource, /estimateItemHeight=\{channelDensity === 'compact' \? 214 : 248\}/);
 assert.match(channelIndexSource, /gap=\{channelDensity === 'compact' \? 10 : 12\}/);
-assert.match(channelIndexSource, /renderItem=\{\(item\) => <Card channel=\{item\.raw\} stats=\{item\.formatted\} density=\{channelDensity\} \/>\}/);
+assert.match(channelIndexSource, /renderItem=\{\(item\) =>[\s\S]*?<Card[\s\S]*?channel=\{item\.raw\}[\s\S]*?stats=\{item\.formatted\}[\s\S]*?density=\{channelDensity\}/);
 assert.match(cardSource, /data-testid=\{`channel-card-trigger-\$\{channel\.id\}`\}/);
 assert.match(cardSource, /data-testid=\{`channel-card-\$\{channel\.id\}`\}/);
 assert.match(cardSource, /data-channel-name=\{channel\.name\}/);
