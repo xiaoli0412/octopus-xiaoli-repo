@@ -4,6 +4,18 @@
 
 ---
 
+## 1.25.3 - 2026-07-14
+
+### 🔧 前端 SPA 路由修复与自检增强
+
+- 修复静态中间件缺少 SPA 回退逻辑：直接访问 `/settings`、`/console` 等前端路由时返回 404 → 现在返回 `index.html` 让 React Router 接管
+- 移除 `static.go` 中误报的 Error 日志（文件不存在是 SPA 路由的正常行为）
+- 增强 `/healthz` 端点：新增 `frontend` 字段（`ok` / `degraded`），验证嵌入 FS 是否包含 `index.html` 和 JS chunk
+- 修复 audit handler 空指针 panic（`auditRecorderInstance` 未初始化导致访问审计日志页面崩溃）
+- 新增 `static.HasFrontend()` 函数用于嵌入资源完整性检查
+
+---
+
 ## 1.25.2 - 2026-07-13
 
 ### 📦 发布修复与企业级 README
