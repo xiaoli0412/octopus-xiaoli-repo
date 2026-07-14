@@ -100,10 +100,19 @@ export const useToolbarViewOptionsStore = create<ToolbarViewOptionsState>()(
         {
             name: 'octopus-toolbar-view-options',
             storage: createJSONStorage(() => localStorage),
+            version: 1,
             partialize: (state) => ({
                 channelDensity: state.channelDensity,
                 modelDensity: state.modelDensity,
             }),
+            migrate: (persistedState: unknown) => {
+                const s = persistedState as Record<string, unknown>;
+                const validDensities = ['normal', 'compact'];
+                return {
+                    channelDensity: validDensities.includes(s?.channelDensity as string) ? s.channelDensity : 'normal',
+                    modelDensity: validDensities.includes(s?.modelDensity as string) ? s.modelDensity : 'compact',
+                };
+            },
         }
     )
 );

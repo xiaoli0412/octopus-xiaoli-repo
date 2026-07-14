@@ -161,6 +161,7 @@ export const useAuthStore = create<AuthState>()(
         }),
         {
             name: 'auth-storage',
+            version: 1,
             partialize: (state) => ({
                 token: state.token,
                 expireAt: state.expireAt,
@@ -168,6 +169,16 @@ export const useAuthStore = create<AuthState>()(
                 mustChangePassword: state.mustChangePassword,
                 apiKeyStatus: state.apiKeyStatus,
             }),
+            migrate: (persistedState: unknown) => {
+                const s = persistedState as Record<string, unknown>;
+                return {
+                    token: typeof s?.token === 'string' ? s.token : null,
+                    expireAt: typeof s?.expireAt === 'string' ? s.expireAt : null,
+                    isAPIKeyAuth: typeof s?.isAPIKeyAuth === 'boolean' ? s.isAPIKeyAuth : false,
+                    mustChangePassword: typeof s?.mustChangePassword === 'boolean' ? s.mustChangePassword : false,
+                    apiKeyStatus: s?.apiKeyStatus && typeof s.apiKeyStatus === 'object' ? s.apiKeyStatus : null,
+                };
+            },
         },
     ),
 );

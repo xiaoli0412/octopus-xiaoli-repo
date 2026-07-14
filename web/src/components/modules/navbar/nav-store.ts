@@ -33,6 +33,16 @@ export const useNavStore = create<NavState>()(
         }),
         {
             name: 'nav-storage',
+            version: 2,
+            migrate: (persistedState: unknown) => {
+                const s = persistedState as Record<string, unknown>
+                const validItems: string[] = ['home', 'channel', 'upstream', 'group', 'model', 'ops', 'ai', 'log', 'audit', 'setting']
+                return {
+                    activeItem: validItems.includes(s?.activeItem as string) ? s.activeItem : 'home',
+                    prevItem: null,
+                    direction: 0,
+                }
+            },
         }
     )
 )

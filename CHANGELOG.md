@@ -4,6 +4,21 @@
 
 ---
 
+## 1.25.4 - 2026-07-14
+
+### 🐛 客户端异常修复
+
+- 修复用户浏览器缓存旧版本 localStorage 数据导致页面加载时抛出 "Application error: a client-side exception has occurred" 的 hydration 崩溃
+- 为所有 4 个 Zustand persist store 添加 `version` 字段和 `migrate` 函数，启动时自动校验并清理过期/非法的持久化状态：
+  - `octopus-settings`（locale、hotkeyEnabled）— 校验 locale 是否在合法值列表内
+  - `auth-storage`（token、expireAt 等）— 校验各字段类型，非法值回退为默认
+  - `nav-storage`（activeItem）— 校验 activeItem 是否在合法路由列表内
+  - `octopus-toolbar-view-options`（channelDensity、modelDensity）— 校验密度值是否合法
+- 新增 Next.js App Router `global-error.tsx` 全局错误边界：捕获未恢复的客户端异常，提供"清除缓存并重新加载"按钮，避免用户陷入白屏死循环
+- 修复 `global-error.tsx` 中 `style` 对象的 CSS 语法错误（`fontSize` 引号位置错误）
+
+---
+
 ## 1.25.3 - 2026-07-14
 
 ### 🔧 前端 SPA 路由修复与自检增强
